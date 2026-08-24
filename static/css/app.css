@@ -1,0 +1,12 @@
+:root { color-scheme: light; font-family: system-ui, sans-serif; color: #20251f; background: #f5f2e9; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; color: white; background: #285943; }
+.container { width: min(1100px, calc(100% - 2rem)); margin: 2rem auto; }
+.card { padding: 1.25rem; border: 1px solid #d9d4c7; border-radius: .75rem; background: white; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+.auth-card { max-width: 420px; margin: 4rem auto; }
+button { padding: .65rem 1rem; border: 0; border-radius: .4rem; color: white; background: #285943; cursor: pointer; }
+input { width: 100%; padding: .65rem; }
+.error { color: #a12622; }
+.public-home { text-align: center; padding-top: 15vh; }

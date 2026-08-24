@@ -1,0 +1,12 @@
+{% extends "base_internal.html" %}
+{% block title %}Panel interno{% endblock %}
+{% block content %}
+  <h1>Panel interno</h1>
+  <p>Sesión iniciada como {{ user.get_full_name|default:user.username }}.</p>
+  <p>Roles: {% for role in role_names %}{{ role }}{% if not forloop.last %}, {% endif %}{% empty %}Sin rol operativo asignado{% endfor %}</p>
+  <section class="grid">
+    <article class="card"><h2>Mesas</h2><p>Módulo pendiente.</p></article>
+    <article class="card"><h2>Pedidos</h2><p>Módulo pendiente.</p></article>
+    <article class="card"><h2>Repartos</h2><p>Módulo pendiente.</p></article>
+  </section>
+{% endblock %}
