@@ -1,0 +1,10 @@
+{% extends "base_internal.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <p><a href="{% url 'internal_portal:dashboard' %}">← Volver al panel</a></p>
+  <section class="card">
+    <h1>{{ title }}</h1>
+    <p>{{ description }}</p>
+    <p><em>Pantalla provisional para validar roles y navegación.</em></p>
+  </section>
+{% endblock %}

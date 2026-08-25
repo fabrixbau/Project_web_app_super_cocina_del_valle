@@ -1,0 +1,15 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Catálogo sin login ni controles internos. La vista entrega solo productos disponibles;
+el template se limita a presentarlos por categoría. Borra esta nota al terminar. -->
+<!doctype html>
+<html lang="es-MX">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Menú | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css"></head>
+<body><main class="container">
+  <p><a href="{% url 'public_portal:home' %}">← Inicio</a></p><h1>Nuestro menú</h1>
+  {% for category in categories %}
+    <section class="spaced-card"><h2>{{ category.name }}</h2><div class="product-grid">
+      {% for product in category.available_products %}<article class="product-card">{% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% endif %}<h3>{{ product.name }}</h3><p>{{ product.description }}</p><strong>${{ product.price }}</strong></article>{% endfor %}
+    </div></section>
+  {% empty %}<section class="card"><p>El menú todavía no tiene productos disponibles.</p></section>{% endfor %}
+</main></body>
+</html>

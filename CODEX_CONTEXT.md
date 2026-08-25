@@ -1,3 +1,10 @@
+<!--
+NOTA TEMPORAL PARA APRENDIZAJE:
+Este documento conserva el estado entre sesiones. Registramos el módulo inicial de menú
+como implementado y pendiente de migración/revisión manual por el desarrollador.
+Puedes borrar esta nota después de leerla.
+-->
+
 # CODEX_CONTEXT — Super Cocina del Valle
 
 > Archivo de contexto operativo para agentes de desarrollo.
@@ -66,6 +73,19 @@ Antes de implementar una funcionalidad importante:
 5. implementar;
 6. ejecutar pruebas;
 7. actualizar este archivo.
+
+### Flujo didáctico acordado con el desarrollador
+
+Para cada bloque de implementación:
+
+1. Codex escribe el código y agrega al inicio de cada archivo nuevo o editado una nota temporal, con la sintaxis de comentario apropiada para ese tipo de archivo.
+2. La nota explica en lenguaje de nivel junior qué se está modificando, para qué sirve el archivo y cómo participa en el bloque actual.
+3. La nota debe identificarse claramente como temporal para que el desarrollador pueda borrarla después de leerla.
+4. Codex ejecuta las verificaciones automatizadas pertinentes.
+5. Al entregar el bloque, Codex indica rutas y pasos concretos para probarlo manualmente en el entorno local.
+6. Se avanza al siguiente bloque después de que el desarrollador revise el comportamiento.
+
+Las notas temporales no deben incluir secretos ni alterar el comportamiento de la aplicación.
 
 ---
 
@@ -147,13 +167,13 @@ authenticated internal portal, isolated public portal, base templates and tests.
 ```text
 [x] Estructura base del proyecto
 [x] Autenticación interna (base)
-[x] Roles (grupos iniciales)
+[x] Roles y matriz inicial de acceso
 [x] Portal interno (base protegida)
 [x] Portal público (base anónima)
 [ ] Mesas
 [ ] Pedidos
 [ ] Estados extendidos
-[ ] Menú fijo
+[~] Menú fijo (categorías y productos pendientes de validación manual)
 [ ] Menú diario
 [ ] Paquetes
 [ ] Productos configurables
@@ -239,6 +259,14 @@ no existe.
 
 ### Foundation
 
+- Se implementó el primer bloque de menú: categorías, productos, imágenes, disponibilidad, filtros y CRUD administrativo.
+- Se añadió catálogo público en `/pedir/menu/` que solo muestra productos disponibles.
+- La administración `/app/menu/` quedó restringida a Administrador/superusuario.
+- Por indicación del desarrollador no se crearon ni ejecutaron pruebas automáticas; el bloque espera validación manual.
+- Se centralizaron roles y protección backend en `accounts/roles.py`.
+- Se añadieron áreas provisionales protegidas para mesas, pedidos, repartos y reportes.
+- El dashboard ahora muestra únicamente las secciones permitidas para cada rol.
+- La suite aumentó a 10 pruebas, incluyendo accesos 403 por rol y superusuario.
 - Se creó el proyecto Django desde cero con configuración PostgreSQL por entorno.
 - Se crearon `accounts`, `internal_portal` y `public_portal`.
 - Se añadieron perfil automático y grupos `Administrador`, `Mesero`, `Telefonista` y `Repartidor` mediante migraciones.
@@ -336,7 +364,6 @@ Cuando cambien, actualizar aquí.
 - estados inválidos;
 - cálculos históricos;
 - asignación correcta de propinas.
-- el destino aún no es un proyecto Django ni un repositorio Git;
 - Suerte Café incluye un `db.sqlite3` local aunque settings apunta a PostgreSQL: no reutilizar esa base como fuente de arquitectura;
 - los grupos actuales de Suerte Café (`Administrador`, `Usuario regular`) son insuficientes para los roles del Blueprint;
 - las transiciones actuales de estado requieren endurecer reglas y permisos por rol.
@@ -347,7 +374,6 @@ Cuando cambien, actualizar aquí.
 ## 15. Reglas de actualización de este archivo
 
 Actualizar este documento después de:
-
 - implementar un módulo importante;
 - cambiar arquitectura;
 - crear/migrar modelos;
@@ -398,10 +424,14 @@ Usar este patrón:
 
 ## Current status
 
-Base Django funcional creada. La configuración normal requiere PostgreSQL; `settings_test.py` usa SQLite en memoria únicamente para pruebas rápidas.
+Módulo inicial de menú implementado en código; migración `menu.0001_initial` y revisión manual pendientes.
 
 ## Last completed
 
+- Entorno `.venv` reconstruido correctamente con Python 3.12 y dependencias instaladas.
+- Base `super_cocina_del_valle` conectada y migraciones iniciales aplicadas en PostgreSQL 18.
+- Matriz inicial de acceso implementada para Administrador, Mesero, Telefonista y Repartidor.
+- 10 pruebas ejecutadas correctamente; no hay migraciones nuevas pendientes.
 - Esqueleto Django y configuración segura por variables de entorno.
 - Migraciones iniciales de perfil y roles operativos.
 - Login y portal interno protegido bajo `/app/`.
@@ -410,24 +440,25 @@ Base Django funcional creada. La configuración normal requiere PostgreSQL; `set
 
 ## In progress
 
-- Ninguno; el bloque de fundación quedó verificado.
+- Validación manual de categorías, productos, disponibilidad, permisos y catálogo público.
 
 ## Next
 
-- Definir y probar la matriz detallada de permisos por rol.
-- Adaptar el módulo de menú: categorías, productos, opciones y envases.
-- Conectar una instancia PostgreSQL local, ejecutar migraciones reales y crear el primer administrador.
+- Aplicar `menu.0001_initial` y validar manualmente categorías/productos.
+- Después de aprobación, agregar opciones configurables y envases.
+- Crear el primer superusuario administrador.
 
 ## Important decisions
 
-Ver sección 10.
+- Ver sección 10.
+- El desarrollo se realizará por bloques pequeños con notas didácticas temporales al inicio de cada archivo tocado, pruebas automatizadas y una guía de verificación manual al finalizar.
 
 ## Known issues
 
 - Integración WhatsApp pendiente.
 - Impresión POS-8360 pendiente de validar técnicamente.
-- PostgreSQL real todavía no fue conectado ni migrado; las pruebas se validaron con SQLite en memoria.
-- Los grupos existen, pero sus permisos funcionales se asignarán al incorporar cada módulo.
+- La matriz actual protege áreas generales; los permisos CRUD detallados se agregarán junto con cada módulo real.
+- El módulo menú no fue validado automáticamente por decisión del desarrollador.
 
 ## Relevant files
 
@@ -439,7 +470,14 @@ config/settings.py
 config/settings_test.py
 config/urls.py
 accounts/models.py
+accounts/roles.py
 accounts/migrations/0002_create_operational_roles.py
+menu/models.py
+menu/forms.py
+menu/views.py
+menu/urls.py
+menu/migrations/0001_initial.py
+menu/templates/menu/
 internal_portal/
 public_portal/
 templates/

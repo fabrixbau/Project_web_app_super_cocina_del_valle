@@ -1,0 +1,16 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Eliminar exige confirmación POST. Una categoría con productos se bloquea para proteger
+sus relaciones. Borra esta nota al terminar. -->
+{% extends "base_internal.html" %}
+{% block title %}Eliminar {{ object_type }}{% endblock %}
+{% block content %}
+  <section class="card form-card"><h1>Eliminar {{ object_type }}</h1>
+    {% if blocked %}
+      <p>No puedes eliminar <strong>{{ object }}</strong> porque contiene productos.</p><a href="{% url 'menu:configuration' %}">Volver</a>
+    {% else %}
+      <p>¿Confirmas que deseas eliminar <strong>{{ object }}</strong>?</p>
+      <form method="post">{% csrf_token %}<button class="danger" type="submit">Sí, eliminar</button></form>
+      <p><a href="{% url 'menu:configuration' %}">Cancelar</a></p>
+    {% endif %}
+  </section>
+{% endblock %}

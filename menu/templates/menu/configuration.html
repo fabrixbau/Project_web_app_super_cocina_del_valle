@@ -1,0 +1,48 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Pantalla administrativa: filtros, categorías y productos. Las acciones sensibles usan
+POST + CSRF y solo Administrador llega aquí. Borra esta nota al terminar. -->
+{% extends "base_internal.html" %}
+{% block title %}Administrar menú{% endblock %}
+{% block content %}
+  <div class="page-heading">
+    <div><a href="{% url 'internal_portal:dashboard' %}">← Panel</a><h1>Administrar menú</h1></div>
+    <div><a class="button-link secondary" href="{% url 'menu:category_create' %}">Nueva categoría</a> <a class="button-link" href="{% url 'menu:product_create' %}">Nuevo producto</a></div>
+  </div>
+  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  <section class="card">
+    <h2>Filtrar productos</h2>
+    <form method="get" class="filters">
+      <label>Buscar <input name="q" value="{{ search }}" placeholder="Nombre o descripción"></label>
+      <label>Categoría
+        <select name="category"><option value="">Todas</option>{% for category in categories %}<option value="{{ category.id }}" {% if selected_category == category.id|stringformat:'s' %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select>
+      </label>
+      <label>Disponibilidad
+        <select name="availability"><option value="">Todas</option><option value="available" {% if availability == 'available' %}selected{% endif %}>Disponible</option><option value="unavailable" {% if availability == 'unavailable' %}selected{% endif %}>No disponible</option></select>
+      </label>
+      <button type="submit">Aplicar</button>
+    </form>
+  </section>
+  <section class="card spaced-card">
+    <h2>Categorías</h2>
+    <div class="item-list">
+      {% for category in categories %}
+        <div><strong>{{ category.name }}</strong> ({{ category.product_count }} productos) — <a href="{% url 'menu:category_edit' category.id %}">Editar</a> · <a href="{% url 'menu:category_delete' category.id %}">Eliminar</a></div>
+      {% empty %}<p>Aún no hay categorías.</p>{% endfor %}
+    </div>
+  </section>
+  <section class="card spaced-card">
+    <h2>Productos</h2>
+    <div class="product-grid">
+      {% for product in products %}
+        <article class="product-card">
+          {% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% endif %}
+          <small>{{ product.category.name }}</small><h3>{{ product.name }}</h3>
+          <p><strong>${{ product.price }}</strong></p><p>{{ product.description|default:"Sin descripción" }}</p>
+          <p>{% if product.is_available %}Disponible{% else %}No disponible{% endif %}</p>
+          <div><a href="{% url 'menu:product_edit' product.id %}">Editar</a> · <a href="{% url 'menu:product_delete' product.id %}">Eliminar</a></div>
+          <form method="post" action="{% url 'menu:product_toggle_availability' product.id %}">{% csrf_token %}<button type="submit">Cambiar disponibilidad</button></form>
+        </article>
+      {% empty %}<p>No se encontraron productos.</p>{% endfor %}
+    </div>
+  </section>
+{% endblock %}

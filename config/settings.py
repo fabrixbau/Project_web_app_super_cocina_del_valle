@@ -1,3 +1,7 @@
+# NOTA TEMPORAL PARA APRENDIZAJE:
+# `settings.py` registra las piezas del proyecto. Agregamos la app `menu` para que
+# Django descubra sus modelos, migraciones y templates. Borra esta nota al terminar.
+
 from pathlib import Path
 
 import environ
@@ -28,6 +32,7 @@ INSTALLED_APPS = [
     "accounts.apps.AccountsConfig",
     "internal_portal",
     "public_portal",
+    "menu",
 ]
 
 MIDDLEWARE = [

@@ -1,3 +1,9 @@
+# NOTA TEMPORAL PARA APRENDIZAJE:
+# Conectamos `/app/menu/` con el módulo de menú y servimos imágenes en desarrollo.
+# En producción las imágenes serán responsabilidad del servidor web. Borra esta nota al terminar.
+
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
@@ -11,6 +17,10 @@ urlpatterns = [
         name="login",
     ),
     path("cuentas/", include("django.contrib.auth.urls")),
+    path("app/menu/", include("menu.urls")),
     path("app/", include("internal_portal.urls")),
     path("pedir/", include("public_portal.urls")),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

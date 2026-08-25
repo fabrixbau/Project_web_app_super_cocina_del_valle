@@ -1,3 +1,6 @@
+/* NOTA TEMPORAL PARA APRENDIZAJE:
+Agregamos presentación para formularios, filtros, mensajes y tarjetas del menú.
+Esto solo cambia apariencia, no reglas de negocio. Borra esta nota al terminar. */
 :root { color-scheme: light; font-family: system-ui, sans-serif; color: #20251f; background: #f5f2e9; }
 * { box-sizing: border-box; }
 body { margin: 0; }
@@ -8,5 +11,22 @@ body { margin: 0; }
 .auth-card { max-width: 420px; margin: 4rem auto; }
 button { padding: .65rem 1rem; border: 0; border-radius: .4rem; color: white; background: #285943; cursor: pointer; }
 input { width: 100%; padding: .65rem; }
+select, textarea { width: 100%; padding: .65rem; }
+a { color: #285943; }
+.button-link { display: inline-block; padding: .65rem 1rem; border-radius: .4rem; color: white; background: #285943; text-decoration: none; }
+.button-link.secondary { background: #52685e; }
+.page-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: end; margin-bottom: 1rem; }
+.filters { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 1rem; align-items: end; }
+.spaced-card { margin-top: 1rem; }
+.item-list { display: grid; gap: .6rem; }
+.product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+.product-card { padding: 1rem; border: 1px solid #d9d4c7; border-radius: .6rem; background: #fff; }
+.product-card img { width: 100%; height: 150px; object-fit: cover; border-radius: .4rem; }
+.product-card form { margin-top: .75rem; }
+.form-card { max-width: 650px; margin-inline: auto; }
+.message { padding: .75rem 1rem; border-radius: .4rem; background: #e0eddf; }
+.message.error { background: #f7d9d7; }
+.danger { background: #a12622; }
 .error { color: #a12622; }
 .public-home { text-align: center; padding-top: 15vh; }
+@media (max-width: 720px) { .filters { grid-template-columns: 1fr; } .page-heading { align-items: start; flex-direction: column; } }
