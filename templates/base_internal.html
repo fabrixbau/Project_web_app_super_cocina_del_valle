@@ -1,3 +1,6 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+La barra interna muestra el acceso y contador de notificaciones solo a roles autorizados.
+Borra esta nota después de comprobarlo. -->
 <!doctype html>
 <html lang="es-MX">
 <head>
@@ -10,6 +13,7 @@
   <header class="topbar">
     <strong>Super Cocina del Valle</strong>
     {% if user.is_authenticated %}
+      {% if can_view_notifications %}<a class="notification-link" href="{% url 'notifications:notification_list' %}">Notificaciones{% if unread_notification_count %}<span>{{ unread_notification_count }}</span>{% endif %}</a>{% endif %}
       <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Cerrar sesión</button></form>
     {% endif %}
   </header>

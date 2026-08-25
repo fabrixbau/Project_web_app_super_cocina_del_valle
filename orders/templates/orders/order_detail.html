@@ -1,0 +1,24 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+El detalle ahora presenta varias partidas y distingue paquetes de productos individuales.
+El detalle muestra todos los snapshots necesarios para atender el pedido. Solo Administrador
+y Telefonista reciben botones para confirmar o cancelar; Mesero entra en modo lectura.
+Borra esta nota después de leerla. -->
+{% extends "base_internal.html" %}
+{% block title %}Pedido {{ order.formatted_number }}{% endblock %}
+{% block content %}
+  <p><a href="{% url 'orders:order_list' %}">← Pedidos</a></p>
+  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  <div class="page-heading"><div><h1>Pedido {{ order.formatted_number }}</h1><p>{{ order.created_at|date:'d/m/Y H:i' }} · {{ order.get_source_display }}</p></div><span class="status-badge">{{ order.get_status_display }}</span></div>
+  <div class="order-detail-grid">
+    <section class="card"><h2>Cliente</h2><p><strong>{{ order.customer_name }}</strong><br>{{ order.phone }}</p><p>{{ order.get_order_type_display }}</p>
+      {% if order.order_type == 'delivery' %}<p>{{ order.street }} {{ order.exterior_number }}{% if order.interior_number %}, interior {{ order.interior_number }}{% endif %}<br>{{ order.neighborhood }}</p><p><strong>Referencias:</strong> {{ order.references }}</p>{% endif %}
+      {% if order.notes %}<p><strong>Notas:</strong> {{ order.notes }}</p>{% endif %}
+    </section>
+    <section class="card"><h2>Pago</h2><p>{{ order.get_payment_method_display }}</p>{% if order.needs_change %}<p>Paga con: ${{ order.cash_tendered }}<br><strong>Cambio: ${{ order.change_required }}</strong></p>{% endif %}<p class="package-total">Total: ${{ order.total }}</p></section>
+  </div>
+  {% for item in order.items.all %}<section class="card spaced-card">{% if item.item_type == 'product' %}<h2>{{ item.quantity }} × {{ item.product_name_snapshot }}</h2><p>${{ item.unit_price }} c/u · <strong>${{ item.subtotal }}</strong></p>{% else %}<h2>{{ item.quantity }} × {{ item.package_name_snapshot }}</h2><ol><li>{{ item.first_course_name_snapshot }}</li><li>{{ item.second_course_name_snapshot }}</li><li>{{ item.main_course_name_snapshot }}{% if item.chicken_piece %} · {{ item.get_chicken_piece_display }}{% endif %}</li></ol><p>Agua: {% if item.with_water %}{{ item.water_name_snapshot }}{% else %}Sin agua{% endif %} · Tortillas: {% if item.tortillas %}Sí{% else %}No{% endif %} · Frijoles: {% if item.beans %}Sí{% else %}No{% endif %}</p><p>${{ item.unit_price }} c/u · <strong>${{ item.subtotal }}</strong></p>{% endif %}</section>{% endfor %}
+  {% if can_resolve and order.status == 'pending_confirmation' %}<section class="card spaced-card"><h2>Resolver pedido</h2><div class="action-group">
+    <form method="post" action="{% url 'orders:order_resolve' order.id %}">{% csrf_token %}<input type="hidden" name="action" value="confirm"><button type="submit">Confirmar pedido</button></form>
+    <form method="post" action="{% url 'orders:order_resolve' order.id %}">{% csrf_token %}<input type="hidden" name="action" value="cancel"><button class="danger" type="submit">Cancelar pedido</button></form>
+  </div></section>{% endif %}
+{% endblock %}

@@ -524,3 +524,51 @@ templates/
 - Este bloque queda pendiente de validación manual. No se agregaron ni ejecutaron pruebas automáticas por decisión del desarrollador.
 - `/pedir/menu/` está destinado al cliente externo y solo ofrece recoger en la fonda o entrega a domicilio.
 - El flujo público no muestra mesa, refill ni explicaciones sobre vasos; esas reglas quedan reservadas para la futura interfaz interna de meseros.
+
+## Actualización: primer bloque de pedidos web
+
+- Se creó la app `orders` con `Order`, `OrderItem` y `DailyOrderCounter`.
+- Un paquete público ahora se guarda con estado `Pendiente de confirmar` y origen `Portal público`.
+- El folio es consecutivo por día y se genera dentro de una transacción.
+- La confirmación pública usa UUID para no exponer pedidos mediante identificadores consecutivos.
+- Recoger exige nombre y teléfono; entrega añade calle, números, colonia y referencias.
+- Se registran efectivo, tarjeta o transferencia; efectivo puede registrar monto y cambio.
+- `OrderItem` conserva snapshots del paquete, tiempos, agua, complementos y precio.
+- Este bloque guarda una sola partida. Carrito, productos individuales, stock, zonas, notificaciones y panel interno siguen pendientes.
+- Migración `orders.0001_initial` pendiente de aplicar y bloque pendiente de validación manual.
+- No se crearon ni ejecutaron pruebas automáticas por decisión del desarrollador.
+
+## Actualización: identificación al recoger y panel interno
+
+- Para recoger, el formulario pide nombre y apellido por separado y ambos son obligatorios.
+- Para entrega, nombre es obligatorio y apellido opcional; el pedido sigue guardando el nombre completo en `customer_name`.
+- La mejora visual dinámica de campos según modalidad y método de pago queda explícitamente pospuesta.
+- `/app/pedidos/` reemplaza el placeholder con listado filtrable y detalle completo.
+- Administrador y Telefonista pueden confirmar o cancelar un pedido pendiente.
+- Mesero puede consultar lista y detalle, pero no recibe acciones de resolución.
+- Resolver un pedido usa transacción y bloqueo; un pedido atendido no puede resolverse nuevamente.
+- Los estados posteriores de preparación, listo, reparto y entrega quedan para bloques operativos posteriores.
+- Este bloque queda pendiente de validación manual y no tuvo pruebas automáticas.
+
+## Actualización: carrito público
+
+- El carrito se guarda en sesión y no crea registros en base hasta completar checkout.
+- Permite múltiples paquetes configurados, cantidades y productos individuales disponibles.
+- Configuraciones idénticas y productos repetidos acumulan cantidad; configuraciones distintas permanecen separadas.
+- El cliente puede actualizar cantidades de 1 a 20 y eliminar partidas.
+- Datos de cliente, modalidad, dirección y pago se capturan una sola vez para todo el carrito.
+- `OrderItem` ahora distingue `package` y `product`, conservando snapshots y subtotales de ambos.
+- La migración `orders.0002_cart_order_items` amplía las partidas existentes de forma compatible y está pendiente de aplicar.
+- Confirmación pública y detalle interno muestran múltiples partidas.
+- Bloque pendiente de validación manual; no se ejecutaron pruebas automáticas.
+
+## Actualización: notificaciones internas
+
+- Se creó la app `notifications` y el modelo `InternalNotification` relacionado con `Order`.
+- Cada checkout público exitoso crea una alerta `NEW_PUBLIC_ORDER` dentro de la misma transacción.
+- Administrador y Telefonista ven un contador pendiente en la barra interna y acceden a `/app/notificaciones/`.
+- La bandeja permite ver pendientes/todas, atender una alerta y abrir su pedido, o atender todas.
+- La lectura es compartida por operación y registra fecha y empleado; Mesero y Repartidor no tienen acceso.
+- Confirmar o cancelar directamente un pedido también atiende su notificación pendiente.
+- Migración `notifications.0001_initial` pendiente de aplicar y bloque pendiente de validación manual.
+- No se ejecutaron pruebas automáticas.

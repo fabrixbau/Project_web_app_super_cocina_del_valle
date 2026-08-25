@@ -1,6 +1,6 @@
 # NOTA TEMPORAL PARA APRENDIZAJE:
-# `settings.py` registra las piezas del proyecto. Agregamos la app `menu` para que
-# Django descubra sus modelos, migraciones y templates. Borra esta nota al terminar.
+# Registramos notifications y su context processor para mostrar el contador en todas las
+# pantallas internas autorizadas. Borra esta nota después de leerla.
 
 from pathlib import Path
 
@@ -33,6 +33,8 @@ INSTALLED_APPS = [
     "internal_portal",
     "public_portal",
     "menu",
+    "orders.apps.OrdersConfig",
+    "notifications.apps.NotificationsConfig",
 ]
 
 MIDDLEWARE = [
@@ -56,6 +58,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "notifications.context_processors.notification_counter",
             ],
         },
     }

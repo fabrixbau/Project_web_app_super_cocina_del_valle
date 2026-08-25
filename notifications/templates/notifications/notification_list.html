@@ -1,0 +1,13 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Esta bandeja presenta primero alertas pendientes. Abrir usa un formulario POST: marca la
+alerta como atendida y lleva al pedido relacionado. Borra esta nota después de leerla. -->
+{% extends "base_internal.html" %}
+{% block title %}Notificaciones{% endblock %}
+{% block content %}
+  <div class="page-heading"><div><a href="{% url 'internal_portal:dashboard' %}">← Panel</a><h1>Notificaciones</h1></div><div class="action-group"><a class="button-link secondary" href="?show={% if show == 'all' %}unread{% else %}all{% endif %}">{% if show == 'all' %}Ver pendientes{% else %}Ver todas{% endif %}</a>{% if unread_notification_count %}<form method="post" action="{% url 'notifications:mark_all_read' %}">{% csrf_token %}<button type="submit">Atender todas</button></form>{% endif %}</div></div>
+  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  <section class="notification-list">{% for notification in notifications %}<article class="card notification-card {% if not notification.is_read %}unread{% endif %}">
+    <div><small>{{ notification.created_at|date:'d/m/Y H:i' }}</small><h2>{{ notification.title }}</h2><p>{{ notification.message }}</p>{% if notification.is_read %}<small>Atendida{% if notification.read_by %} por {{ notification.read_by.get_full_name|default:notification.read_by.username }}{% endif %}</small>{% endif %}</div>
+    <form method="post" action="{% url 'notifications:notification_open' notification.id %}">{% csrf_token %}<button type="submit">{% if notification.is_read %}Ver pedido{% else %}Atender y abrir{% endif %}</button></form>
+  </article>{% empty %}<section class="card"><p>No hay notificaciones en esta vista.</p></section>{% endfor %}</section>
+{% endblock %}

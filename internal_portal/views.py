@@ -1,3 +1,7 @@
+# NOTA TEMPORAL PARA APRENDIZAJE:
+# La tarjeta Pedidos del dashboard ahora apunta al listado real de la app orders.
+# Borra esta nota después de comprobar el acceso.
+
 from django.urls import reverse
 from django.shortcuts import render
 
@@ -6,7 +10,7 @@ from accounts.roles import OPERATIONAL_ROLES, SECTION_ROLE_MATRIX, role_required
 
 SECTIONS = (
     {"key": "tables", "title": "Mesas", "description": "Atención y cuentas de mesas.", "url_name": "internal_portal:tables"},
-    {"key": "orders", "title": "Pedidos", "description": "Pedidos internos y externos.", "url_name": "internal_portal:orders"},
+    {"key": "orders", "title": "Pedidos", "description": "Pedidos internos y externos.", "url_name": "orders:order_list"},
     {"key": "deliveries", "title": "Repartos", "description": "Asignación y seguimiento de entregas.", "url_name": "internal_portal:deliveries"},
     {"key": "reports", "title": "Reportes", "description": "Información administrativa.", "url_name": "internal_portal:reports"},
     {"key": "menu", "title": "Menú", "description": "Categorías y productos.", "url_name": "menu:configuration"},

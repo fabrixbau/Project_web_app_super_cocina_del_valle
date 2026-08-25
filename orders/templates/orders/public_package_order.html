@@ -1,0 +1,12 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Esta pantalla configura una comida y la agrega al carrito. Los datos de cliente y pago
+ahora se capturan una sola vez durante checkout. Borra esta nota después de leerla. -->
+<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ package.name }} | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css"></head>
+<body><main class="container package-builder"><p><a href="{% url 'public_portal:menu' %}">← Menú</a></p>
+  <section class="card"><h1>{{ package.name }}</h1><p>{{ package.description }}</p><p><strong>Sin agua:</strong> ${{ package.price_without_water }} · <strong>Con agua:</strong> ${{ package.price_with_water }}</p><p>Agua de hoy: <strong>{{ daily_menu.water_product.name }}</strong></p>
+    <form method="post">{% csrf_token %}{{ form.non_field_errors }}
+      <fieldset><legend>Configura tu comida</legend><div class="package-fields">{% for field in form %}<p>{{ field.label_tag }} {{ field.errors }} {{ field }}</p>{% endfor %}</div></fieldset>
+      <button type="submit">Agregar al carrito</button>
+    </form>
+  </section>
+</main></body></html>

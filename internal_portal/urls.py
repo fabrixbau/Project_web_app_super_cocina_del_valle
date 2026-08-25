@@ -1,3 +1,7 @@
+# NOTA TEMPORAL PARA APRENDIZAJE:
+# Conservamos el nombre antiguo `internal_portal:orders` como alias compatible. La ruta
+# real se atiende primero desde la app orders. Borra esta nota después de leerla.
+
 from django.urls import path
 
 from . import views

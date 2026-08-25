@@ -1,0 +1,13 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Checkout captura modalidad, cliente, dirección y pago una sola vez para todo el carrito.
+La validación condicional sigue en Django; el comportamiento visual dinámico llegará después.
+Borra esta nota. -->
+<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Finalizar pedido | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css"></head>
+<body><main class="container package-builder"><p><a href="{% url 'public_portal:cart' %}">← Carrito</a></p><section class="card"><h1>Finalizar pedido</h1><p>{{ cart.count }} producto(s) · <strong>${{ cart.total }}</strong></p>
+  <form method="post">{% csrf_token %}{{ form.non_field_errors }}
+    <fieldset><legend>Entrega e identificación</legend><div class="package-fields">{% for field in form %}{% if field.name == 'order_type' or field.name == 'customer_first_name' or field.name == 'customer_last_name' or field.name == 'phone' %}<p>{{ field.label_tag }} {{ field.errors }} {{ field }}</p>{% endif %}{% endfor %}</div></fieldset>
+    <fieldset><legend>Domicilio · solo para entrega</legend><div class="package-fields">{% for field in form %}{% if field.name == 'street' or field.name == 'exterior_number' or field.name == 'interior_number' or field.name == 'neighborhood' or field.name == 'references' %}<p>{{ field.label_tag }} {{ field.errors }} {{ field }}</p>{% endif %}{% endfor %}</div></fieldset>
+    <fieldset><legend>Pago y notas</legend><div class="package-fields">{% for field in form %}{% if field.name == 'notes' or field.name == 'payment_method' or field.name == 'needs_change' or field.name == 'cash_tendered' %}<p>{{ field.label_tag }} {{ field.errors }} {{ field }}</p>{% endif %}{% endfor %}</div></fieldset>
+    <button type="submit">Enviar pedido completo</button>
+  </form>
+</section></main></body></html>

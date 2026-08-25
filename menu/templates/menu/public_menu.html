@@ -1,13 +1,17 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Cada paquete se configura antes de agregarlo; los productos individuales se agregan con
+cantidad. El enlace superior permite revisar el carrito de sesión. Borra esta nota. -->
 <!doctype html>
 <html lang="es-MX">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Menú | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css"></head>
 <body><main class="container">
-  <p><a href="{% url 'public_portal:home' %}">← Inicio</a></p><h1>Nuestro menú</h1>
+  <div class="page-heading"><p><a href="{% url 'public_portal:home' %}">← Inicio</a></p><a class="button-link" href="{% url 'public_portal:cart' %}">Ver carrito</a></div><h1>Nuestro menú</h1>
+  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
   <p>Disponible ahora: {% for period in active_periods %}{{ period.name }}{% if not forloop.last %}, {% endif %}{% empty %}productos sin restricción horaria{% endfor %}</p>
   {% if daily_menu %}
     <section class="card daily-public-menu"><h2>Comida del día · {{ daily_menu.date }}</h2>
       {% if daily_menu.water_product %}<p><strong>Agua del día:</strong> {{ daily_menu.water_product.name }}</p>{% endif %}
-      {% for group in daily_groups %}<div class="daily-group"><h3>{{ group.title }}</h3><ul>{% for product in group.products %}<li>{{ product.name }}{% if product.is_sold_individually %} — ${{ product.price }} por orden{% endif %}</li>{% endfor %}</ul></div>{% endfor %}
+      {% for group in daily_groups %}<div class="daily-group"><h3>{{ group.title }}</h3><ul>{% for product in group.products %}<li>{{ product.name }}{% if product.is_sold_individually %} — ${{ product.price }} por orden <form class="inline-form" method="post" action="{% url 'public_portal:product_add' product.id %}">{% csrf_token %}<input aria-label="Cantidad" type="number" name="quantity" value="1" min="1" max="99"><button type="submit">Agregar</button></form>{% endif %}</li>{% endfor %}</ul></div>{% endfor %}
     </section>
   {% endif %}
   {% if daily_menu %}<section class="spaced-card"><h2>Paquetes de tres tiempos</h2><div class="package-grid">
@@ -16,7 +20,7 @@
   <h2 class="spaced-card">Productos disponibles por orden</h2>
   {% for category in categories %}
     <section class="spaced-card"><h2>{{ category.name }}</h2><div class="product-grid">
-      {% for product in category.available_products %}<article class="product-card">{% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% endif %}<h3>{{ product.name }}</h3><p>{{ product.description }}</p><strong>${{ product.price }}</strong></article>{% endfor %}
+      {% for product in category.available_products %}<article class="product-card">{% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% endif %}<h3>{{ product.name }}</h3><p>{{ product.description }}</p><strong>${{ product.price }}</strong>{% if product.is_sold_individually %}<form method="post" action="{% url 'public_portal:product_add' product.id %}">{% csrf_token %}<label>Cantidad <input type="number" name="quantity" value="1" min="1" max="99"></label><button type="submit">Agregar</button></form>{% endif %}</article>{% endfor %}
     </div></section>
   {% empty %}<section class="card"><p>El menú todavía no tiene productos disponibles.</p></section>{% endfor %}
 </main></body>

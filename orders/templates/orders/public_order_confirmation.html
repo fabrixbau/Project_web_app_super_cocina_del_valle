@@ -1,0 +1,12 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+La confirmación recorre todas las partidas creadas desde el carrito.
+Esta página confirma que la base recibió el pedido. El estado inicial no promete todavía
+que la cocina lo aceptó: el personal debe confirmarlo en el siguiente módulo interno.
+Borra esta nota después de leerla. -->
+<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Pedido recibido | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css"></head>
+<body><main class="container package-builder"><section class="card confirmation-card"><p class="confirmation-mark">✓</p><h1>Recibimos tu pedido</h1>
+  <p>Tu folio de hoy es <strong class="order-number">{{ order.formatted_number }}</strong>.</p><p>Estado: <strong>{{ order.get_status_display }}</strong>. La fonda todavía debe confirmar el pedido.</p><p><strong>{{ order.get_order_type_display }}</strong> · {{ order.customer_name }} · {{ order.phone }}</p>
+  {% for item in order.items.all %}<div class="order-summary">{% if item.item_type == 'product' %}<h2>{{ item.quantity }} × {{ item.product_name_snapshot }}</h2><p>${{ item.subtotal }}</p>{% else %}<h2>{{ item.quantity }} × {{ item.package_name_snapshot }}</h2><ol><li>{{ item.first_course_name_snapshot }}</li><li>{{ item.second_course_name_snapshot }}</li><li>{{ item.main_course_name_snapshot }}{% if item.chicken_piece %} · {{ item.get_chicken_piece_display }}{% endif %}</li></ol><p>Agua: {% if item.with_water %}{{ item.water_name_snapshot }}{% else %}Sin agua{% endif %} · Tortillas: {% if item.tortillas %}Sí{% else %}No{% endif %} · Frijoles: {% if item.beans %}Sí{% else %}No{% endif %}</p>{% endif %}</div>{% endfor %}
+  {% if order.order_type == 'delivery' %}<p><strong>Domicilio:</strong> {{ order.street }} {{ order.exterior_number }}{% if order.interior_number %}, interior {{ order.interior_number }}{% endif %}, {{ order.neighborhood }}.<br>{{ order.references }}</p>{% endif %}
+  <p class="package-total">Total: ${{ order.total }}</p><p>Pago: {{ order.get_payment_method_display }}{% if order.needs_change %} · Paga con ${{ order.cash_tendered }} · Cambio: ${{ order.change_required }}{% endif %}</p><a class="button-link" href="{% url 'public_portal:menu' %}">Volver al menú</a>
+</section></main></body></html>

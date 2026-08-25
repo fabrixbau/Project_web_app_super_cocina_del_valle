@@ -1,0 +1,24 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Este es el tablero inicial de Telefonista: permite localizar pedidos por folio, cliente o
+teléfono y filtrarlos por estado/tipo. Todavía no incluye actualización automática.
+Borra esta nota después de leerla. -->
+{% extends "base_internal.html" %}
+{% block title %}Pedidos{% endblock %}
+{% block content %}
+  <div class="page-heading"><div><a href="{% url 'internal_portal:dashboard' %}">← Panel</a><h1>Pedidos</h1></div></div>
+  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  <section class="card"><form method="get" class="filters">
+    <label>Buscar <input name="q" value="{{ search }}" placeholder="Folio, cliente o teléfono"></label>
+    <label>Estado <select name="status"><option value="">Todos</option>{% for value, label in status_choices %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label>Tipo <select name="order_type"><option value="">Todos</option>{% for value, label in order_type_choices %}<option value="{{ value }}" {% if selected_order_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <button type="submit">Filtrar</button>
+  </form></section>
+  <section class="card spaced-card"><div class="order-list">
+    {% for order in orders %}<a class="order-row" href="{% url 'orders:order_detail' order.id %}">
+      <span><strong>{{ order.formatted_number }}</strong><small>{{ order.created_at|date:'d/m/Y H:i' }}</small></span>
+      <span><strong>{{ order.customer_name }}</strong><small>{{ order.phone }}</small></span>
+      <span>{{ order.get_order_type_display }}<small>{{ order.get_status_display }}</small></span>
+      <strong>${{ order.total }}</strong>
+    </a>{% empty %}<p>No hay pedidos que coincidan con los filtros.</p>{% endfor %}
+  </div></section>
+{% endblock %}

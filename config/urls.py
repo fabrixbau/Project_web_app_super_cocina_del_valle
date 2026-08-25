@@ -1,4 +1,6 @@
 # NOTA TEMPORAL PARA APRENDIZAJE:
+# `/app/pedidos/` ahora carga el listado real de orders antes del portal interno general.
+# `/app/notificaciones/` carga la bandeja interna de alertas. Borra esta nota.
 # Conectamos `/app/menu/` con el módulo de menú y servimos imágenes en desarrollo.
 # En producción las imágenes serán responsabilidad del servidor web. Borra esta nota al terminar.
 
@@ -18,6 +20,8 @@ urlpatterns = [
     ),
     path("cuentas/", include("django.contrib.auth.urls")),
     path("app/menu/", include("menu.urls")),
+    path("app/pedidos/", include("orders.urls")),
+    path("app/notificaciones/", include("notifications.urls")),
     path("app/", include("internal_portal.urls")),
     path("pedir/", include("public_portal.urls")),
 ]

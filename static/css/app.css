@@ -1,7 +1,15 @@
+/* NOTA TEMPORAL PARA APRENDIZAJE:
+También agregamos la lista adaptable y el detalle de pedidos del panel interno.
+El carrito usa filas para producto, cantidad, subtotal y acciones.
+El contador y la bandeja resaltan alertas operativas pendientes.
+Agregamos estilos para dividir el pedido en secciones y destacar su confirmación.
+Borra esta nota después de revisar la pantalla. */
 :root { color-scheme: light; font-family: system-ui, sans-serif; color: #20251f; background: #f5f2e9; }
 * { box-sizing: border-box; }
 body { margin: 0; }
 .topbar { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; color: white; background: #285943; }
+.notification-link { margin-left: auto; color: white; text-decoration: none; }
+.notification-link span { display: inline-block; min-width: 1.5rem; margin-left: .3rem; padding: .15rem .4rem; border-radius: 999px; color: #20251f; background: #f4c95d; text-align: center; font-weight: 700; }
 .container { width: min(1100px, calc(100% - 2rem)); margin: 2rem auto; }
 .card { padding: 1.25rem; border: 1px solid #d9d4c7; border-radius: .75rem; background: white; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
@@ -42,6 +50,28 @@ a { color: #285943; }
 .package-fields small { display: block; margin-top: .35rem; color: #52685e; }
 .package-summary { border-color: #285943; }
 .package-total { font-size: 1.3rem; font-weight: 700; }
+.package-builder fieldset { margin-bottom: 1rem; border: 1px solid #d9d4c7; border-radius: .6rem; padding: 1rem; }
+.package-builder legend { padding-inline: .4rem; font-weight: 700; }
+.confirmation-card { text-align: center; }
+.confirmation-mark { width: 3rem; height: 3rem; margin: 0 auto; border-radius: 50%; color: white; background: #285943; font-size: 2rem; }
+.order-number { font-size: 1.5rem; }
+.order-summary { text-align: left; margin-block: 1rem; padding: 1rem; background: #f5f2e9; border-radius: .6rem; }
+.order-list { display: grid; gap: .5rem; }
+.order-row { display: grid; grid-template-columns: .7fr 1.5fr 1.2fr auto; gap: 1rem; align-items: center; padding: .8rem; border: 1px solid #d9d4c7; border-radius: .5rem; text-decoration: none; color: inherit; }
+.order-row:hover { border-color: #285943; }
+.order-row small { display: block; color: #52685e; }
+.order-detail-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; }
+.status-badge { padding: .5rem .8rem; border-radius: 999px; background: #e0eddf; font-weight: 700; }
+.cart-list { display: grid; gap: 1rem; }
+.cart-row { display: grid; grid-template-columns: 1fr 180px 120px; gap: 1rem; align-items: center; padding-bottom: 1rem; border-bottom: 1px solid #d9d4c7; }
+.cart-row h2 { margin-top: 0; }
+.cart-row form { margin-top: .5rem; }
+.cart-total { display: flex; justify-content: space-between; align-items: center; }
+.inline-form { display: inline-flex; gap: .4rem; align-items: center; margin-left: .5rem; }
+.inline-form input { width: 70px; }
+.notification-list { display: grid; gap: 1rem; }
+.notification-card { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.notification-card.unread { border-left: 5px solid #f4c95d; }
 .error { color: #a12622; }
 .public-home { text-align: center; padding-top: 15vh; }
-@media (max-width: 720px) { .filters, .formset-row, .package-fields { grid-template-columns: 1fr; } .page-heading, .daily-menu-row { align-items: start; flex-direction: column; } }
+@media (max-width: 720px) { .filters, .formset-row, .package-fields, .order-row, .order-detail-grid, .cart-row { grid-template-columns: 1fr; } .page-heading, .daily-menu-row, .cart-total { align-items: start; flex-direction: column; } }
