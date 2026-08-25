@@ -1,7 +1,3 @@
-# NOTA TEMPORAL PARA APRENDIZAJE:
-# Sumamos rutas para listar, crear, editar y cambiar el estado del menú diario.
-# Publicar/cerrar usa POST para evitar cambios accidentales desde un enlace. Borra esta nota.
-
 from django.urls import path
 
 from . import views
@@ -21,4 +17,5 @@ urlpatterns = [
     path("diario/nuevo/", views.daily_menu_form, name="daily_menu_create"),
     path("diario/<int:daily_menu_id>/editar/", views.daily_menu_form, name="daily_menu_edit"),
     path("diario/<int:daily_menu_id>/estado/", views.daily_menu_status, name="daily_menu_status"),
+    path("paquetes/", views.package_configuration, name="package_configuration"),
 ]

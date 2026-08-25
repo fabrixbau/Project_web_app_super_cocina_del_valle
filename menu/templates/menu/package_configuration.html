@@ -1,0 +1,12 @@
+{% extends "base_internal.html" %}
+{% block title %}Configurar paquetes{% endblock %}
+{% block content %}
+  <div class="page-heading"><div><a href="{% url 'menu:configuration' %}">← Administrar menú</a><h1>Paquetes de comida</h1></div></div>
+  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  <form method="post">{% csrf_token %}<div class="package-grid">
+    {% for package_form in package_forms %}<section class="card package-card">
+      <h2>{{ package_form.instance.get_package_type_display }}</h2>{{ package_form.non_field_errors }}
+      {% for field in package_form %}<p>{{ field.label_tag }} {{ field.errors }} {{ field }}</p>{% endfor %}
+    </section>{% empty %}<section class="card"><p>Primero aplica la migración 0004 para crear los paquetes.</p></section>{% endfor %}
+  </div>{% if package_forms %}<button class="spaced-card" type="submit">Guardar precios y disponibilidad</button>{% endif %}</form>
+{% endblock %}

@@ -1,10 +1,8 @@
-<!-- NOTA TEMPORAL PARA APRENDIZAJE:
-Añadimos acceso al menú diario y mostramos clasificación/periodos de cada producto para
-que el administrador entienda cuándo y cómo se ofrece. Borra esta nota al terminar. -->
 {% extends "base_internal.html" %}
 {% block title %}Administrar menú{% endblock %}
 {% block content %}
   <div class="page-heading">
+    <a class="button-link secondary" href="{% url 'menu:package_configuration' %}">Configurar paquetes</a>
     <div><a href="{% url 'internal_portal:dashboard' %}">← Panel</a><h1>Administrar menú</h1></div>
     <div><a class="button-link secondary" href="{% url 'menu:daily_menu_list' %}">Menús diarios</a> <a class="button-link secondary" href="{% url 'menu:category_create' %}">Nueva categoría</a> <a class="button-link" href="{% url 'menu:product_create' %}">Nuevo producto</a></div>
   </div>

@@ -1,10 +1,6 @@
-# NOTA TEMPORAL PARA APRENDIZAJE:
-# DailyMenu ya contiene sus siete relaciones directamente, por eso retiramos el inline
-# flexible. Admin sigue siendo una herramienta secundaria. Borra esta nota.
-
 from django.contrib import admin
 
-from .models import Category, DailyMenu, Product, ServicePeriod
+from .models import Category, DailyMenu, MealPackage, Product, ServicePeriod
 
 
 @admin.register(Category)
@@ -29,3 +25,11 @@ class ServicePeriodAdmin(admin.ModelAdmin):
 class DailyMenuAdmin(admin.ModelAdmin):
     list_display = ("date", "status", "water_product", "published_at")
     list_filter = ("status", "date")
+
+
+@admin.register(MealPackage)
+class MealPackageAdmin(admin.ModelAdmin):
+    list_display = (
+        "name", "package_type", "price_without_water", "price_with_water",
+        "table_refill_price", "is_active",
+    )

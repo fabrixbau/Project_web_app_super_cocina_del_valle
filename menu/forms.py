@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Category, DailyMenu, Product
+from .models import Category, DailyMenu, MealPackage, Product
 
 
 MAX_IMAGE_SIZE = 4 * 1024 * 1024
@@ -114,3 +114,95 @@ class DailyMenuForm(forms.ModelForm):
         if cleaned_data.get("second_course_one") == cleaned_data.get("second_course_two") and cleaned_data.get("second_course_one"):
             self.add_error("second_course_two", "Selecciona una opción diferente.")
         return cleaned_data
+
+
+class MealPackageForm(forms.ModelForm):
+    class Meta:
+        model = MealPackage
+        fields = (
+            "name", "description", "price_without_water", "price_with_water",
+            "table_refill_price", "is_active",
+        )
+        labels = {
+            "name": "Nombre visible",
+            "description": "Descripción breve",
+            "price_without_water": "Precio sin agua",
+            "price_with_water": "Precio con agua",
+            "table_refill_price": "Cargo por refill extra en mesa",
+            "is_active": "Paquete disponible",
+        }
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 3}),
+            "price_without_water": forms.NumberInput(attrs={"min": "0", "step": "0.50"}),
+            "price_with_water": forms.NumberInput(attrs={"min": "0", "step": "0.50"}),
+            "table_refill_price": forms.NumberInput(attrs={"min": "0", "step": "0.50"}),
+        }
+
+
+class PackageSelectionForm(forms.Form):
+    class OrderType:
+        PICKUP = "pickup"
+        DELIVERY = "delivery"
+
+    ORDER_TYPE_CHOICES = (
+        ("pickup", "Recoger en la fonda"),
+        ("delivery", "Entrega a domicilio"),
+    )
+    YES_NO_CHOICES = (("yes", "Sí"), ("no", "No"))
+
+    order_type = forms.ChoiceField(label="Tipo de pedido", choices=ORDER_TYPE_CHOICES)
+    first_course = forms.ModelChoiceField(label="Primer tiempo", queryset=Product.objects.none())
+    second_course = forms.ModelChoiceField(label="Segundo tiempo", queryset=Product.objects.none())
+    main_course = forms.ModelChoiceField(label="Tercer tiempo", queryset=Product.objects.none())
+    chicken_piece = forms.ChoiceField(
+        label="Pieza de pollo (si elegiste guisado de pollo)",
+        choices=(("", "No aplica"), ("leg", "Pierna"), ("thigh", "Muslo")),
+        required=False,
+    )
+    with_water = forms.BooleanField(label="Con agua del día", required=False)
+    tortillas = forms.ChoiceField(label="¿Lleva tortillas?", choices=YES_NO_CHOICES)
+    beans = forms.ChoiceField(label="¿Lleva frijoles?", choices=YES_NO_CHOICES)
+
+    def __init__(self, *args, package, daily_menu, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.package = package
+        self.daily_menu = daily_menu
+        self.fields["first_course"].queryset = Product.objects.filter(
+            pk__in=[product.pk for product in daily_menu.first_course_options if product], is_available=True
+        ).order_by("name")
+        self.fields["second_course"].queryset = Product.objects.filter(
+            pk__in=[product.pk for product in daily_menu.second_course_options if product], is_available=True
+        ).order_by("name")
+
+        if package.package_type == MealPackage.PackageType.RUNNING:
+            main_products = daily_menu.stew_options
+            self.fields["main_course"].label = "Tercer tiempo · guisado"
+        else:
+            main_products = Product.objects.filter(
+                component_type=Product.ComponentType.GRILL,
+                eligible_for_executive_meal=True,
+                is_available=True,
+            )
+            self.fields["main_course"].label = "Tercer tiempo · plancha"
+        main_ids = [product.pk for product in main_products if product]
+        self.fields["main_course"].queryset = Product.objects.filter(
+            pk__in=main_ids, is_available=True
+        ).order_by("name")
+
+    def clean(self):
+        cleaned_data = super().clean()
+        main_course = cleaned_data.get("main_course")
+        if main_course and main_course.pk == self.daily_menu.chicken_stew_id:
+            if not cleaned_data.get("chicken_piece"):
+                self.add_error("chicken_piece", "Elige pierna o muslo para el guisado de pollo.")
+        elif cleaned_data.get("chicken_piece"):
+            self.add_error("chicken_piece", "La pieza solo aplica cuando eliges el guisado de pollo.")
+        return cleaned_data
+
+    def calculated_total(self):
+        total = (
+            self.package.price_with_water
+            if self.cleaned_data["with_water"]
+            else self.package.price_without_water
+        )
+        return total

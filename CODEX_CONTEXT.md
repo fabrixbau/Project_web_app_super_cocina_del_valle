@@ -1,10 +1,3 @@
-<!--
-NOTA TEMPORAL PARA APRENDIZAJE:
-El desarrollador aplicó 0003, creó un menú completo 2+2+3 y confirmó su publicación.
-El bloque queda aprobado manualmente. Borra esta nota.
-Puedes borrar esta nota después de leerla.
--->
-
 # CODEX_CONTEXT — Super Cocina del Valle
 
 > Archivo de contexto operativo para agentes de desarrollo.
@@ -519,3 +512,15 @@ templates/
 ../project_app_web_suerte_cafe/Project_web_app_suerte_cafe/menu/
 ../project_app_web_suerte_cafe/Project_web_app_suerte_cafe/orders/
 ```
+
+## Actualización: paquetes de comida
+
+- Se implementó `MealPackage` para corrida y ejecutiva con precio sin agua, con agua y cargo único de refill en mesa.
+- La migración `menu.0004_meal_packages` crea y siembra ambos paquetes con precios iniciales en cero; está pendiente de aplicar.
+- Se agregó configuración interna en `/app/menu/paquetes/` y acceso desde Administrar menú.
+- Se agregó un armador público que usa el menú publicado 2+2+3: corrida elige guisado diario y ejecutiva solo plancha elegible.
+- Tortillas y frijoles son respuestas obligatorias; refill solo es válido para mesa con agua.
+- El armador únicamente calcula una vista previa y todavía no persiste órdenes.
+- Este bloque queda pendiente de validación manual. No se agregaron ni ejecutaron pruebas automáticas por decisión del desarrollador.
+- `/pedir/menu/` está destinado al cliente externo y solo ofrece recoger en la fonda o entrega a domicilio.
+- El flujo público no muestra mesa, refill ni explicaciones sobre vasos; esas reglas quedan reservadas para la futura interfaz interna de meseros.

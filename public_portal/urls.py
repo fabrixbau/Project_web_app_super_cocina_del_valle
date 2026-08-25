@@ -1,7 +1,3 @@
-# NOTA TEMPORAL PARA APRENDIZAJE:
-# `/pedir/menu/` apunta al catálogo público y no requiere cuenta. La vista filtra los
-# productos que no estén disponibles. Borra esta nota al terminar.
-
 from django.urls import path
 
 from menu import views as menu_views
@@ -13,4 +9,5 @@ app_name = "public_portal"
 urlpatterns = [
     path("", views.home, name="home"),
     path("menu/", menu_views.public_menu, name="menu"),
+    path("menu/paquete/<str:package_type>/", menu_views.package_selection, name="package_selection"),
 ]

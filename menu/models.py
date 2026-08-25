@@ -185,3 +185,55 @@ class DailyMenu(models.Model):
             errors["second_course_two"] = "Selecciona un segundo tiempo diferente."
         if errors:
             raise ValidationError(errors)
+
+    @property
+    def first_course_options(self):
+        return (self.chicken_consomme, self.variable_first_course)
+
+    @property
+    def second_course_options(self):
+        return (self.second_course_one, self.second_course_two)
+
+    @property
+    def stew_options(self):
+        return (self.chicken_stew, self.beef_stew, self.varied_stew)
+
+
+class MealPackage(models.Model):
+    class PackageType(models.TextChoices):
+        RUNNING = "running", "Comida corrida"
+        EXECUTIVE = "executive", "Comida ejecutiva"
+
+    package_type = models.CharField(max_length=20, choices=PackageType.choices, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    price_without_water = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(0)]
+    )
+    price_with_water = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(0)]
+    )
+    table_refill_price = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(0)]
+    )
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "name"]
+        verbose_name = "paquete de comida"
+        verbose_name_plural = "paquetes de comida"
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        if (
+            self.price_with_water is not None
+            and self.price_without_water is not None
+            and self.price_with_water < self.price_without_water
+        ):
+            raise ValidationError({
+                "price_with_water": "El precio con agua no puede ser menor que el precio sin agua."
+            })

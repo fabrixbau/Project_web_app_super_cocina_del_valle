@@ -6,8 +6,8 @@ from django.views.decorators.http import require_POST
 
 from accounts.roles import SECTION_ROLE_MATRIX, role_required
 
-from .forms import CategoryForm, DailyMenuForm, ProductForm
-from .models import Category, DailyMenu, Product, ServicePeriod
+from .forms import CategoryForm, DailyMenuForm, MealPackageForm, PackageSelectionForm, ProductForm
+from .models import Category, DailyMenu, MealPackage, Product, ServicePeriod
 
 
 @role_required(*SECTION_ROLE_MATRIX["menu"])
@@ -178,6 +178,48 @@ def daily_menu_status(request, daily_menu_id):
     return redirect("menu:daily_menu_list")
 
 
+@role_required(*SECTION_ROLE_MATRIX["menu"])
+def package_configuration(request):
+    packages = list(MealPackage.objects.all())
+    forms = [MealPackageForm(
+        request.POST or None, instance=package, prefix=f"package-{package.pk}"
+    ) for package in packages]
+    if request.method == "POST" and forms and all(form.is_valid() for form in forms):
+        for form in forms:
+            form.save()
+        messages.success(request, "La configuración de los paquetes fue actualizada.")
+        return redirect("menu:package_configuration")
+    return render(request, "menu/package_configuration.html", {"package_forms": forms})
+
+
+def package_selection(request, package_type):
+    package = get_object_or_404(MealPackage, package_type=package_type, is_active=True)
+    daily_menu = get_object_or_404(
+        DailyMenu.objects.select_related(
+            "water_product", "chicken_consomme", "variable_first_course",
+            "second_course_one", "second_course_two", "chicken_stew",
+            "beef_stew", "varied_stew",
+        ), date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED,
+    )
+    form = PackageSelectionForm(request.POST or None, package=package, daily_menu=daily_menu)
+    selection = None
+    if request.method == "POST" and form.is_valid():
+        selection = {
+            "order_type_label": dict(form.fields["order_type"].choices)[form.cleaned_data["order_type"]],
+            "first_course": form.cleaned_data["first_course"],
+            "second_course": form.cleaned_data["second_course"],
+            "main_course": form.cleaned_data["main_course"],
+            "chicken_piece": dict(form.fields["chicken_piece"].choices).get(form.cleaned_data["chicken_piece"]),
+            "with_water": form.cleaned_data["with_water"],
+            "tortillas": form.cleaned_data["tortillas"] == "yes",
+            "beans": form.cleaned_data["beans"] == "yes",
+            "total": form.calculated_total(),
+        }
+    return render(request, "menu/package_selection.html", {
+        "package": package, "daily_menu": daily_menu, "form": form, "selection": selection,
+    })
+
+
 def public_menu(request):
     current_time = timezone.localtime().time()
     active_periods = ServicePeriod.objects.filter(
@@ -229,4 +271,5 @@ def public_menu(request):
         "daily_menu": daily_menu,
         "daily_groups": daily_groups,
         "active_periods": active_periods,
+        "meal_packages": MealPackage.objects.filter(is_active=True),
     })
