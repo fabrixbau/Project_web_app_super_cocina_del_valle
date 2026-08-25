@@ -1,11 +1,19 @@
 <!-- NOTA TEMPORAL PARA APRENDIZAJE:
-Catálogo sin login ni controles internos. La vista entrega solo productos disponibles;
-el template se limita a presentarlos por categoría. Borra esta nota al terminar. -->
+El menú diario recorre productos directos agrupados como 2+2+3, no filas flexibles.
+La construcción del pedido llegará después. Borra esta nota. -->
 <!doctype html>
 <html lang="es-MX">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Menú | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css"></head>
 <body><main class="container">
   <p><a href="{% url 'public_portal:home' %}">← Inicio</a></p><h1>Nuestro menú</h1>
+  <p>Disponible ahora: {% for period in active_periods %}{{ period.name }}{% if not forloop.last %}, {% endif %}{% empty %}productos sin restricción horaria{% endfor %}</p>
+  {% if daily_menu %}
+    <section class="card daily-public-menu"><h2>Comida del día · {{ daily_menu.date }}</h2>
+      {% if daily_menu.water_product %}<p><strong>Agua del día:</strong> {{ daily_menu.water_product.name }}</p>{% endif %}
+      {% for group in daily_groups %}<div class="daily-group"><h3>{{ group.title }}</h3><ul>{% for product in group.products %}<li>{{ product.name }}{% if product.is_sold_individually %} — ${{ product.price }} por orden{% endif %}</li>{% endfor %}</ul></div>{% endfor %}
+    </section>
+  {% endif %}
+  <h2 class="spaced-card">Productos disponibles por orden</h2>
   {% for category in categories %}
     <section class="spaced-card"><h2>{{ category.name }}</h2><div class="product-grid">
       {% for product in category.available_products %}<article class="product-card">{% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% endif %}<h3>{{ product.name }}</h3><p>{{ product.description }}</p><strong>${{ product.price }}</strong></article>{% endfor %}

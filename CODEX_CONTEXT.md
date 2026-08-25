@@ -1,7 +1,7 @@
 <!--
 NOTA TEMPORAL PARA APRENDIZAJE:
-Este documento conserva el estado entre sesiones. Registramos el módulo inicial de menú
-como implementado y pendiente de migración/revisión manual por el desarrollador.
+El desarrollador aplicó 0003, creó un menú completo 2+2+3 y confirmó su publicación.
+El bloque queda aprobado manualmente. Borra esta nota.
 Puedes borrar esta nota después de leerla.
 -->
 
@@ -173,8 +173,8 @@ authenticated internal portal, isolated public portal, base templates and tests.
 [ ] Mesas
 [ ] Pedidos
 [ ] Estados extendidos
-[~] Menú fijo (categorías y productos pendientes de validación manual)
-[ ] Menú diario
+[x] Menú fijo (categorías y productos validados manualmente)
+[x] Menú diario y periodos
 [ ] Paquetes
 [ ] Productos configurables
 [ ] Envases
@@ -259,6 +259,11 @@ no existe.
 
 ### Foundation
 
+- Se añadieron `ServicePeriod`, `DailyMenu` y `DailyMenuItem`, además de clasificación funcional y periodos múltiples en `Product`.
+- La migración `menu.0002_service_periods_and_daily_menu` crea Desayuno 08:00-13:00 y Comida 12:30-17:00.
+- Se creó la administración de menús diarios con estados borrador, publicado y cerrado, componentes y agua del día.
+- El catálogo público combina el menú publicado de hoy con productos fijos filtrados por el horario actual.
+- El desarrollador validó manualmente y guardó en Git el bloque anterior de categorías/productos.
 - Se implementó el primer bloque de menú: categorías, productos, imágenes, disponibilidad, filtros y CRUD administrativo.
 - Se añadió catálogo público en `/pedir/menu/` que solo muestra productos disponibles.
 - La administración `/app/menu/` quedó restringida a Administrador/superusuario.
@@ -424,10 +429,12 @@ Usar este patrón:
 
 ## Current status
 
-Módulo inicial de menú implementado en código; migración `menu.0001_initial` y revisión manual pendientes.
+Estructura fija 2+2+3 aplicada en PostgreSQL y validada manualmente con un menú completo publicado.
 
 ## Last completed
 
+- Migración `menu.0003_fixed_daily_menu_structure` aplicada por el desarrollador.
+- Menú diario completo 2+2+3 creado, guardado y publicado correctamente en validación manual.
 - Entorno `.venv` reconstruido correctamente con Python 3.12 y dependencias instaladas.
 - Base `super_cocina_del_valle` conectada y migraciones iniciales aplicadas en PostgreSQL 18.
 - Matriz inicial de acceso implementada para Administrador, Mesero, Telefonista y Repartidor.
@@ -440,12 +447,13 @@ Módulo inicial de menú implementado en código; migración `menu.0001_initial`
 
 ## In progress
 
-- Validación manual de categorías, productos, disponibilidad, permisos y catálogo público.
+- Ninguno; el bloque de menú diario quedó aprobado.
 
 ## Next
 
-- Aplicar `menu.0001_initial` y validar manualmente categorías/productos.
-- Después de aprobación, agregar opciones configurables y envases.
+- Modelar comida corrida y comida ejecutiva con variantes con/sin agua.
+- Incorporar precios, tortillas, frijoles y refill de mesa en la configuración de paquetes.
+- Después de aprobación, modelar comida corrida/ejecutiva y sus variantes de precio.
 - Crear el primer superusuario administrador.
 
 ## Important decisions
@@ -453,12 +461,34 @@ Módulo inicial de menú implementado en código; migración `menu.0001_initial`
 - Ver sección 10.
 - El desarrollo se realizará por bloques pequeños con notas didácticas temporales al inicio de cada archivo tocado, pruebas automatizadas y una guía de verificación manual al finalizar.
 
+### Decisión confirmada: menú operativo y paquetes
+
+- Mantener un catálogo único de `Product`; no crear modelos distintos para desayuno, corrida, ejecutiva y órdenes.
+- Separar `Product` (qué se vende/cocina) de `DailyMenu` (qué está disponible hoy) y `MealPackage` (cómo se combinan componentes y se cobra).
+- `DailyMenu` tiene exactamente siete lugares: 2 primeros tiempos, 2 segundos tiempos y 3 guisados.
+- Primer tiempo: consomé de pollo fijo + una opción variable.
+- Segundo tiempo: exactamente 2 opciones distintas entre arroz rojo/blanco y espagueti rojo/blanco.
+- Tercer tiempo: exactamente 1 guisado de pollo + 1 de res + 1 variado.
+- Clasificar componentes por función reutilizable: sopa/consomé/crema, segundo tiempo, guisado, plancha, bebida y complemento.
+- Desayuno será una sección/productos con periodo 08:00-13:00; comida opera 12:30-17:00 y ambos se superponen de 12:30 a 13:00.
+- Un producto puede pertenecer a varios periodos de servicio sin duplicarse; por ejemplo, huevos machacados puede venderse en desayuno y comida.
+- Corrida y ejecutiva serán paquetes con pasos de selección. Corrida elige guisado; ejecutiva elige solo productos de plancha elegibles.
+- “Con agua” y “sin agua” deben resolverse como variantes/precios del paquete, no duplicando todo el menú.
+- Tortillas y frijoles serán complementos incluidos con preferencias explícitas para comandas externas; sin incremento de precio.
+- Para mesa, el paquete con agua muestra 2/2 vasos incluidos sin registrar cada servicio. Una casilla `Refill extra` aplica un único cargo adicional a la partida; no existe contador de vasos. Para recoger/entrega incluye 1 vaso y no aplica refill.
+- Solo existe un sabor de agua por día y se publica como parte del menú diario.
+- Tortillas y frijoles deben preguntarse y guardarse explícitamente en cada paquete, sin costo adicional.
+- La pieza pierna/muslo debe ser una opción requerida del guisado de pollo y, posteriormente, una unidad de stock independiente.
+- La interfaz de mesero se plantea con dos vistas: mapa visual de mesas/cuenta activa e historial de órdenes del día/semana.
+
 ## Known issues
 
 - Integración WhatsApp pendiente.
 - Impresión POS-8360 pendiente de validar técnicamente.
 - La matriz actual protege áreas generales; los permisos CRUD detallados se agregarán junto con cada módulo real.
 - El módulo menú no fue validado automáticamente por decisión del desarrollador.
+- Los nuevos periodos y menú diario tampoco tienen pruebas automáticas por decisión del desarrollador.
+- Antes de crear 0003 se confirmó que existían 0 `DailyMenu` y 0 `DailyMenuItem`; retirar la tabla flexible no pierde datos operativos.
 
 ## Relevant files
 
@@ -477,6 +507,8 @@ menu/forms.py
 menu/views.py
 menu/urls.py
 menu/migrations/0001_initial.py
+menu/migrations/0002_service_periods_and_daily_menu.py
+menu/migrations/0003_fixed_daily_menu_structure.py
 menu/templates/menu/
 internal_portal/
 public_portal/

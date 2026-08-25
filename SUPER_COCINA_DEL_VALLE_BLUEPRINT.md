@@ -1,3 +1,9 @@
+<!--
+NOTA TEMPORAL PARA APRENDIZAJE:
+Se corrigió el menú diario: no usa listas libres, sino siete lugares obligatorios
+organizados como 2 primeros + 2 segundos + 3 guisados. Borra esta nota.
+-->
+
 # Super Cocina del Valle — Blueprint funcional y técnico
 
 > Documento base del proyecto.
@@ -664,6 +670,21 @@ Los productos pueden tener:
 - modificadores;
 - envase.
 
+## 15.1 Periodos de servicio
+
+La clasificación visual de un producto no determina por sí sola su horario.
+
+Existirán al menos estos periodos, que pueden superponerse:
+
+```text
+DESAYUNO: 08:00 - 13:00
+COMIDA:   12:30 - 17:00
+```
+
+Un mismo producto puede pertenecer a uno o varios periodos. Por ejemplo, `Huevos machacados` puede venderse durante desayuno y comida sin duplicar el producto.
+
+Entre 12:30 y 13:00 podrán ofrecerse simultáneamente productos de desayuno y comida.
+
 ---
 
 # 16. Menú diario
@@ -700,6 +721,51 @@ Debe poder:
 - consultar históricos.
 
 Solo un menú publicado debe mostrarse al cliente.
+
+El menú diario también define el único sabor de agua disponible ese día. El sabor puede cambiar diariamente.
+
+## 16.1 Estructura fija del menú diario
+
+El menú diario siempre tiene tres tiempos con una cantidad fija de opciones:
+
+```text
+Primer tiempo:  2 opciones
+Segundo tiempo: 2 opciones
+Tercer tiempo:  3 opciones
+Total:          7 componentes
+```
+
+### Primer tiempo
+
+Siempre contiene exactamente:
+
+```text
+1. Consomé de pollo (opción fija)
+2. Opción variable: sopa de pasta, lentejas, minestrone, crema u otra equivalente
+```
+
+### Segundo tiempo
+
+Siempre se eligen exactamente dos opciones distintas de este catálogo:
+
+```text
+- Arroz rojo
+- Arroz blanco
+- Espagueti rojo
+- Espagueti blanco
+```
+
+### Tercer tiempo
+
+Siempre contiene exactamente tres guisados, uno por función:
+
+```text
+1. Un guisado de pollo
+2. Un guisado de res
+3. Un guisado variado
+```
+
+La interfaz debe presentar lugares explícitos para cada opción y validar esta estructura antes de publicar. No debe permitir una cantidad libre de componentes por tiempo.
 
 ---
 
@@ -767,6 +833,41 @@ Ejemplo conceptual:
 eligible_for_executive_meal = true
 ```
 
+## 18.1 Variantes con y sin agua
+
+Comida corrida y comida ejecutiva tendrán variantes con agua y sin agua, con precios diferentes.
+
+Para la variante con agua:
+
+```text
+Mesa:
+- incluye 2 vasos;
+- no se registra cada vaso servido;
+- la interfaz muestra `2/2 vasos incluidos`;
+- una casilla `Refill extra` agrega una única tarifa adicional a esa comida.
+
+Recoger / entrega:
+- incluye 1 vaso;
+- no existen refills incluidos ni adicionales asociados al paquete.
+```
+
+El agua incluida corresponde al único sabor publicado para el día.
+
+El refill se controla como una preferencia/cargo booleano de la partida del paquete (`con refill` / `sin refill`), no como un contador de vasos ni como múltiples eventos de servicio.
+
+## 18.2 Complementos incluidos
+
+Tortillas y frijoles son complementos sin costo adicional dentro de comida corrida y ejecutiva.
+
+El empleado debe preguntar en cada pedido:
+
+```text
+¿Lleva tortillas? Sí / No
+¿Lleva frijoles? Sí / No
+```
+
+Estas respuestas deben guardarse como datos estructurados y mostrarse claramente en comandas y pedidos externos; no deben depender únicamente de notas libres.
+
 ---
 
 # 19. Venta por orden
@@ -783,6 +884,8 @@ Orden de producto de plancha
 ```
 
 Si una combinación no cumple las reglas de un paquete, debe cobrarse como productos/órdenes individuales.
+
+“Órdenes” es una forma de vender individualmente productos del catálogo o componentes del menú diario; no requiere duplicar el producto utilizado dentro de un paquete.
 
 ---
 

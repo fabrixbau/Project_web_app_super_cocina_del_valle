@@ -1,0 +1,17 @@
+{% extends "base_internal.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <p><a href="{% url 'menu:daily_menu_list' %}">← Menús diarios</a></p>
+  <section class="card"><h1>{{ title }}</h1>
+    <p>Estado actual: <strong>{{ daily_menu.get_status_display|default:"Borrador" }}</strong></p>
+    <form method="post">{% csrf_token %}{{ form.non_field_errors }}
+      <div class="daily-menu-fields">
+        <fieldset><legend>Información general</legend><p>{{ form.date.label_tag }} {{ form.date.errors }} {{ form.date }}</p><p>{{ form.water_product.label_tag }} {{ form.water_product.errors }} {{ form.water_product }}</p></fieldset>
+        <fieldset><legend>Primer tiempo · 2 opciones</legend><p>{{ form.chicken_consomme.label_tag }} {{ form.chicken_consomme.errors }} {{ form.chicken_consomme }}</p><p>{{ form.variable_first_course.label_tag }} {{ form.variable_first_course.errors }} {{ form.variable_first_course }}</p></fieldset>
+        <fieldset><legend>Segundo tiempo · 2 opciones diferentes</legend><p>{{ form.second_course_one.label_tag }} {{ form.second_course_one.errors }} {{ form.second_course_one }}</p><p>{{ form.second_course_two.label_tag }} {{ form.second_course_two.errors }} {{ form.second_course_two }}</p></fieldset>
+        <fieldset><legend>Tercer tiempo · 3 guisados</legend><p>{{ form.chicken_stew.label_tag }} {{ form.chicken_stew.errors }} {{ form.chicken_stew }}</p><p>{{ form.beef_stew.label_tag }} {{ form.beef_stew.errors }} {{ form.beef_stew }}</p><p>{{ form.varied_stew.label_tag }} {{ form.varied_stew.errors }} {{ form.varied_stew }}</p></fieldset>
+      </div>
+      <button type="submit">Guardar menú</button>
+    </form>
+  </section>
+{% endblock %}

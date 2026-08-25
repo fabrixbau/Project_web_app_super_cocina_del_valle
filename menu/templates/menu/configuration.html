@@ -1,12 +1,12 @@
 <!-- NOTA TEMPORAL PARA APRENDIZAJE:
-Pantalla administrativa: filtros, categorías y productos. Las acciones sensibles usan
-POST + CSRF y solo Administrador llega aquí. Borra esta nota al terminar. -->
+Añadimos acceso al menú diario y mostramos clasificación/periodos de cada producto para
+que el administrador entienda cuándo y cómo se ofrece. Borra esta nota al terminar. -->
 {% extends "base_internal.html" %}
 {% block title %}Administrar menú{% endblock %}
 {% block content %}
   <div class="page-heading">
     <div><a href="{% url 'internal_portal:dashboard' %}">← Panel</a><h1>Administrar menú</h1></div>
-    <div><a class="button-link secondary" href="{% url 'menu:category_create' %}">Nueva categoría</a> <a class="button-link" href="{% url 'menu:product_create' %}">Nuevo producto</a></div>
+    <div><a class="button-link secondary" href="{% url 'menu:daily_menu_list' %}">Menús diarios</a> <a class="button-link secondary" href="{% url 'menu:category_create' %}">Nueva categoría</a> <a class="button-link" href="{% url 'menu:product_create' %}">Nuevo producto</a></div>
   </div>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
   <section class="card">
@@ -36,9 +36,11 @@ POST + CSRF y solo Administrador llega aquí. Borra esta nota al terminar. -->
       {% for product in products %}
         <article class="product-card">
           {% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% endif %}
-          <small>{{ product.category.name }}</small><h3>{{ product.name }}</h3>
+          <small>{{ product.category.name }} · {{ product.get_component_type_display }}</small><h3>{{ product.name }}</h3>
           <p><strong>${{ product.price }}</strong></p><p>{{ product.description|default:"Sin descripción" }}</p>
           <p>{% if product.is_available %}Disponible{% else %}No disponible{% endif %}</p>
+          <p>Periodos: {% for period in product.service_periods.all %}{{ period.name }}{% if not forloop.last %}, {% endif %}{% empty %}Todo el día{% endfor %}</p>
+          {% if product.eligible_for_executive_meal %}<p><strong>Elegible para comida ejecutiva</strong></p>{% endif %}
           <div><a href="{% url 'menu:product_edit' product.id %}">Editar</a> · <a href="{% url 'menu:product_delete' product.id %}">Eliminar</a></div>
           <form method="post" action="{% url 'menu:product_toggle_availability' product.id %}">{% csrf_token %}<button type="submit">Cambiar disponibilidad</button></form>
         </article>
