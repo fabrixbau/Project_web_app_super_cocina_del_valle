@@ -572,3 +572,44 @@ templates/
 - Confirmar o cancelar directamente un pedido también atiende su notificación pendiente.
 - Migración `notifications.0001_initial` pendiente de aplicar y bloque pendiente de validación manual.
 - No se ejecutaron pruebas automáticas.
+
+## Actualización: primer módulo de repartos
+
+- `/app/repartos/` reemplaza el placeholder con un panel para todos los pedidos a domicilio, sin depender de su estado.
+- Administrador, Telefonista y Repartidor pueden asignar cualquier pedido a un usuario activo del grupo Repartidor.
+- Los tres roles pueden sustituir al repartidor responsable en cualquier momento; la última asignación queda registrada.
+- La asignación usa bloqueo transaccional para evitar escrituras simultáneas inconsistentes.
+- El pedido guarda repartidor, usuario que asignó y fecha/hora de asignación.
+- Solo el repartidor asignado, Administrador o Telefonista pueden registrar la entrega como Entregado.
+- Al reiniciar el ciclo se limpia la asignación anterior, pero se conserva el historial de estados.
+- Los pedidos para recoger nunca aparecen en Repartos ni pueden asignarse.
+- Migración `orders.0005_order_delivery_assignment` pendiente de aplicar y bloque pendiente de validación manual.
+- No se crearon ni ejecutaron pruebas automáticas por decisión del desarrollador.
+- La barra superior del portal interno identifica por nombre o username al usuario que mantiene la sesión activa.
+
+## Actualización: modalidad, pagos de entrega y ciclo repetible
+
+- Antes de `/pedir/menu/` el cliente elige recoger o entrega; la modalidad se guarda en sesión y puede cambiarse.
+- Pickup oculta domicilio y pago; exige nombre, apellido y teléfono, y conserva notas. El pago se define al llegar.
+- Delivery exige domicilio y pago: tarjeta implica terminal, transferencia no requiere extras y efectivo permite billetes 50/100/200/500, monto personalizado o pago exacto.
+- JavaScript controla visibilidad/exclusión de opciones de efectivo y Django repite todas las validaciones.
+- Se agregó `Order.attention_started_by` y `attention_started_at`; abrir una notificación o realizar la primera transición registra al responsable.
+- Se eliminó por completo `Atender todas`; cada alerta se atiende individualmente.
+- Pickup: Pendiente → Confirmado → En preparación → Listo → Recogido.
+- Delivery: Pendiente → Confirmado → En preparación → Listo → Entregado.
+- Recogido y Entregado pueden reiniciar a Pendiente; el historial completo se conserva.
+- Migración `orders.0004_order_attention_and_optional_payment` pendiente de aplicar y bloque pendiente de validación manual.
+- No se ejecutaron pruebas automáticas.
+
+## Actualización: flujo operativo e historial de estados
+
+- Se agregó `Order.Status.PICKED_UP` (`Recogido`) y `OrderStatusHistory`.
+- Flujo permitido: Pendiente → Confirmado → En preparación → Listo.
+- Solo pickup continúa de Listo → Recogido; delivery queda en Listo hasta implementar asignación de repartidor.
+- Pendiente también puede pasar a Cancelado; no se permiten saltos ni repeticiones.
+- Cada transición usa bloqueo transaccional y registra estado anterior, nuevo, empleado y hora.
+- Pedidos web nuevos registran su estado inicial como evento del Sistema.
+- Administrador y Telefonista ven las acciones; Mesero conserva lectura sin botones.
+- Pedidos anteriores no reciben historial inventado y comienzan a registrar desde su siguiente cambio.
+- Migración `orders.0003_order_status_history` pendiente de aplicar y bloque pendiente de validación manual.
+- No se ejecutaron pruebas automáticas.

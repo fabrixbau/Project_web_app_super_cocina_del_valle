@@ -1,6 +1,5 @@
 <!-- NOTA TEMPORAL PARA APRENDIZAJE:
-Este es el tablero inicial de Telefonista: permite localizar pedidos por folio, cliente o
-teléfono y filtrarlos por estado/tipo. Todavía no incluye actualización automática.
+El listado refleja los nuevos estados operativos y conserva filtros por estado/tipo.
 Borra esta nota después de leerla. -->
 {% extends "base_internal.html" %}
 {% block title %}Pedidos{% endblock %}
@@ -14,7 +13,7 @@ Borra esta nota después de leerla. -->
     <button type="submit">Filtrar</button>
   </form></section>
   <section class="card spaced-card"><div class="order-list">
-    {% for order in orders %}<a class="order-row" href="{% url 'orders:order_detail' order.id %}">
+    {% for order in orders %}<a class="order-row status-{{ order.status }}" href="{% url 'orders:order_detail' order.id %}">
       <span><strong>{{ order.formatted_number }}</strong><small>{{ order.created_at|date:'d/m/Y H:i' }}</small></span>
       <span><strong>{{ order.customer_name }}</strong><small>{{ order.phone }}</small></span>
       <span>{{ order.get_order_type_display }}<small>{{ order.get_status_display }}</small></span>

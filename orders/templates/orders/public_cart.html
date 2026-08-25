@@ -2,7 +2,7 @@
 Esta página traduce el carrito guardado en sesión a nombres y precios actuales. Cada fila
 puede cambiar cantidad o eliminarse antes de pasar al checkout. Borra esta nota. -->
 <!doctype html><html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Carrito | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css"></head>
-<body><main class="container"><div class="page-heading"><div><a href="{% url 'public_portal:menu' %}">← Seguir agregando</a><h1>Tu carrito</h1></div></div>
+<body><main class="container"><div class="page-heading"><div><a href="{% url 'public_portal:menu' %}">← Seguir agregando</a><h1>Tu carrito</h1><p>{{ order_type_label }} · <a href="{% url 'public_portal:order_mode' %}">Cambiar modalidad</a></p></div></div>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
   {% if cart.invalid_count %}<p class="message error">{{ cart.invalid_count }} partida(s) ya no están disponibles y deben eliminarse.</p>{% for item in cart.invalid_items %}<form class="card spaced-card" method="post" action="{% url 'public_portal:cart_remove' item.key %}">{% csrf_token %}<p>Partida no disponible <button class="danger" type="submit">Eliminar</button></p></form>{% endfor %}{% endif %}
   <section class="card"><div class="cart-list">{% for item in cart.items %}<article class="cart-row">

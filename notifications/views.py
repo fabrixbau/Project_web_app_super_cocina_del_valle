@@ -1,8 +1,7 @@
 # NOTA TEMPORAL PARA APRENDIZAJE:
-# El listado separa pendientes de atendidas. Las acciones de lectura usan POST porque
-# modifican información y después llevan al detalle del pedido. Borra esta nota.
+# Abrir una alerta registra también quién inició la atención del pedido. Se retiró la
+# acción masiva para que cada alerta tenga un responsable explícito. Borra esta nota.
 
-from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -33,14 +32,10 @@ def notification_open(request, notification_id):
         notification.read_at = timezone.now()
         notification.read_by = request.user
         notification.save(update_fields=["is_read", "read_at", "read_by"])
+    if notification.order.attention_started_at is None:
+        notification.order.attention_started_at = timezone.now()
+        notification.order.attention_started_by = request.user
+        notification.order.save(update_fields=[
+            "attention_started_at", "attention_started_by", "updated_at",
+        ])
     return redirect("orders:order_detail", order_id=notification.order_id)
-
-
-@require_POST
-@role_required(ADMIN, ORDER_TAKER)
-def mark_all_read(request):
-    updated = InternalNotification.objects.filter(is_read=False).update(
-        is_read=True, read_at=timezone.now(), read_by=request.user
-    )
-    messages.success(request, f"Se marcaron {updated} notificaciones como atendidas.")
-    return redirect("notifications:notification_list")

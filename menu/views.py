@@ -197,6 +197,8 @@ def package_configuration(request):
 
 
 def public_menu(request):
+    if request.session.get("public_order_mode") not in {"pickup", "delivery"}:
+        return redirect("public_portal:order_mode")
     current_time = timezone.localtime().time()
     active_periods = ServicePeriod.objects.filter(
         is_active=True,

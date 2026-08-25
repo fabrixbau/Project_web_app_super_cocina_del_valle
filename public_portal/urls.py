@@ -1,6 +1,6 @@
 # NOTA TEMPORAL PARA APRENDIZAJE:
-# Estas rutas conectan agregar productos, carrito, checkout y confirmación. Las operaciones
-# que modifican el carrito usan POST. Borra esta nota después de leerla.
+# La modalidad se elige antes del menú; las demás rutas reutilizan esa decisión guardada
+# en sesión. Borra esta nota después de leerla.
 
 from django.urls import path
 
@@ -13,6 +13,7 @@ from . import views
 app_name = "public_portal"
 urlpatterns = [
     path("", views.home, name="home"),
+    path("modalidad/", order_views.public_order_mode, name="order_mode"),
     path("menu/", menu_views.public_menu, name="menu"),
     path("menu/paquete/<str:package_type>/", order_views.public_package_order, name="package_selection"),
     path("menu/producto/<int:product_id>/agregar/", order_views.public_product_add, name="product_add"),

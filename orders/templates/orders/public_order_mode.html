@@ -1,0 +1,5 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Esta es la primera decisión del pedido. Se guarda en sesión y controla qué campos aparecen
+en checkout. El cliente puede cambiarla desde el carrito. Borra esta nota. -->
+<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Modalidad | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css"></head>
+<body><main class="container package-builder"><section class="card mode-card"><h1>¿Cómo quieres recibir tu pedido?</h1><form method="post">{% csrf_token %}{{ form.non_field_errors }}{{ form.order_type.errors }}{{ form.order_type }}<button type="submit">Continuar al menú</button></form></section></main></body></html>

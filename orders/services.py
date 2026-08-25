@@ -1,5 +1,7 @@
 # NOTA TEMPORAL PARA APRENDIZAJE:
-# Al guardar unimos nombre y apellido en el snapshot customer_name del pedido.
+# La asignación de reparto usa bloqueo y valida quién puede cerrar una entrega.
+# Centralizamos la máquina de estados y su historial. El backend decide qué acción sigue;
+# la plantilla solo muestra esas opciones. Borra esta nota después de leerla.
 # El checkout nuevo recorre todas las partidas resueltas y calcula otra vez sus precios.
 # También crea o atiende la notificación dentro de la misma transacción del pedido.
 # Este servicio guarda encabezado y partida dentro de una sola transacción. Si algo falla,
@@ -10,10 +12,36 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, user_has_any_role
 from menu.models import DailyMenu, MealPackage
 from notifications.models import InternalNotification
 
-from .models import DailyOrderCounter, Order, OrderItem
+from .models import DailyOrderCounter, Order, OrderItem, OrderStatusHistory
+
+
+ACTION_LABELS = {
+    "confirm": "Confirmar pedido",
+    "cancel": "Cancelar pedido",
+    "start_preparing": "Iniciar preparación",
+    "mark_ready": "Marcar como listo",
+    "complete_pickup": "Marcar como recogido",
+    "complete_delivery": "Marcar como entregado",
+    "restart_cycle": "Iniciar nuevo ciclo",
+}
+
+
+def available_order_actions(order):
+    if order.status == Order.Status.PENDING_CONFIRMATION:
+        return ("confirm", "cancel")
+    if order.status == Order.Status.CONFIRMED:
+        return ("start_preparing",)
+    if order.status == Order.Status.PREPARING:
+        return ("mark_ready",)
+    if order.status == Order.Status.READY and order.order_type == Order.OrderType.PICKUP:
+        return ("complete_pickup",)
+    if order.status in {Order.Status.PICKED_UP, Order.Status.DELIVERED}:
+        return ("restart_cycle",)
+    return ()
 
 
 @transaction.atomic
@@ -47,6 +75,9 @@ def create_public_cart_order(*, cart_data, cleaned_data):
         needs_change=cleaned_data["needs_change"],
         cash_tendered=cleaned_data["cash_tendered"],
         total=total,
+    )
+    OrderStatusHistory.objects.create(
+        order=order, from_status="", to_status=Order.Status.PENDING_CONFIRMATION
     )
     for item in cart_data["items"]:
         if item["kind"] == "product":
@@ -138,19 +169,69 @@ def create_public_package_order(*, package, daily_menu, cleaned_data):
 
 
 @transaction.atomic
-def resolve_pending_order(*, order, action, actor=None):
+def transition_order(*, order, action, actor=None):
     order = Order.objects.select_for_update().get(pk=order.pk)
-    if order.status != Order.Status.PENDING_CONFIRMATION:
-        raise ValidationError("Este pedido ya fue atendido y no puede resolverse otra vez.")
-    status_by_action = {
-        "confirm": Order.Status.CONFIRMED,
-        "cancel": Order.Status.CANCELED,
+    transitions = {
+        (Order.Status.PENDING_CONFIRMATION, "confirm"): Order.Status.CONFIRMED,
+        (Order.Status.PENDING_CONFIRMATION, "cancel"): Order.Status.CANCELED,
+        (Order.Status.CONFIRMED, "start_preparing"): Order.Status.PREPARING,
+        (Order.Status.PREPARING, "mark_ready"): Order.Status.READY,
+        (Order.Status.READY, "complete_pickup"): Order.Status.PICKED_UP,
+        (Order.Status.READY, "complete_delivery"): Order.Status.DELIVERED,
+        (Order.Status.PICKED_UP, "restart_cycle"): Order.Status.PENDING_CONFIRMATION,
+        (Order.Status.DELIVERED, "restart_cycle"): Order.Status.PENDING_CONFIRMATION,
     }
-    if action not in status_by_action:
-        raise ValidationError("La acción solicitada no es válida.")
-    order.status = status_by_action[action]
-    order.save(update_fields=["status", "updated_at"])
+    target_status = transitions.get((order.status, action))
+    if not target_status:
+        raise ValidationError("Ese cambio no está permitido desde el estado actual.")
+    if action == "complete_pickup" and order.order_type != Order.OrderType.PICKUP:
+        raise ValidationError("Solo un pedido para recoger puede marcarse como recogido.")
+    if action == "complete_delivery" and order.order_type != Order.OrderType.DELIVERY:
+        raise ValidationError("Solo un pedido de entrega puede marcarse como entregado.")
+    if action == "complete_delivery":
+        if order.delivery_person_id is None:
+            raise ValidationError("Primero debes asignar el pedido a un repartidor.")
+        can_complete = actor == order.delivery_person or user_has_any_role(
+            actor, (ADMIN, ORDER_TAKER)
+        )
+        if not can_complete:
+            raise ValidationError("Solo el repartidor asignado puede completar esta entrega.")
+    if order.attention_started_at is None and actor is not None:
+        order.attention_started_at = timezone.now()
+        order.attention_started_by = actor
+    previous_status = order.status
+    order.status = target_status
+    update_fields = ["status", "updated_at"]
+    if action == "restart_cycle":
+        order.delivery_person = None
+        order.delivery_assigned_by = None
+        order.delivery_assigned_at = None
+        update_fields.extend([
+            "delivery_person", "delivery_assigned_by", "delivery_assigned_at",
+        ])
+    if "attention_started_at" in order.__dict__ and order.attention_started_at:
+        update_fields.extend(["attention_started_at", "attention_started_by"])
+    order.save(update_fields=update_fields)
+    OrderStatusHistory.objects.create(
+        order=order, from_status=previous_status, to_status=target_status, changed_by=actor
+    )
     InternalNotification.objects.filter(order=order, is_read=False).update(
         is_read=True, read_at=timezone.now(), read_by=actor
     )
+    return order
+
+
+@transaction.atomic
+def assign_delivery(*, order, delivery_person, assigned_by):
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if order.order_type != Order.OrderType.DELIVERY:
+        raise ValidationError("Los pedidos para recoger no se asignan a repartidores.")
+    if not delivery_person.is_active or not delivery_person.groups.filter(name=DELIVERY).exists():
+        raise ValidationError("Selecciona un usuario activo con rol Repartidor.")
+    order.delivery_person = delivery_person
+    order.delivery_assigned_by = assigned_by
+    order.delivery_assigned_at = timezone.now()
+    order.save(update_fields=[
+        "delivery_person", "delivery_assigned_by", "delivery_assigned_at", "updated_at",
+    ])
     return order

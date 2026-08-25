@@ -1,5 +1,7 @@
 # NOTA TEMPORAL PARA APRENDIZAJE:
-# OrderItem ahora distingue paquetes y productos individuales para soportar el carrito.
+# Este bloque también guarda repartidor, quién lo asignó y hora de asignación del pedido.
+# Registramos quién inició la atención; pago puede quedar vacío para recoger. El ciclo de
+# estados puede reiniciarse sin borrar el historial. Borra esta nota después de leerla.
 # Order representa el encabezado del pedido (cliente, entrega, pago y estado). OrderItem
 # conserva una fotografía del paquete elegido para que el historial no cambie si mañana
 # editamos el menú o los precios. DailyOrderCounter genera folios diarios seguros.
@@ -7,6 +9,7 @@
 
 import uuid
 
+from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
@@ -37,6 +40,7 @@ class Order(models.Model):
         PREPARING = "preparing", "En preparación"
         READY = "ready", "Listo"
         OUT_FOR_DELIVERY = "out_for_delivery", "En reparto"
+        PICKED_UP = "picked_up", "Recogido"
         DELIVERED = "delivered", "Entregado"
         CANCELED = "canceled", "Cancelado"
 
@@ -61,13 +65,27 @@ class Order(models.Model):
     neighborhood = models.CharField(max_length=150, blank=True)
     references = models.TextField(blank=True)
     notes = models.TextField(blank=True)
-    payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices)
+    payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, blank=True)
     needs_change = models.BooleanField(default=False)
     cash_tendered = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
         validators=[MinValueValidator(0)],
     )
     total = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    attention_started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="orders_attention_started",
+    )
+    attention_started_at = models.DateTimeField(null=True, blank=True)
+    delivery_person = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="assigned_delivery_orders",
+    )
+    delivery_assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="delivery_assignments_made",
+    )
+    delivery_assigned_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -135,3 +153,20 @@ class OrderItem(models.Model):
         if self.item_type == self.ItemType.PRODUCT:
             return f"{self.product_name_snapshot} × {self.quantity}"
         return f"{self.package_name_snapshot} × {self.quantity}"
+
+
+class OrderStatusHistory(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="status_history")
+    from_status = models.CharField(max_length=30, blank=True)
+    to_status = models.CharField(max_length=30, choices=Order.Status.choices)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="order_status_changes",
+    )
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["changed_at"]
+
+    def __str__(self):
+        return f"{self.order} · {self.get_to_status_display()}"

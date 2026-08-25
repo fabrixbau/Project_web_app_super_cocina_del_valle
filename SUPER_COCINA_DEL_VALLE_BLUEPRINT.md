@@ -1,5 +1,6 @@
 <!--
 NOTA TEMPORAL PARA APRENDIZAJE:
+Se documentaron modalidad previa, pago diferido para recoger y estados cíclicos con historial.
 Se corrigió el menú diario: no usa listas libres, sino siete lugares obligatorios
 organizados como 2 primeros + 2 segundos + 3 guisados. Borra esta nota.
 -->
@@ -373,6 +374,10 @@ También debe existir:
 Cancelado
 ```
 
+El control interno de estado es cíclico y conserva historial. Recoger termina en `Recogido`
+y entrega termina en `Entregado`; desde cualquiera de esos estados puede iniciarse un nuevo
+ciclo en `Pendiente de confirmar` sin borrar las transiciones anteriores.
+
 La transición y permisos de estados deben definirse en backend.
 
 ---
@@ -464,6 +469,7 @@ La aplicación debe poder operar completamente aunque WhatsApp no se implemente.
 Datos:
 
 - nombre;
+- apellido obligatorio para identificar al cliente al recoger;
 - teléfono.
 
 ## Entrega
@@ -488,6 +494,10 @@ Los datos del cliente pueden reutilizarse posteriormente por teléfono o identif
 # 11. Métodos de pago
 
 La aplicación no tendrá pasarela de pago.
+
+Para recoger no se solicita método de pago en el portal; el cliente lo define al llegar a la fonda.
+Para entrega sí es obligatorio indicarlo: tarjeta implica llevar terminal, transferencia no
+requiere preparación adicional y efectivo debe indicar billete/monto o pago exacto.
 
 Debe registrar:
 
@@ -1477,3 +1487,12 @@ Puede ser actualizado durante el desarrollo cuando exista:
 No debe utilizarse como bitácora de cada pequeño cambio de código.
 
 La bitácora operativa y el contexto de trabajo de Codex deben conservarse en `CODEX_CONTEXT.md`.
+
+## Decisión funcional: asignación de repartos
+
+- Todo pedido a domicilio entra al panel de Repartos sin importar su estado operativo.
+- Administrador, Telefonista y Repartidor pueden asignar o sustituir al repartidor responsable en cualquier momento.
+- Cada entrega tiene un solo repartidor responsable actual y conserva quién y cuándo realizó la asignación más reciente.
+- Los tres roles consultan las asignaciones actuales para poder coordinarlas y reasignarlas.
+- Solo el responsable asignado, Administrador o Telefonista pueden marcar el pedido como Entregado.
+- Los pedidos para recoger quedan completamente fuera de este módulo.

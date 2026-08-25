@@ -1,4 +1,5 @@
 # NOTA TEMPORAL PARA APRENDIZAJE:
+# La modalidad se guarda junto al carrito para preguntarla antes de mostrar el menú.
 # El carrito se guarda como datos simples dentro de la sesión del navegador. Este archivo
 # agrega, combina, actualiza y traduce esos datos a objetos actuales con precios del servidor.
 # No crea pedidos todavía. Borra esta nota después de leerla.
@@ -12,6 +13,7 @@ from menu.models import DailyMenu, MealPackage, Product
 
 
 SESSION_KEY = "public_order_cart"
+MODE_SESSION_KEY = "public_order_mode"
 
 
 def _cart(session):
@@ -76,6 +78,17 @@ def remove_item(session, *, key):
 
 def clear(session):
     session.pop(SESSION_KEY, None)
+    session.pop(MODE_SESSION_KEY, None)
+    session.modified = True
+
+
+def get_order_mode(session):
+    mode = session.get(MODE_SESSION_KEY)
+    return mode if mode in {"pickup", "delivery"} else None
+
+
+def set_order_mode(session, mode):
+    session[MODE_SESSION_KEY] = mode
     session.modified = True
 
 

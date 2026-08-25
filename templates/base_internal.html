@@ -1,5 +1,6 @@
 <!-- NOTA TEMPORAL PARA APRENDIZAJE:
 La barra interna muestra el acceso y contador de notificaciones solo a roles autorizados.
+Ahora también identifica al usuario activo para evitar operar accidentalmente con otra cuenta.
 Borra esta nota después de comprobarlo. -->
 <!doctype html>
 <html lang="es-MX">
@@ -14,6 +15,7 @@ Borra esta nota después de comprobarlo. -->
     <strong>Super Cocina del Valle</strong>
     {% if user.is_authenticated %}
       {% if can_view_notifications %}<a class="notification-link" href="{% url 'notifications:notification_list' %}">Notificaciones{% if unread_notification_count %}<span>{{ unread_notification_count }}</span>{% endif %}</a>{% endif %}
+      <div class="session-user"><small>Sesión iniciada como</small><strong>{{ user.get_full_name|default:user.username }}</strong></div>
       <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Cerrar sesión</button></form>
     {% endif %}
   </header>

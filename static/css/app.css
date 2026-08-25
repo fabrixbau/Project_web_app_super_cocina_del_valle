@@ -1,13 +1,18 @@
 /* NOTA TEMPORAL PARA APRENDIZAJE:
+El panel de repartos usa tarjetas adaptables y resalta los datos necesarios para cobrar.
 También agregamos la lista adaptable y el detalle de pedidos del panel interno.
 El carrito usa filas para producto, cantidad, subtotal y acciones.
 El contador y la bandeja resaltan alertas operativas pendientes.
+La bitácora separa visualmente cada transición del pedido.
+La tarjeta de modalidad presenta opciones grandes antes del menú.
 Agregamos estilos para dividir el pedido en secciones y destacar su confirmación.
 Borra esta nota después de revisar la pantalla. */
 :root { color-scheme: light; font-family: system-ui, sans-serif; color: #20251f; background: #f5f2e9; }
 * { box-sizing: border-box; }
 body { margin: 0; }
 .topbar { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; color: white; background: #285943; }
+.session-user { display: grid; margin-left: 1rem; text-align: right; }
+.session-user small { opacity: .8; }
 .notification-link { margin-left: auto; color: white; text-decoration: none; }
 .notification-link span { display: inline-block; min-width: 1.5rem; margin-left: .3rem; padding: .15rem .4rem; border-radius: 999px; color: #20251f; background: #f4c95d; text-align: center; font-weight: 700; }
 .container { width: min(1100px, calc(100% - 2rem)); margin: 2rem auto; }
@@ -72,6 +77,20 @@ a { color: #285943; }
 .notification-list { display: grid; gap: 1rem; }
 .notification-card { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 .notification-card.unread { border-left: 5px solid #f4c95d; }
+.status-history { display: grid; gap: .75rem; padding-left: 1.25rem; }
+.status-history small { display: block; color: #52685e; }
+.order-row.status-ready { border-left: 5px solid #285943; }
+.order-row.status-canceled { opacity: .65; }
+.mode-card { max-width: 560px; margin: 12vh auto; text-align: center; }
+.mode-card ul { display: grid; gap: .75rem; padding: 0; list-style: none; text-align: left; }
+.mode-card li label { display: block; padding: 1rem; border: 1px solid #d9d4c7; border-radius: .6rem; cursor: pointer; }
+.mode-card input { width: auto; margin-right: .6rem; }
 .error { color: #a12622; }
 .public-home { text-align: center; padding-top: 15vh; }
+.delivery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 1rem; }
+.delivery-title { display: flex; justify-content: space-between; gap: 1rem; align-items: start; }
+.delivery-title h3 { margin-top: 0; }
+.delivery-payment { padding: .75rem; border-radius: .5rem; background: #f5f2e9; }
+.delivery-assignment-form { display: grid; grid-template-columns: 1fr auto; gap: .5rem; align-items: end; }
+.delivery-assignment-form label { grid-column: 1 / -1; font-weight: 700; }
 @media (max-width: 720px) { .filters, .formset-row, .package-fields, .order-row, .order-detail-grid, .cart-row { grid-template-columns: 1fr; } .page-heading, .daily-menu-row, .cart-total { align-items: start; flex-direction: column; } }
