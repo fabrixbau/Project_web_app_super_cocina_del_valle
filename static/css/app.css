@@ -389,6 +389,9 @@ a { color: #285943; }
 .table-package-dialog form[data-package-form] .table-package-field:has(input[name$='refill_extra']) { display: grid; grid-template-columns: 1fr auto; align-items: center; min-height: 85px; border-color: #4e806c; }
 .table-package-dialog form[data-package-form] .table-package-field:has(input[name$='with_water']:checked),
 .table-package-dialog form[data-package-form] .table-package-field:has(input[name$='refill_extra']:checked) { background: #dcece2; box-shadow: inset 0 0 0 1px #173f32; }
+.table-package-dialog form[data-package-form] .table-package-field:has(textarea[name$='customization_comment']) { grid-column: 1 / -1; border-color: #b85f30; background: #fffaf6; }
+.table-package-dialog form[data-package-form] textarea[name$='customization_comment'] { width: 100%; min-height: 4.5rem; padding: .7rem; border: 2px solid #d8d1c2; border-radius: .5rem; resize: vertical; font: inherit; }
+.table-package-dialog form[data-package-form] textarea[name$='customization_comment']:focus { border-color: #b85f30; outline: 3px solid rgb(184 95 48 / 18%); }
 .table-package-dialog form[data-package-form] .confirm-package-button { position: sticky; bottom: -1.2rem; min-height: 3.5rem; margin: .25rem -1.2rem -1.2rem; width: calc(100% + 2.4rem); border-radius: 0; background: #b85f30; font-size: 1.05rem; }
 @media (max-width: 680px) {
   .table-package-dialog form[data-package-form] { grid-template-columns: 1fr; }

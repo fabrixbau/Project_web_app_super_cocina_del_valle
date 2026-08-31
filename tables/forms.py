@@ -15,6 +15,15 @@ from .models import TableAccount
 
 class TablePackageForm(PackageSelectionForm):
     refill_extra = forms.BooleanField(label="Refill extra", required=False)
+    customization_comment = forms.CharField(
+        label="Comentario para cocina",
+        required=False,
+        max_length=150,
+        widget=forms.Textarea(attrs={
+            "rows": 2,
+            "placeholder": "Ej. Sin cebolla, bien caliente, servir primero la sopa",
+        }),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -31,6 +40,16 @@ class TablePackageForm(PackageSelectionForm):
 
     def clean(self):
         cleaned_data = forms.Form.clean(self)
+        comment = " ".join((cleaned_data.get("customization_comment") or "").split())
+        cleaned_data["customization_comment"] = comment
+        cleaned_data["configuration_signature"] = (
+            f"comentario:{comment.casefold()}" if comment else ""
+        )
+        cleaned_data["configuration_snapshot"] = {
+            "differences": [comment] if comment else [],
+            "comment": comment,
+        }
+        cleaned_data["is_customized"] = bool(comment)
         main_course = cleaned_data.get("main_course")
         if cleaned_data.get("chicken_piece") and (
             not main_course or main_course.pk != self.daily_menu.chicken_stew_id

@@ -899,3 +899,4 @@ templates/
 - Todos los productos individuales muestran `Personalizar`: con grupos permite editar ingredientes y comentario; sin grupos abre solamente el comentario.
 - Los componentes de Corrida y Ejecutiva usan la misma tarjeta con menos, más y Personalizar, aunque conservan su función de completar automáticamente un paquete.
 - Los formularios manuales de Corrida/Ejecutiva muestran los tres tiempos como bloques de opciones grandes, extras separados y confirmación fija al pie.
+- Corrida y Ejecutiva manuales aceptan un comentario de cocina de hasta 150 caracteres; se conserva al editar y aparece entre paréntesis junto al nombre del paquete.

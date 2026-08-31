@@ -361,13 +361,18 @@ def update_table_package(*, account, item, package, daily_menu, cleaned_data, ch
     item.tortillas = False
     item.beans = False
     item.is_complete = cleaned_data["is_complete"]
+    item.customization_comment = cleaned_data.get("customization_comment", "")
+    item.configuration_signature = cleaned_data.get("configuration_signature", "")
+    item.configuration_snapshot = cleaned_data.get("configuration_snapshot", {})
+    item.is_customized = cleaned_data.get("is_customized", False)
     item.unit_price = price
     item.subtotal = price * item.quantity
     item.save(update_fields=(
         "first_course_product", "first_course_snapshot", "second_course_product",
         "second_course_snapshot", "main_course_product", "main_course_snapshot",
         "chicken_piece", "with_water", "water_name_snapshot", "refill_extra", "tortillas", "beans",
-        "daily_menu", "is_complete", "unit_price", "subtotal",
+        "daily_menu", "is_complete", "customization_comment", "configuration_signature",
+        "configuration_snapshot", "is_customized", "unit_price", "subtotal",
     ))
     record_activity(account=account, actor=changed_by, action=TableActivity.Action.PACKAGE_EDIT, description=package.name)
     return item

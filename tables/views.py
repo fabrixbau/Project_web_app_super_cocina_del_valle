@@ -459,6 +459,7 @@ def table_detail(request, account_id):
             "chicken_piece": item.chicken_piece,
             "with_water": item.with_water,
             "refill_extra": item.refill_extra,
+            "customization_comment": item.customization_comment,
         }
         prefix = f"package-edit-{item.pk}"
         package_edit_options.append({
