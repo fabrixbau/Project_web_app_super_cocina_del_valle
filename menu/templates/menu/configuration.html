@@ -1,10 +1,13 @@
 {% extends "base_internal.html" %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Cada producto ahora enlaza a Ingredientes. El contador indica cuántos grupos de preparación
+tiene configurados sin mezclar esta tarea con la edición de precio o categoría. Borra la nota. -->
 {% block title %}Administrar menú{% endblock %}
 {% block content %}
   <div class="page-heading">
     <a class="button-link secondary" href="{% url 'menu:package_configuration' %}">Configurar paquetes</a>
     <div><a href="{% url 'internal_portal:dashboard' %}">← Panel</a><h1>Administrar menú</h1></div>
-    <div><a class="button-link secondary" href="{% url 'menu:daily_menu_list' %}">Menús diarios</a> <a class="button-link secondary" href="{% url 'menu:category_create' %}">Nueva categoría</a> <a class="button-link" href="{% url 'menu:product_create' %}">Nuevo producto</a></div>
+    <div><a class="button-link secondary" href="{% url 'menu:daily_menu_list' %}">Menús diarios</a> <a class="button-link secondary" href="{% url 'menu:ingredient_group_library' %}">Grupos de ingredientes</a> <a class="button-link secondary" href="{% url 'menu:category_ordering' %}">Ordenar categorías</a> <a class="button-link secondary" href="{% url 'menu:category_create' %}">Nueva categoría</a> <a class="button-link" href="{% url 'menu:product_create' %}">Nuevo producto</a></div>
   </div>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
   <section class="card">
@@ -39,7 +42,7 @@
           <p>{% if product.is_available %}Disponible{% else %}No disponible{% endif %}</p>
           <p>Periodos: {% for period in product.service_periods.all %}{{ period.name }}{% if not forloop.last %}, {% endif %}{% empty %}Todo el día{% endfor %}</p>
           {% if product.eligible_for_executive_meal %}<p><strong>Elegible para comida ejecutiva</strong></p>{% endif %}
-          <div><a href="{% url 'menu:product_edit' product.id %}">Editar</a> · <a href="{% url 'menu:product_delete' product.id %}">Eliminar</a></div>
+          <div class="product-admin-actions"><a href="{% url 'menu:product_edit' product.id %}">Editar</a><a href="{% url 'menu:product_edit' product.id %}#product-ingredients">Ingredientes ({{ product.option_group_count }})</a><a href="{% url 'menu:product_delete' product.id %}">Eliminar</a></div>
           <form method="post" action="{% url 'menu:product_toggle_availability' product.id %}">{% csrf_token %}<button type="submit">Cambiar disponibilidad</button></form>
         </article>
       {% empty %}<p>No se encontraron productos.</p>{% endfor %}

@@ -1,17 +1,18 @@
 <!-- NOTA TEMPORAL PARA APRENDIZAJE:
-Cada paquete se configura antes de agregarlo; los productos individuales se agregan con
-cantidad. Mostramos la modalidad activa y permitimos cambiarla. Borra esta nota. -->
+Cada tarjeta tiene menos, contador y más para la receta estándar. Personalizar abre el selector
+y conserva la configuración en una partida separada. Borra esta nota al terminar de probar. -->
 <!doctype html>
 <html lang="es-MX">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Menú | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Menú | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css?v=12"></head>
 <body><main class="container">
-  <div class="page-heading"><div><p><a href="{% url 'public_portal:home' %}">← Inicio</a></p><small>{% if request.session.public_order_mode == 'pickup' %}Recoger en la fonda{% else %}Entrega a domicilio{% endif %} · <a href="{% url 'public_portal:order_mode' %}">Cambiar</a></small></div><a class="button-link" href="{% url 'public_portal:cart' %}">Ver carrito</a></div><h1>Nuestro menú</h1>
+  <div class="page-heading"><div><p><a href="{% url 'public_portal:home' %}">← Inicio</a></p><small>{% if request.session.public_order_mode == 'pickup' %}Recoger en la fonda{% else %}Entrega a domicilio{% endif %} · <a href="{% url 'public_portal:order_mode' %}">Cambiar</a></small></div><a class="button-link" href="{% url 'public_portal:cart' %}">Ver carrito (<span data-public-cart-count>{{ cart_controls.count }}</span>)</a></div><h1>Nuestro menú</h1>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
-  <p>Disponible ahora: {% for period in active_periods %}{{ period.name }}{% if not forloop.last %}, {% endif %}{% empty %}productos sin restricción horaria{% endfor %}</p>
+  <p><strong>Menú de {{ public_menu_mode_label }}</strong> · Disponible ahora: {% for period in active_periods %}{{ period.name }}{% if not forloop.last %}, {% endif %}{% empty %}productos sin restricción horaria{% endfor %}</p>
   {% if daily_menu %}
+    {% if advance_food_order %}<p class="message">Puedes agendar comida corrida o ejecutiva desde ahora. Se sirve y puede recogerse a partir de la 1:00 p. m.</p>{% endif %}
     <section class="card daily-public-menu"><h2>Comida del día · {{ daily_menu.date }}</h2>
       {% if daily_menu.water_product %}<p><strong>Agua del día:</strong> {{ daily_menu.water_product.name }}</p>{% endif %}
-      {% for group in daily_groups %}<div class="daily-group"><h3>{{ group.title }}</h3><ul>{% for product in group.products %}<li>{{ product.name }}{% if product.is_sold_individually %} — ${{ product.price }} por orden <form class="inline-form" method="post" action="{% url 'public_portal:product_add' product.id %}">{% csrf_token %}<input aria-label="Cantidad" type="number" name="quantity" value="1" min="1" max="99"><button type="submit">Agregar</button></form>{% endif %}</li>{% endfor %}</ul></div>{% endfor %}
+      {% for group in daily_groups %}<div class="daily-group"><h3>{{ group.title }}</h3><div class="product-grid">{% for product in group.products %}{% include "menu/_public_product_card.html" with product=product %}{% endfor %}</div></div>{% endfor %}
     </section>
   {% endif %}
   {% if daily_menu %}<section class="spaced-card"><h2>Paquetes de tres tiempos</h2><div class="package-grid">
@@ -20,8 +21,8 @@ cantidad. Mostramos la modalidad activa y permitimos cambiarla. Borra esta nota.
   <h2 class="spaced-card">Productos disponibles por orden</h2>
   {% for category in categories %}
     <section class="spaced-card"><h2>{{ category.name }}</h2><div class="product-grid">
-      {% for product in category.available_products %}<article class="product-card">{% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% endif %}<h3>{{ product.name }}</h3><p>{{ product.description }}</p><strong>${{ product.price }}</strong>{% if product.is_sold_individually %}<form method="post" action="{% url 'public_portal:product_add' product.id %}">{% csrf_token %}<label>Cantidad <input type="number" name="quantity" value="1" min="1" max="99"></label><button type="submit">Agregar</button></form>{% endif %}</article>{% endfor %}
+      {% for product in category.available_products %}{% include "menu/_public_product_card.html" with product=product %}{% endfor %}
     </div></section>
   {% empty %}<section class="card"><p>El menú todavía no tiene productos disponibles.</p></section>{% endfor %}
-</main></body>
+</main>{{ product_customizations|json_script:"product-selector-data" }}{{ cart_controls|json_script:"public-cart-controls" }}{% include "menu/_product_selector_dialog.html" %}<script src="/static/js/product-selector.js?v=4"></script><script src="/static/js/public-menu-controls.js?v=1"></script></body>
 </html>

@@ -2,19 +2,25 @@
 # Las vistas finales forman el panel operativo y las acciones seguras de reparto.
 # El flujo público exige modalidad en sesión antes del menú; checkout usa esa decisión
 # para mostrar solo los datos necesarios. Borra esta nota después de leerla.
+# Corrida y ejecutiva permiten pedidos anticipados antes de la 1 p. m. con un aviso.
+# Productos generales también respetan la visibilidad pública de su categoría según horario.
+
+from datetime import time
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, SECTION_ROLE_MATRIX, role_required, user_has_any_role
 from menu.models import DailyMenu, MealPackage, Product
+from menu.selection import resolve_product_selection
 
-from .cart import add_package, add_product, clear, get_order_mode, product_is_orderable, remove_item, resolve_cart, set_order_mode, update_item
+from .cart import add_package, add_product, cart_control_summary, clear, decrease_product, get_order_mode, product_is_orderable, remove_item, resolve_cart, set_order_mode, update_item
 from .forms import PackageCartForm, ProductCartForm, PublicCheckoutForm, PublicOrderModeForm
 from .models import Order
 from .services import ACTION_LABELS, assign_delivery, available_order_actions, create_public_cart_order, transition_order
@@ -48,23 +54,88 @@ def public_package_order(request, package_type):
         return redirect("public_portal:cart")
     return render(request, "orders/public_package_order.html", {
         "package": package, "daily_menu": daily_menu, "form": form,
+        "advance_food_order": timezone.localtime().time() < time(13, 0),
     })
 
 
 @require_POST
 def public_product_add(request, product_id):
+    wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if not get_order_mode(request.session):
+        if wants_json:
+            return JsonResponse({"ok": False, "error": "Primero selecciona la modalidad del pedido."}, status=400)
         return redirect("public_portal:order_mode")
-    product = get_object_or_404(Product.objects.prefetch_related("service_periods"), pk=product_id)
+    product = get_object_or_404(
+        Product.objects.select_related("category").prefetch_related(
+            "service_periods", "option_groups__options",
+        ),
+        pk=product_id,
+    )
     form = ProductCartForm(request.POST)
-    if not product_is_orderable(product):
-        messages.error(request, "Ese producto no está disponible para pedir ahora.")
+    daily_component_types = {
+        Product.ComponentType.CHICKEN_CONSOMME,
+        Product.ComponentType.VARIABLE_FIRST_COURSE,
+        Product.ComponentType.SECOND_COURSE,
+        Product.ComponentType.CHICKEN_STEW,
+        Product.ComponentType.BEEF_STEW,
+        Product.ComponentType.VARIED_STEW,
+    }
+    visibility_field = (
+        "show_on_public_breakfast"
+        if timezone.localtime().time() < time(12, 30)
+        else "show_on_public_lunch"
+    )
+    category_is_visible = (
+        product.component_type in daily_component_types
+        or getattr(product.category, visibility_field)
+    )
+    if not category_is_visible:
+        error_message = "Ese producto no está visible en el menú de este horario."
+    elif not product_is_orderable(product):
+        error_message = "Ese producto no está disponible para pedir ahora."
     elif form.is_valid():
-        add_product(request.session, product=product, quantity=form.cleaned_data["quantity"])
-        messages.success(request, f"{product.name} fue agregado al carrito.")
-        return redirect("public_portal:cart")
+        try:
+            raw_option_ids = (
+                request.POST.getlist("option_ids")
+                if request.POST.get("customization_selected") == "1" else None
+            )
+            raw_comment = (
+                request.POST.get("customization_comment", "")
+                if request.POST.get("customization_selected") == "1" else ""
+            )
+            selection = resolve_product_selection(product, raw_option_ids, raw_comment)
+        except ValidationError as error:
+            error_message = error.message
+        else:
+            add_product(
+                request.session, product=product, quantity=form.cleaned_data["quantity"],
+                selection=selection,
+            )
+            if wants_json:
+                return JsonResponse({"ok": True, "cart": cart_control_summary(request.session)})
+            messages.success(request, f"{product.name} fue agregado al carrito.")
+            return redirect("public_portal:cart")
     else:
-        messages.error(request, "La cantidad solicitada no es válida.")
+        error_message = "La cantidad solicitada no es válida."
+    if wants_json:
+        return JsonResponse({"ok": False, "error": error_message}, status=400)
+    messages.error(request, error_message)
+    return redirect("public_portal:menu")
+
+
+@require_POST
+def public_product_decrease(request, product_id):
+    if not get_order_mode(request.session):
+        return JsonResponse({"ok": False, "error": "Primero selecciona la modalidad del pedido."}, status=400)
+    product = get_object_or_404(
+        Product.objects.prefetch_related("option_groups__options"), pk=product_id,
+    )
+    standard = resolve_product_selection(product)
+    decrease_product(
+        request.session, product=product, configuration_signature=standard["signature"],
+    )
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"ok": True, "cart": cart_control_summary(request.session)})
     return redirect("public_portal:menu")
 
 

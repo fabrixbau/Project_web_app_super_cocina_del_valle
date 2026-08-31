@@ -1,5 +1,6 @@
 # NOTA TEMPORAL PARA APRENDIZAJE:
 # `/app/repartos/` conecta el nuevo panel real antes del portal interno general.
+# `/app/mesas/` carga el mapa y las cuentas activas del nuevo módulo de mesas.
 # `/app/pedidos/` ahora carga el listado real de orders antes del portal interno general.
 # `/app/notificaciones/` carga la bandeja interna de alertas. Borra esta nota.
 # Conectamos `/app/menu/` con el módulo de menú y servimos imágenes en desarrollo.
@@ -20,7 +21,9 @@ urlpatterns = [
         name="login",
     ),
     path("cuentas/", include("django.contrib.auth.urls")),
+    path("app/perfil/", include("accounts.urls")),
     path("app/menu/", include("menu.urls")),
+    path("app/mesas/", include("tables.urls")),
     path("app/pedidos/", include("orders.urls")),
     path("app/repartos/", include("orders.delivery_urls")),
     path("app/notificaciones/", include("notifications.urls")),

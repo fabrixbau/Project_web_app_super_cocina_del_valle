@@ -1,0 +1,14 @@
+{% extends "base_internal.html" %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Este formulario sirve para grupos, ingredientes y copias. Django muestra las ayudas definidas
+en forms.py y conserva la validación aunque se envíen datos incorrectos. Borra esta nota. -->
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+  <p><a href="{% url 'menu:product_customization' product.id %}">← Ingredientes de {{ product.name }}</a></p>
+  <section class="card customization-form-card"><span class="mode-kicker">{{ product.name }}{% if group %} · {{ group.name }}{% endif %}</span><h1>{{ title }}</h1>
+    <form method="post" class="customization-admin-form">{% csrf_token %}{{ form.non_field_errors }}
+      {% for field in form %}<div class="product-form-field{% if field.field.widget.input_type == 'checkbox' %} customization-checkbox-field{% endif %}">{% if field.field.widget.input_type == 'checkbox' %}<label>{{ field }} <strong>{{ field.label }}</strong></label>{{ field.errors }}{% else %}{{ field.label_tag }}{{ field.errors }}{{ field }}{% endif %}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}</div>{% endfor %}
+      <div class="product-form-actions"><a class="button-link secondary" href="{% url 'menu:product_customization' product.id %}">Cancelar</a><button type="submit">Guardar</button></div>
+    </form>
+  </section>
+{% endblock %}

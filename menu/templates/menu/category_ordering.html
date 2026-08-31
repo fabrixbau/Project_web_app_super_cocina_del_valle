@@ -1,0 +1,51 @@
+{% extends "base_internal.html" %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Cada columna representa una vista real diferente. Cliente y Mesas conservan modos separados.
+Arrastrar cambia la previsualización en
+el navegador; Guardar órdenes envía las cinco listas completas y Django las actualiza juntas.
+Las tarjetas apagadas siguen ordenables, pero no se muestran en ese modo. Borra la nota. -->
+{% load static %}
+{% block title %}Organizar categorías{% endblock %}
+{% block content %}
+  <div class="page-heading">
+    <div><a href="{% url 'menu:configuration' %}">← Administrar menú</a><h1>Organizar categorías</h1><p>Arrastra las tarjetas hasta obtener el orden deseado en cada vista.</p></div>
+  </div>
+  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  <form method="post" data-category-order-form>{% csrf_token %}
+    <div class="category-order-panels">
+      <section class="category-order-panel card">
+        <header><span class="mode-kicker">Menú público</span><h2>Orden general</h2><p>Se usa en `/pedir/menu/` y en listados generales.</p></header>
+        <div class="category-sortable-list" data-sortable-list data-input-name="general_order">
+          {% for category in general_categories %}<article class="category-order-item" draggable="true" data-category-id="{{ category.id }}"><input type="hidden" name="general_order" value="{{ category.id }}"><button type="button" class="drag-handle" data-drag-handle aria-label="Arrastrar {{ category.name }}">⠿</button><span class="order-position">{{ forloop.counter }}</span><div><strong>{{ category.name }}</strong><small>{{ category.product_count }} productos</small><a class="category-order-edit" href="{% url 'menu:category_edit' category.id %}">Editar categoría</a></div><div class="order-move-buttons"><button type="button" data-move-up aria-label="Subir {{ category.name }}">↑</button><button type="button" data-move-down aria-label="Bajar {{ category.name }}">↓</button></div></article>{% empty %}<p>No hay categorías.</p>{% endfor %}
+        </div>
+      </section>
+      <section class="category-order-panel card public-order-panel">
+        <header><span class="mode-kicker">Cliente · antes de 12:30</span><h2>Cliente · Desayunos</h2><p>Orden que verá el cliente; las tarjetas atenuadas estarán completamente ocultas.</p></header>
+        <div class="category-sortable-list" data-sortable-list data-input-name="public_breakfast_order">
+          {% for category in public_breakfast_categories %}<article class="category-order-item{% if not category.show_on_public_breakfast %} is-hidden-category{% endif %}" draggable="true" data-category-id="{{ category.id }}"><input type="hidden" name="public_breakfast_order" value="{{ category.id }}"><button type="button" class="drag-handle" data-drag-handle aria-label="Arrastrar {{ category.name }}">⠿</button><span class="order-position">{{ forloop.counter }}</span><div><strong>{{ category.name }}</strong><small data-visibility-status>{% if category.show_on_public_breakfast %}Visible para clientes{% else %}Oculta para clientes{% endif %}</small><label class="category-visibility-toggle"><input type="checkbox" name="public_breakfast_visible" value="{{ category.id }}" data-visibility-toggle {% if category.show_on_public_breakfast %}checked{% endif %}> Mostrar</label><a class="category-order-edit" href="{% url 'menu:category_edit' category.id %}">Editar categoría</a></div><div class="order-move-buttons"><button type="button" data-move-up aria-label="Subir {{ category.name }}">↑</button><button type="button" data-move-down aria-label="Bajar {{ category.name }}">↓</button></div></article>{% empty %}<p>No hay categorías.</p>{% endfor %}
+        </div>
+      </section>
+      <section class="category-order-panel card public-order-panel">
+        <header><span class="mode-kicker">Cliente · desde 12:30</span><h2>Cliente · Comida</h2><p>El cierre y los horarios de productos siguen aplicándose además de esta visibilidad.</p></header>
+        <div class="category-sortable-list" data-sortable-list data-input-name="public_lunch_order">
+          {% for category in public_lunch_categories %}<article class="category-order-item{% if not category.show_on_public_lunch %} is-hidden-category{% endif %}" draggable="true" data-category-id="{{ category.id }}"><input type="hidden" name="public_lunch_order" value="{{ category.id }}"><button type="button" class="drag-handle" data-drag-handle aria-label="Arrastrar {{ category.name }}">⠿</button><span class="order-position">{{ forloop.counter }}</span><div><strong>{{ category.name }}</strong><small data-visibility-status>{% if category.show_on_public_lunch %}Visible para clientes{% else %}Oculta para clientes{% endif %}</small><label class="category-visibility-toggle"><input type="checkbox" name="public_lunch_visible" value="{{ category.id }}" data-visibility-toggle {% if category.show_on_public_lunch %}checked{% endif %}> Mostrar</label><a class="category-order-edit" href="{% url 'menu:category_edit' category.id %}">Editar categoría</a></div><div class="order-move-buttons"><button type="button" data-move-up aria-label="Subir {{ category.name }}">↑</button><button type="button" data-move-down aria-label="Bajar {{ category.name }}">↓</button></div></article>{% empty %}<p>No hay categorías.</p>{% endfor %}
+        </div>
+      </section>
+      <section class="category-order-panel card">
+        <header><span class="mode-kicker">Mesas</span><h2>Modo desayunos</h2><p>Las categorías ocultas se muestran atenuadas para poder ordenarlas antes de activarlas.</p></header>
+        <div class="category-sortable-list" data-sortable-list data-input-name="breakfast_order">
+          {% for category in breakfast_categories %}<article class="category-order-item{% if not category.show_on_table_breakfast %} is-hidden-category{% endif %}" draggable="true" data-category-id="{{ category.id }}"><input type="hidden" name="breakfast_order" value="{{ category.id }}"><button type="button" class="drag-handle" data-drag-handle aria-label="Arrastrar {{ category.name }}">⠿</button><span class="order-position">{{ forloop.counter }}</span><div><strong>{{ category.name }}</strong><small>{% if category.show_on_table_breakfast %}Visible{% else %}Oculta en desayunos{% endif %}{% if category.show_table_packages %} · Abre paquetes{% endif %}</small><a class="category-order-edit" href="{% url 'menu:category_edit' category.id %}">Editar categoría</a></div><div class="order-move-buttons"><button type="button" data-move-up aria-label="Subir {{ category.name }}">↑</button><button type="button" data-move-down aria-label="Bajar {{ category.name }}">↓</button></div></article>{% empty %}<p>No hay categorías.</p>{% endfor %}
+        </div>
+      </section>
+      <section class="category-order-panel card lunch-order-panel">
+        <header><span class="mode-kicker">Mesas</span><h2>Modo comida</h2><p>Corrida y Ejecutiva permanecen al inicio. La tarjeta Comida por orden sí define la posición de su acceso automático.</p></header>
+        <div class="system-category-group"><div class="system-category"><span>Fijo 1</span><strong>Comida corrida</strong></div><div class="system-category"><span>Fijo 2</span><strong>Comida ejecutiva</strong></div></div>
+        <div class="category-sortable-list" data-sortable-list data-input-name="lunch_order">
+          {% for category in lunch_categories %}<article class="category-order-item{% if not category.show_on_table_lunch %} is-hidden-category{% endif %}" draggable="true" data-category-id="{{ category.id }}"><input type="hidden" name="lunch_order" value="{{ category.id }}"><button type="button" class="drag-handle" data-drag-handle aria-label="Arrastrar {{ category.name }}">⠿</button><span class="order-position">{{ forloop.counter }}</span><div><strong>{{ category.name }}</strong><small>{% if category.show_on_table_lunch %}Visible{% else %}Oculta en comida{% endif %}{% if category.name == 'Comida corrida' or category.name == 'Comida ejecutiva' or category.name == 'Comida por orden' %} · Sustituida por acceso automático{% endif %}</small><a class="category-order-edit" href="{% url 'menu:category_edit' category.id %}">Editar categoría</a></div><div class="order-move-buttons"><button type="button" data-move-up aria-label="Subir {{ category.name }}">↑</button><button type="button" data-move-down aria-label="Bajar {{ category.name }}">↓</button></div></article>{% empty %}<p>No hay categorías.</p>{% endfor %}
+        </div>
+      </section>
+    </div>
+    <div class="category-order-save"><p>Los cambios se previsualizan al instante, pero no afectan el menú hasta guardar.</p><button type="submit">Guardar los cinco órdenes</button></div>
+  </form>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/category-ordering.js' %}?v=1"></script>{% endblock %}

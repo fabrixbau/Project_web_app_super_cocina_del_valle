@@ -1,11 +1,70 @@
+{% extends "base_internal.html" %}
 <!-- NOTA TEMPORAL PARA APRENDIZAJE:
 Esta plantilla sirve para crear/editar ambas entidades. `multipart/form-data` permite
-enviar archivos de imagen. Borra esta nota al terminar. -->
-{% extends "base_internal.html" %}
+enviar archivos de imagen. Categorías enlaza al organizador visual compartido.
+El producto se divide en bloques; cada casilla incluye una explicación de su efecto.
+La receta completa se edita aquí mismo: JavaScript agrega grupos y filas, y un campo JSON
+permite que Django valide y guarde todo junto con el producto. Borra esta nota al terminar. -->
+{% load static %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
   <p><a href="{% url 'menu:configuration' %}">← Volver al menú</a></p>
   <section class="card form-card"><h1>{{ title }}</h1>
-    <form method="post" enctype="multipart/form-data">{% csrf_token %}{{ form.as_p }}<button type="submit">Guardar</button></form>
+    {% if show_category_order_link %}<p class="form-help-callout">El orden ya no se edita con números. <a href="{% url 'menu:category_ordering' %}">Abrir organizador visual de categorías</a>.</p>{% endif %}
+    <form method="post" enctype="multipart/form-data" {% if is_product_form %}class="product-editor-form"{% endif %}>{% csrf_token %}
+      {% if is_product_form %}
+        {{ form.non_field_errors }}
+        <fieldset class="product-form-section">
+          <legend>1. Información principal</legend>
+          <p class="section-help">Datos que identificarán el producto y determinarán su precio.</p>
+          <div class="product-form-grid">
+            <div class="product-form-field">{{ form.category.label_tag }}{{ form.category.errors }}{{ form.category }}{% if form.category.help_text %}<small>{{ form.category.help_text }}</small>{% endif %}</div>
+            <div class="product-form-field">{{ form.name.label_tag }}{{ form.name.errors }}{{ form.name }}</div>
+            <div class="product-form-field">{{ form.price.label_tag }}{{ form.price.errors }}{{ form.price }}</div>
+            <div class="product-form-field">{{ form.sort_order.label_tag }}{{ form.sort_order.errors }}{{ form.sort_order }}{% if form.sort_order.help_text %}<small>{{ form.sort_order.help_text }}</small>{% endif %}</div>
+            <div class="product-form-field product-form-wide">{{ form.description.label_tag }}{{ form.description.errors }}{{ form.description }}</div>
+            <div class="product-form-field product-form-wide">{{ form.image.label_tag }}{{ form.image.errors }}{{ form.image }}</div>
+          </div>
+        </fieldset>
+        <fieldset class="product-form-section">
+          <legend>2. Clasificación dentro del menú</legend>
+          <p class="section-help">Estas opciones permiten que el sistema sepa si puede usarlo en los tiempos y paquetes.</p>
+          <div class="product-form-field">{{ form.component_type.label_tag }}{{ form.component_type.errors }}{{ form.component_type }}<small>{{ form.component_type.help_text }}</small></div>
+          <label class="product-rule-card">{{ form.eligible_for_executive_meal }}<span><strong>{{ form.eligible_for_executive_meal.label }}</strong><small>{{ form.eligible_for_executive_meal.help_text }}</small>{{ form.eligible_for_executive_meal.errors }}</span></label>
+        </fieldset>
+        <fieldset class="product-form-section">
+          <legend>3. Disponibilidad y forma de venta</legend>
+          <p class="section-help">Controla si el producto puede encontrarse y agregarse directamente a una orden.</p>
+          <div class="product-rule-grid">
+            <label class="product-rule-card">{{ form.is_available }}<span><strong>{{ form.is_available.label }}</strong><small>{{ form.is_available.help_text }}</small>{{ form.is_available.errors }}</span></label>
+            <label class="product-rule-card">{{ form.is_sold_individually }}<span><strong>{{ form.is_sold_individually.label }}</strong><small>{{ form.is_sold_individually.help_text }}</small>{{ form.is_sold_individually.errors }}</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="product-form-section">
+          <legend>4. Horario para clientes</legend>
+          <p class="section-help">Selecciona los periodos en que el cliente puede pedirlo desde el menú público.</p>
+          <div class="product-form-field product-period-options">{{ form.service_periods.errors }}{{ form.service_periods }}<small>{{ form.service_periods.help_text }}</small></div>
+        </fieldset>
+        <fieldset id="product-ingredients" class="product-form-section integrated-customization" data-customization-editor>
+          <legend>5. Ingredientes y personalización</legend>
+          <p class="section-help">Crea todos los grupos y sus ingredientes sin salir de esta pantalla. Marca como estándar lo que normalmente incluye el producto. Para sustitutos, escribe el mismo nombre en "Par de sustitución": por ejemplo, usa <strong>Aderezo</strong> tanto en crema como en mayonesa.</p>
+          <div class="integrated-customization-toolbar">
+            <button type="button" data-add-group>Agregar grupo</button>
+            <label>Asociar grupo compartido <select data-group-library><option value="">Selecciona un grupo</option></select></label>
+            <button type="button" class="secondary-action" data-copy-group>Asociar grupo</button>
+          </div>
+          <div data-customization-errors class="message error" hidden></div>
+          <div class="integrated-group-list" data-group-list></div>
+          <p class="empty-customization-message" data-empty-groups>Este producto no tiene grupos. Puedes guardarlo así o agregar el primero.</p>
+          <input type="hidden" name="customization_data" data-customization-payload>
+          {{ customization_data|json_script:"product-customization-data" }}
+          {{ customization_library|json_script:"product-customization-library" }}
+        </fieldset>
+        <div class="product-form-actions"><a class="button-link secondary" href="{% url 'menu:configuration' %}">Cancelar</a><button type="submit">Guardar producto</button></div>
+      {% else %}
+        {{ form.as_p }}<button type="submit">Guardar</button>
+      {% endif %}
+    </form>
   </section>
 {% endblock %}
+{% block extra_js %}{% if is_product_form %}<script src="{% static 'js/product-customization-editor.js' %}?v=3"></script>{% endif %}{% endblock %}

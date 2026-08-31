@@ -17,6 +17,7 @@ urlpatterns = [
     path("menu/", menu_views.public_menu, name="menu"),
     path("menu/paquete/<str:package_type>/", order_views.public_package_order, name="package_selection"),
     path("menu/producto/<int:product_id>/agregar/", order_views.public_product_add, name="product_add"),
+    path("menu/producto/<int:product_id>/restar/", order_views.public_product_decrease, name="product_decrease"),
     path("carrito/", order_views.public_cart, name="cart"),
     path("carrito/<str:key>/cantidad/", order_views.public_cart_update, name="cart_update"),
     path("carrito/<str:key>/eliminar/", order_views.public_cart_remove, name="cart_remove"),

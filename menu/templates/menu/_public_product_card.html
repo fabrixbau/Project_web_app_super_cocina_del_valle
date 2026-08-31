@@ -1,0 +1,16 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+El contador representa solamente la preparación estándar. Personalizar usa otro formulario y
+por eso cada receta modificada queda como partida independiente en el carrito. Borra esta nota. -->
+<article class="product-card catalog-product-card" data-public-product="{{ product.id }}">
+  <div class="catalog-product-visual">
+    {% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% endif %}
+  </div>
+  <div class="catalog-product-information"><h3>{{ product.name }}</h3>{% if product.description %}<p>{{ product.description }}</p>{% endif %}<strong>${{ product.price }}</strong>
+    {% if product.is_sold_individually %}<div class="catalog-quick-controls">
+      <button type="button" class="catalog-quantity-button" data-public-decrease data-url="{% url 'public_portal:product_decrease' product.id %}" aria-label="Restar {{ product.name }}">−</button>
+      <strong data-standard-quantity>0</strong>
+      <form method="post" action="{% url 'public_portal:product_add' product.id %}" data-public-standard-add>{% csrf_token %}<input type="hidden" name="quantity" value="1"><button type="submit" class="catalog-quantity-button" aria-label="Agregar {{ product.name }}">+</button></form>
+    </div>{% endif %}
+    {% if product.is_sold_individually %}<form class="catalog-customize-form" method="post" action="{% url 'public_portal:product_add' product.id %}" data-public-custom-add data-customizable-product="{{ product.id }}">{% csrf_token %}<input type="hidden" name="quantity" value="1"><button type="submit" class="catalog-customize-button">Personalizar</button></form>{% endif %}
+  </div>
+</article>

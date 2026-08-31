@@ -85,6 +85,10 @@ def create_public_cart_order(*, cart_data, cleaned_data):
             OrderItem.objects.create(
                 order=order, item_type=OrderItem.ItemType.PRODUCT, product=product,
                 product_name_snapshot=product.name, unit_price=item["unit_price"],
+                configuration_snapshot=item["configuration"]["snapshot"],
+                configuration_signature=item["configuration"]["signature"],
+                customization_comment=item["configuration"]["comment"],
+                is_customized=item["configuration"]["is_customized"],
                 quantity=item["quantity"], subtotal=item["subtotal"],
                 tortillas=False, beans=False,
             )

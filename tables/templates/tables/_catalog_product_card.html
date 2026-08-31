@@ -1,0 +1,17 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+La tarjeta separa tres intenciones: menos afecta solo la receta estándar, más agrega la receta
+estándar y Personalizar abre el selector. Las configuraciones modificadas nunca se mezclan con
+el contador central. Borra esta nota cuando termines de revisar el componente. -->
+<article class="catalog-product-card" data-catalog-product="{{ product.id }}" data-product-name="{{ product.name }}">
+  <div class="catalog-product-visual">
+    {% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% endif %}
+  </div>
+  <div class="catalog-product-information"><strong>{{ product.name }}</strong><span>${{ product.price }}</span>
+    <div class="catalog-quick-controls">
+      <button type="button" class="catalog-quantity-button" data-catalog-decrease data-url="{% url 'tables:table_standard_product_decrease' account.id product.id %}" aria-label="Restar {{ product.name }}">−</button>
+      <strong data-standard-quantity>0</strong>
+      <form method="post" action="{% if daily_order %}{% url 'tables:table_daily_order_add' account.id product.id %}{% else %}{% url 'tables:table_item_add' account.id product.id %}{% endif %}" data-product-add {% if daily_order and product.id == daily_menu.chicken_stew_id %}data-chicken-choice{% endif %}>{% csrf_token %}{% if daily_order and product.id == daily_menu.chicken_stew_id %}<input type="hidden" name="chicken_piece" value="">{% endif %}<button type="submit" class="catalog-quantity-button" aria-label="Agregar {{ product.name }}">+</button></form>
+    </div>
+    <form class="catalog-customize-form" method="post" action="{% if daily_order %}{% url 'tables:table_daily_order_add' account.id product.id %}{% else %}{% url 'tables:table_item_add' account.id product.id %}{% endif %}" data-product-add data-customizable-product="{{ product.id }}" {% if daily_order and product.id == daily_menu.chicken_stew_id %}data-chicken-choice{% endif %}>{% csrf_token %}{% if daily_order and product.id == daily_menu.chicken_stew_id %}<input type="hidden" name="chicken_piece" value="">{% endif %}<button type="submit" class="catalog-customize-button">Personalizar</button></form>
+  </div>
+</article>

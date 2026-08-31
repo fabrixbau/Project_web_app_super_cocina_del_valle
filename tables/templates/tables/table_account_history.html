@@ -1,0 +1,15 @@
+{% extends "base_internal.html" %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Esta pantalla filtra periodo, cliente y mesa sin modificar las cuentas. Cada fila abre el mismo
+detalle del ticket; las cuentas cerradas permanecen en solo lectura. Borra la nota. -->
+{% block title %}Historial de mesas{% endblock %}
+{% block content %}
+  <div class="page-heading"><div><h1>Historial de cuentas</h1><p>{% if period == 'week' %}Del {{ start_date|date:'d/m/Y' }} al {{ today|date:'d/m/Y' }}{% else %}Hoy, {{ today|date:'d/m/Y' }}{% endif %}</p></div><a class="button-link secondary" href="{% url 'tables:table_map' %}">Volver al mapa</a></div>
+  <nav class="history-periods" aria-label="Periodo del historial"><a class="{% if period == 'today' %}is-selected{% endif %}" href="?period=today&amp;customer={{ customer_query|urlencode }}&amp;table={{ table_query|urlencode }}">Hoy</a><a class="{% if period == 'week' %}is-selected{% endif %}" href="?period=week&amp;customer={{ customer_query|urlencode }}&amp;table={{ table_query|urlencode }}">Esta semana</a></nav>
+  <form method="get" class="history-filters card"><input type="hidden" name="period" value="{{ period }}"><label>Nombre del cliente <input type="search" name="customer" value="{{ customer_query }}" placeholder="Ej. Juan"></label><label>Número de mesa <input type="search" name="table" value="{{ table_query }}" placeholder="Ej. 5"></label><button type="submit">Filtrar</button><a class="button-link secondary" href="?period={{ period }}">Limpiar</a></form>
+  <section class="history-summary"><article class="card"><small>Cuentas encontradas</small><strong>{{ accounts|length }}</strong></article><article class="card"><small>Cuentas cerradas</small><strong>{{ closed_count }}</strong></article><article class="card"><small>Total cobrado</small><strong>${{ closed_total|floatformat:2 }}</strong></article></section>
+  <section class="table-account-history">
+    {% for account in accounts %}<a href="{% url 'tables:table_detail' account.id %}" class="table-account-row"><div><strong>{{ account.table.name }}{% if account.customer_name %} · {{ account.customer_name }}{% endif %}</strong><small>{{ account.opened_at|date:'d/m/Y H:i' }} · {{ account.assigned_waiter.get_full_name|default:account.assigned_waiter.username }}</small></div><span class="status-badge">{{ account.get_status_display }}</span><span>{{ account.consumption_count|default:0 }} artículos</span><strong>${% if account.status == 'closed' %}{{ account.total_paid|floatformat:2 }}{% else %}{{ account.current_total|default:0|floatformat:2 }}{% endif %}</strong></a>
+    {% empty %}<div class="card"><p>No hay cuentas en este periodo.</p></div>{% endfor %}
+  </section>
+{% endblock %}

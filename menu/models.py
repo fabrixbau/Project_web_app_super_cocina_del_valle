@@ -1,4 +1,15 @@
+# NOTA TEMPORAL PARA APRENDIZAJE:
+# Category ahora permite ordenar y mostrar secciones de mesa de forma distinta durante
+# desayunos y comida. Es configuración, no nombres hardcodeados. Borra esta nota al leerla.
+# El menú diario puede enlazar una orden de frijoles opcional que nunca cuenta como tiempo.
+# Categorías también guardan orden y visibilidad públicos separados para desayuno/comida.
+# Los grupos de personalización pertenecen a un producto y contienen opciones estándar o
+# alternativas. Al copiarlos se crean registros independientes para poder ajustarlos después.
+# Borra esta nota cuando termines de revisar este bloque.
+
 from django.core.exceptions import ValidationError
+import uuid
+
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
@@ -28,6 +39,18 @@ class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
     image = models.ImageField(upload_to="menu/categories/", blank=True)
     sort_order = models.PositiveIntegerField(default=0)
+    public_breakfast_order = models.PositiveIntegerField("orden público en desayunos", default=0)
+    public_lunch_order = models.PositiveIntegerField("orden público en comida", default=0)
+    table_breakfast_order = models.PositiveIntegerField("orden en desayunos", default=0)
+    table_lunch_order = models.PositiveIntegerField("orden en comida", default=0)
+    show_on_public_breakfast = models.BooleanField("mostrar al cliente en desayunos", default=True)
+    show_on_public_lunch = models.BooleanField("mostrar al cliente en comida", default=True)
+    show_on_table_breakfast = models.BooleanField("mostrar en modo desayunos", default=True)
+    show_on_table_lunch = models.BooleanField("mostrar en modo comida", default=True)
+    show_table_packages = models.BooleanField(
+        "mostrar paquetes de mesa al elegirla", default=False,
+        help_text="Actívalo en la categoría que debe abrir Comida corrida y ejecutiva.",
+    )
 
     class Meta:
         ordering = ["sort_order", "name"]
@@ -79,6 +102,65 @@ class Product(models.Model):
 
     def __str__(self):
         return f"{self.category.name} · {self.name}"
+
+
+class ProductOptionGroup(models.Model):
+    class SelectionType(models.TextChoices):
+        SINGLE = "single", "Elegir una opción"
+        MULTIPLE = "multiple", "Elegir varias opciones"
+
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="option_groups",
+    )
+    shared_key = models.UUIDField(default=uuid.uuid4, editable=False, db_index=True)
+    name = models.CharField(max_length=100)
+    selection_type = models.CharField(
+        max_length=20, choices=SelectionType.choices, default=SelectionType.MULTIPLE,
+    )
+    is_required = models.BooleanField(default=False)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ("sort_order", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("product", "name"), name="unique_product_option_group_name",
+            ),
+            models.UniqueConstraint(
+                fields=("product", "shared_key"), name="unique_product_shared_option_group",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.product.name} · {self.name}"
+
+
+class ProductOption(models.Model):
+    # NOTA TEMPORAL PARA APRENDIZAJE:
+    # Las opciones con la misma clave de sustitución son equivalentes entre sí. Por ejemplo,
+    # crema y mayonesa pueden usar "Aderezo": al elegir una se reemplaza la otra. Borra esta nota.
+    group = models.ForeignKey(
+        ProductOptionGroup, on_delete=models.CASCADE, related_name="options",
+    )
+    name = models.CharField(max_length=100)
+    price_adjustment = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)],
+    )
+    is_default = models.BooleanField(default=False)
+    is_available = models.BooleanField(default=True)
+    replacement_pair = models.CharField(max_length=100, blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ("sort_order", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("group", "name"), name="unique_product_option_name",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.group.name} · {self.name}"
 
 
 class DailyMenu(models.Model):
@@ -153,6 +235,14 @@ class DailyMenu(models.Model):
         related_name="daily_menus_as_varied_stew",
         limit_choices_to={"component_type": Product.ComponentType.VARIED_STEW},
     )
+    beans_order = models.ForeignKey(
+        Product,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="daily_menus_as_beans_order",
+        limit_choices_to={"component_type": Product.ComponentType.COMPLEMENT},
+    )
     published_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -175,6 +265,7 @@ class DailyMenu(models.Model):
             "chicken_stew": Product.ComponentType.CHICKEN_STEW,
             "beef_stew": Product.ComponentType.BEEF_STEW,
             "varied_stew": Product.ComponentType.VARIED_STEW,
+            "beans_order": Product.ComponentType.COMPLEMENT,
         }
         errors = {}
         for field_name, expected_type in field_types.items():

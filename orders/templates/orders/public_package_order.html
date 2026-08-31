@@ -1,12 +1,31 @@
 <!-- NOTA TEMPORAL PARA APRENDIZAJE:
 Esta pantalla configura una comida y la agrega al carrito. Los datos de cliente y pago
 ahora se capturan una sola vez durante checkout. Borra esta nota después de leerla. -->
-<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ package.name }} | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css"></head>
-<body><main class="container package-builder"><p><a href="{% url 'public_portal:menu' %}">← Menú</a></p>
-  <section class="card"><h1>{{ package.name }}</h1><p>{{ package.description }}</p><p><strong>Sin agua:</strong> ${{ package.price_without_water }} · <strong>Con agua:</strong> ${{ package.price_with_water }}</p><p>Agua de hoy: <strong>{{ daily_menu.water_product.name }}</strong></p>
-    <form method="post">{% csrf_token %}{{ form.non_field_errors }}
-      <fieldset><legend>Configura tu comida</legend><div class="package-fields">{% for field in form %}<p>{{ field.label_tag }} {{ field.errors }} {{ field }}</p>{% endfor %}</div></fieldset>
-      <button type="submit">Agregar al carrito</button>
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+El formulario ahora presenta una decisión por bloque: los tres tiempos, la pieza condicional
+y los complementos. Los campos siguen siendo los mismos; solo cambió su organización visual.
+Borra esta nota después de revisar la pantalla. -->
+<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ package.name }} | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css?v=4"></head>
+<body><main class="container package-builder public-package-builder"><p><a href="{% url 'public_portal:menu' %}">← Volver al menú</a></p>
+  <section class="card package-order-card">
+    <header class="package-order-heading"><span>Paquete de tres tiempos</span><h1>{{ package.name }}</h1><p>{{ package.description }}</p><div class="package-price-summary"><p><small>Sin agua</small><strong>${{ package.price_without_water }}</strong></p><p><small>Con agua</small><strong>${{ package.price_with_water }}</strong></p></div>{% if daily_menu.water_product %}<p class="daily-water">Agua de hoy: <strong>{{ daily_menu.water_product.name }}</strong></p>{% endif %}</header>
+    {% if advance_food_order %}<p class="message">Este pedido quedará agendado para servirse o recogerse a partir de la 1:00 p. m.</p>{% endif %}
+    <form method="post" class="public-package-form" data-package-form data-chicken-product="{{ daily_menu.chicken_stew_id }}">{% csrf_token %}{{ form.non_field_errors }}
+      <div class="meal-course-grid">
+        <fieldset class="meal-course-card"><legend><span>1</span> {{ form.first_course.label }}</legend>{{ form.first_course.errors }}{{ form.first_course }}</fieldset>
+        <fieldset class="meal-course-card"><legend><span>2</span> {{ form.second_course.label }}</legend>{{ form.second_course.errors }}{{ form.second_course }}</fieldset>
+        <fieldset class="meal-course-card"><legend><span>3</span> {{ form.main_course.label }}</legend>{{ form.main_course.errors }}{{ form.main_course }}</fieldset>
+      </div>
+      <fieldset class="meal-course-card chicken-piece-card" data-chicken-piece-field hidden><legend>Pieza de pollo</legend><p>Elige la pieza que prefieres para tu guisado.</p>{{ form.chicken_piece.errors }}{{ form.chicken_piece }}</fieldset>
+      <fieldset class="package-extras-card"><legend>Completa tu paquete</legend>
+        <div class="package-extra-grid">
+          <label class="package-extra-option">{{ form.with_water }}<span><strong>{{ form.with_water.label }}</strong><small>{% if daily_menu.water_product %}{{ daily_menu.water_product.name }}{% else %}Agua del día{% endif %}</small></span>{{ form.with_water.errors }}</label>
+          <div class="package-extra-field"><strong>{{ form.tortillas.label }}</strong>{{ form.tortillas.errors }}{{ form.tortillas }}</div>
+          <div class="package-extra-field"><strong>{{ form.beans.label }}</strong>{{ form.beans.errors }}{{ form.beans }}</div>
+          <div class="package-extra-field"><strong>{{ form.quantity.label }}</strong>{{ form.quantity.errors }}{{ form.quantity }}</div>
+        </div>
+      </fieldset>
+      <div class="package-submit-row"><p>Revisa tus elecciones antes de continuar.</p><button type="submit">Agregar al carrito</button></div>
     </form>
   </section>
-</main></body></html>
+</main><script src="/static/js/package-selection.js"></script></body></html>

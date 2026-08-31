@@ -494,9 +494,11 @@ Los datos del cliente pueden reutilizarse posteriormente por teléfono o identif
 # 11. Métodos de pago
 
 La aplicación no tendrá pasarela de pago.
+En la interfaz el método se llama `Terminal`; `CARD` queda únicamente como código interno
+compatible con los registros existentes y no significa que la aplicación cobre en línea.
 
 Para recoger no se solicita método de pago en el portal; el cliente lo define al llegar a la fonda.
-Para entrega sí es obligatorio indicarlo: tarjeta implica llevar terminal, transferencia no
+Para entrega sí es obligatorio indicarlo: Terminal implica llevar el dispositivo físico, transferencia no
 requiere preparación adicional y efectivo debe indicar billete/monto o pago exacto.
 
 Debe registrar:
@@ -539,7 +541,7 @@ Cambio requerido: $173
 
 Esta información debe ser visible para el repartidor.
 
-## Tarjeta
+## Terminal
 
 Debe mostrarse al personal/repartidor:
 
@@ -626,6 +628,80 @@ Mesa 3
 Todo permanece dentro de la misma cuenta hasta cerrarse.
 
 Meseros y administrador podrán reasignar mesa.
+
+Primera implementación acordada:
+
+- el estado Disponible/Ocupada se deriva de la existencia de una cuenta abierta;
+- Administración crea y ordena visualmente las mesas;
+- Mesero abre para sí mismo; Administrador o Telefonista pueden elegir al mesero responsable;
+- PostgreSQL garantiza una sola cuenta abierta por mesa;
+- la cuenta se cobra completa con efectivo, terminal o transferencia; no se divide el pago;
+- efectivo permite pago exacto o monto recibido y calcula el cambio;
+- la propina de mesa pertenece completamente al mesero responsable al momento del cierre;
+- cerrar fotografía subtotal, propina, total, efectivo, cambio y responsables, y libera la mesa;
+- una cuenta cerrada conserva su ticket y cobro en modo de solo lectura.
+- efectivo muestra solamente billetes rápidos de $20, $50, $100, $200 y $500;
+- tocar un billete selecciona Efectivo, valida que cubra total más propina y calcula cambio;
+- propina de mesa ofrece montos rápidos de $5, $10, $15, $20, $25 y $30, además de captura manual;
+- el panel de Mesas separa el mapa activo de un historial consultable de hoy y de la semana;
+- cada Mesero ve sus propias cuentas históricas, mientras Administración y Telefonista ven todas.
+
+Distribución visual vigente:
+
+```text
+M8   M7   M6   M5   M9
+M1   M2   M3   M4
+```
+
+El mapa operativo de escritorio/tablet usa dos filas horizontales: M8, M7, M6, M5 y M9
+arriba; M1, M2, M3 y M4 abajo. Debe mostrar las nueve sin scroll. Al tocar una
+mesa disponible, el Mesero abre su cuenta; al tocar una ocupada continúa el ticket activo.
+La interfaz cotidiana evita escritura y prioriza botones, categorías y selecciones.
+Administrador y Telefonista ven botones con nombres de meseros activos para abrir y asignar
+en un solo toque; el Mesero se asigna automáticamente al abrir.
+
+La captura de mesa tiene modo Desayunos (07:00–12:59) y Comida (13:00–06:59). El modo se
+elige automáticamente, pero cada usuario puede sobrescribirlo en su sesión desde mapa o
+cuenta. Categorías definen orden y visibilidad independientes por modo; durante desayuno,
+una categoría configurable revela los paquetes, mientras comida los prioriza arriba.
+
+En cuentas de mesa, corrida y ejecutiva no preguntan tortillas ni frijoles. Se pueden
+guardar con tiempos pendientes, quedan identificadas con texto en el ticket y se editan
+tocando la partida. El cierre transaccional se bloquea mientras exista una comida incompleta.
+Cada paquete conserva el menú diario original para poder terminar una cuenta abierta en una
+fecha posterior sin sustituir sus opciones por las del nuevo día.
+
+En Modo comida, `Comida por orden` se deriva del menú diario publicado: dos primeros
+tiempos, dos segundos y tres guisados. Solo se venden los componentes configurados como
+individuales y disponibles; el backend valida pertenencia al menú antes de agregarlos.
+Los nombres `Comida corrida`, `Comida ejecutiva` y `Comida por orden` están reservados para
+estos accesos dinámicos: las categorías persistentes homónimas no se muestran como catálogo
+normal en Desayunos ni en Comida, evitando mezclar productos de menús anteriores.
+
+La captura de consumos de mesa se implementa como punto de venta táctil:
+
+- categorías y productos individuales mediante botones grandes;
+- un toque registra inmediatamente una unidad; repetir producto incrementa la misma línea;
+- ticket lateral con producto, cantidad, subtotal y total, sin paso de confirmación;
+- agregar, aumentar, disminuir y quitar se realiza en segundo plano sin recargar la página;
+- pestañas superiores de categorías muestran una sola lista de productos a la vez;
+- Django conserva validación, bloqueo, cálculo y snapshots aunque JavaScript actualice la interfaz;
+- paquetes corrida/ejecutiva usan su flujo guiado de tres tiempos y complementos.
+
+Implementación posterior de paquetes en mesa:
+
+- corrida y ejecutiva se abren desde botones destacados en el catálogo del mesero;
+- un diálogo mantiene al usuario dentro de la misma cuenta mientras elige los tres tiempos;
+- agua, tortillas, frijoles, pieza de pollo y refill se validan antes de agregar;
+- configuraciones idénticas suman cantidad y configuraciones diferentes conservan líneas separadas;
+- el ticket guarda snapshots completos y calcula con/sin agua más el cargo único de refill.
+
+Reglas de anticipación y pieza:
+
+- corrida y ejecutiva pueden solicitarse públicamente antes del horario de comida;
+- antes de la 1:00 p. m. la interfaz avisa que se está agendando para servirse/recogerse desde esa hora, sin bloquear;
+- pierna/muslo se muestra únicamente al elegir pollo y entonces la selección es obligatoria;
+- estas reglas se validan tanto en interfaz como en backend.
 
 ---
 
@@ -1248,7 +1324,7 @@ Ejemplo conceptual:
 
 Fondo inicial                $2,000
 Ventas efectivo              $7,450
-Ventas tarjeta               $5,320
+Ventas terminal              $5,320
 Transferencias               $1,950
 
 Gastos:
@@ -1488,6 +1564,27 @@ No debe utilizarse como bitácora de cada pequeño cambio de código.
 
 La bitácora operativa y el contexto de trabajo de Codex deben conservarse en `CODEX_CONTEXT.md`.
 
+La navegación superior interna debe derivarse de la misma matriz de permisos que protege las vistas:
+
+- Administrador: Mesas, Pedidos, Repartos, Reportes y Menú.
+- Mesero: Mesas y Pedidos.
+- Telefonista: Mesas, Pedidos y Repartos.
+- Repartidor: Repartos.
+
+No se muestran enlaces a módulos que el usuario no puede abrir. La navegación no sustituye
+las validaciones backend; ambas consultan la misma configuración de roles.
+La cabecera separa las acciones de sesión de los accesos operativos. Los módulos deben tener
+contraste alto, estado activo inequívoco y conservar botones táctiles legibles en tablet.
+
+La administración de Menú ofrece un organizador visual de categorías con cinco vistas:
+orden general, Cliente en desayunos/comida y Mesas en desayunos/comida. Administración reordena mediante
+arrastre y observa el resultado antes de guardar. Las categorías ocultas permanecen visibles
+como configuración atenuada. Los accesos automáticos de Corrida y Ejecutiva permanecen al
+inicio; Comida por orden usa la posición de su tarjeta configurable en Mesas · Comida. Las cinco
+secuencias se validan y guardan juntas.
+El cliente usa el panel Desayunos antes de las 12:30 y Comida desde las 12:30; cada panel
+permite ocultar categorías sin afectar el otro modo ni la captura interna de Mesas.
+
 ## Decisión funcional: asignación de repartos
 
 - Todo pedido a domicilio entra al panel de Repartos sin importar su estado operativo.
@@ -1496,3 +1593,51 @@ La bitácora operativa y el contexto de trabajo de Codex deben conservarse en `C
 - Los tres roles consultan las asignaciones actuales para poder coordinarlas y reasignarlas.
 - Solo el responsable asignado, Administrador o Telefonista pueden marcar el pedido como Entregado.
 - Los pedidos para recoger quedan completamente fuera de este módulo.
+
+## Decisión funcional: armado automático de comidas en mesa
+
+- El menú diario publicado es la fuente de las categorías operativas Comida corrida, Comida ejecutiva y Comida por orden en la captura de mesas.
+- Comida corrida se reconoce únicamente al reunir un primer tiempo, un segundo tiempo y uno de los guisados publicados.
+- Comida ejecutiva se reconoce únicamente al reunir un primer tiempo, un segundo tiempo y un producto de plancha marcado como elegible.
+- Antes de completar los tres tiempos, cada selección permanece identificada como candidato de paquete, separada de las órdenes individuales.
+- Al completar la combinación, las tres unidades individuales se sustituyen por una sola partida de paquete y se aplica el precio del paquete sin agua.
+- En Comida corrida y Comida por orden, elegir pollo abre una selección rápida obligatoria de Pierna o Muslo.
+- La pieza acompaña a la orden o al paquete automático; el formulario completo conserva la misma selección para el flujo alternativo y la edición.
+- El agua y refill pueden ajustarse posteriormente desde el detalle de la partida.
+- Las selecciones hechas dentro de Comida por orden nunca se convierten en paquete.
+- Una cuenta no puede cerrarse con candidatos incompletos: el mesero debe completar el paquete o eliminarlos.
+- Un producto de plancha elegible puede participar en Ejecutiva sin estar habilitado para venta individual; para aparecer también en Plancha debe permitir venta por orden.
+- Todo el entorno interno `/app/mesas/` ignora los periodos horarios para permitir al personal continuar generando comandas.
+- El horario de cierre de las 17:00 aplica únicamente al flujo público `/pedir/menu/`; disponibilidad activa y permiso de venta individual siguen aplicando donde corresponda.
+- En Mesas, Comida por orden contiene exclusivamente los siete componentes del menú publicado y, si fue configurada, una Orden de frijoles tipo Complemento.
+- Elegir desde Comida por orden siempre crea una orden independiente; elegir los tiempos desde Comida corrida crea candidatos que deben completar corrida o ejecutiva.
+- La orden de frijoles nunca cuenta como tiempo ni puede ayudar a formar un paquete.
+- Los formularios directos de Comida corrida y Comida ejecutiva siguen disponibles como método alternativo.
+
+## Decisión funcional: ingredientes y personalización
+
+- Cada producto puede tener grupos de ingredientes u opciones reutilizables mediante copia.
+- Un grupo admite elección única o múltiple y puede exigir conservar alguna selección.
+- Cada opción indica si forma parte de la preparación estándar, si está disponible y su cargo adicional.
+- Copiar/pegar un grupo crea una copia independiente para que modificar un producto no altere otros.
+- Producto, grupos y todas sus opciones se crean o editan desde una sola pantalla y se guardan como una operación transaccional.
+- El administrador puede agregar filas, reordenarlas y pegar grupos existentes sin navegar entre formularios por ingrediente.
+- La personalización debe estar disponible tanto en el portal público como en la captura de Mesas.
+- Quitar un ingrediente estándar, agregar una alternativa o cambiar una selección marca la partida como `Modificado`.
+- El ticket y la orden guardarán snapshots y diferencias legibles para conservar el historial aunque cambie la receta.
+- Dos unidades del mismo producto con configuraciones distintas deben permanecer en partidas separadas.
+- Portal público y Mesas comparten la misma validación, cálculo de cargos y selector visual.
+- Las opciones pueden compartir un par de sustitución: solo una alternativa del par permanece seleccionada y el cambio se describe como sustitución.
+- Los grupos son familias reutilizables administradas desde `/app/menu/ingredientes/`; una familia puede asociarse a múltiples productos y sus cambios se propagan a todos.
+- En catálogos de Mesas y cliente, `+`/`−` administran la preparación estándar y `Personalizar` genera una partida separada identificada por su firma de opciones.
+- Una personalización admite comentario opcional; se muestra como `Producto (comentario)` y separa partidas aunque sus ingredientes coincidan.
+- Las cuentas de mesa pueden registrar nombre opcional del cliente; el historial filtra por cliente y mesa, mientras el catálogo operativo busca productos transversalmente por nombre.
+- La receta estándar aparece preseleccionada y no lleva etiqueta; cualquier diferencia muestra `Modificado`.
+- Las diferencias de preparación se expresan como `Sin <ingrediente>` y `Agregar <opción>`.
+- El carrito y el ticket agrupan solo producto + configuración idénticos y fotografían la selección al confirmar.
+- En la captura automática de paquetes, sus tres tiempos permanecen estándar hasta diseñar personalización específica del paquete.
+# Operación de meseros en tablet compartida
+
+La tablet puede permanecer habilitada para cambio rápido entre perfiles de Mesero. Cada persona usa un PIN propio y la cabecera muestra permanentemente el operador activo. El cambio sustituye la autenticación real, no una identidad visual simulada. Administradores y telefonistas continúan usando el inicio de sesión normal.
+
+La responsabilidad de una mesa y la autoría de un movimiento son conceptos distintos: el responsable conserva la propina salvo reasignación explícita, mientras la bitácora registra apertura, productos normales o modificados, cantidades, eliminaciones, paquetes, cliente, reasignación y cierre con el usuario que actuó.

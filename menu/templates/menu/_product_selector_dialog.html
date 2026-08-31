@@ -1,0 +1,11 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Este diálogo comparte ingredientes y comentario entre clientes y Mesas. Todos los productos
+pueden comentar; cuando no tienen grupos, la zona de ingredientes se omite. El comentario
+pertenece a esta partida y aparecerá entre paréntesis junto al nombre. Borra esta nota. -->
+<dialog class="product-selector-dialog" data-product-selector-dialog>
+  <div class="dialog-heading"><div><span class="mode-kicker">Personalizar producto</span><h2 data-selector-product-name></h2></div><button type="button" data-selector-close aria-label="Cerrar">×</button></div>
+  <div data-selector-error class="message error" hidden></div>
+  <div class="product-selector-groups" data-selector-groups></div>
+  <label class="product-selector-comment"><strong>Comentario</strong><textarea data-selector-comment maxlength="150" rows="2" placeholder="Ej. Dorada la salchicha"></textarea><small>Opcional · se mostrará entre paréntesis en el ticket.</small></label>
+  <div class="product-selector-footer"><div><small>Precio por unidad</small><strong data-selector-price></strong><span data-selector-modified hidden>Modificado</span></div><button type="button" data-selector-confirm>Agregar producto</button></div>
+</dialog>

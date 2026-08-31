@@ -6,6 +6,10 @@
 # conserva una fotografía del paquete elegido para que el historial no cambie si mañana
 # editamos el menú o los precios. DailyOrderCounter genera folios diarios seguros.
 # Borra esta nota después de leerla.
+# Las partidas individuales guardan configuración, firma y bandera Modificado como snapshot;
+# no dependen de que la receta futura conserve las mismas opciones. Borra esta nota.
+# El valor interno `card` se conserva para no romper pedidos anteriores, pero su nombre
+# visible es Terminal porque el cobro se realiza presencialmente, no en línea. Borra esta nota.
 
 import uuid
 
@@ -46,7 +50,7 @@ class Order(models.Model):
 
     class PaymentMethod(models.TextChoices):
         CASH = "cash", "Efectivo"
-        CARD = "card", "Tarjeta"
+        CARD = "card", "Terminal"
         TRANSFER = "transfer", "Transferencia"
 
     public_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
@@ -128,6 +132,10 @@ class OrderItem(models.Model):
         Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="individual_order_items"
     )
     product_name_snapshot = models.CharField(max_length=150, blank=True)
+    configuration_snapshot = models.JSONField(default=list, blank=True)
+    configuration_signature = models.CharField(max_length=500, blank=True)
+    customization_comment = models.CharField(max_length=150, blank=True)
+    is_customized = models.BooleanField(default=False)
     first_course = models.ForeignKey(
         Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="order_items_as_first_course"
     )

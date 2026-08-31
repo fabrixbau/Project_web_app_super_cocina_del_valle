@@ -1,0 +1,25 @@
+{% extends "base_internal.html" %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+El mapa usa dos filas horizontales para mantener las nueve mesas visibles. Administrador
+y Telefonista abren tocando directamente el nombre del mesero; Mesero se autoasigna y
+solo toca Abrir ticket. El switch guarda el modo de captura en sesión. Borra la nota. -->
+{% block title %}Mesas{% endblock %}
+{% block content %}
+  <div class="page-heading table-map-heading"><div><h1>Mapa de mesas</h1><p>Toca una mesa para abrir o continuar su ticket.</p></div><div class="action-group"><form method="post" action="{% url 'tables:table_capture_mode_switch' %}" class="capture-mode-switch">{% csrf_token %}<input type="hidden" name="capture_mode" value="{{ capture_mode_next }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><span>{{ capture_mode_label }}</span><button type="submit">{{ capture_mode_next_label }}</button></form><a class="button-link secondary" href="{% url 'tables:table_account_history' %}">Historial</a><a href="{% url 'internal_portal:dashboard' %}">Volver al panel</a></div></div>
+  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  <section class="table-map">
+    {% for table in tables %}
+      {% with account=table.open_accounts.0 %}
+        <article class="table-tile {% if account %}occupied{% else %}available{% endif %}" style="--table-row: {{ table.map_row }}; --table-column: {{ table.map_column }};">
+          {% if account %}
+            <a class="table-main-action" href="{% url 'tables:table_detail' account.id %}"><span class="table-number">{{ table.name }}</span><span class="table-state">Ocupada</span>{% if account.customer_name %}<small>Cliente: {{ account.customer_name }}</small>{% endif %}<small>{{ account.assigned_waiter.get_full_name|default:account.assigned_waiter.username }} · {{ account.opened_at|date:'H:i' }}</small><strong>Continuar ticket</strong></a>
+          {% elif can_choose_waiter %}
+            <form method="post" action="{% url 'tables:table_open' table.id %}" class="table-waiter-form">{% csrf_token %}<span class="table-number">{{ table.name }}</span><span class="table-state">Disponible</span><small>¿Quién atenderá?</small><div class="waiter-choice-buttons">{% for waiter in waiters %}<button type="submit" name="assigned_waiter" value="{{ waiter.id }}">{{ waiter.get_full_name|default:waiter.username }}</button>{% empty %}<span>No hay meseros activos.</span>{% endfor %}</div></form>
+          {% else %}
+            <form method="post" action="{% url 'tables:table_open' table.id %}">{% csrf_token %}<button type="submit" class="table-main-action"><span class="table-number">{{ table.name }}</span><span class="table-state">Disponible</span><strong>Abrir ticket</strong></button></form>
+          {% endif %}
+        </article>
+      {% endwith %}
+    {% empty %}<p>Todavía no se aplicó la migración que crea las nueve mesas.</p>{% endfor %}
+  </section>
+{% endblock %}

@@ -1,6 +1,7 @@
 # NOTA TEMPORAL PARA APRENDIZAJE:
 # La modalidad se elige antes del menú. Checkout elimina campos innecesarios para recoger
 # y normaliza las opciones de efectivo para entrega. Borra esta nota después de leerla.
+# Los paquetes públicos usan radios y reservan pierna/muslo para cuando se elige pollo.
 # Para recoger ahora validamos nombre y apellido por separado; en entrega el apellido es opcional.
 # Este formulario amplía el selector del menú con los datos necesarios para enviar una
 # orden. La dirección solo es obligatoria para entrega y los datos de cambio solo aplican
@@ -19,6 +20,11 @@ class PackageCartForm(PackageSelectionForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields.pop("order_type")
+        for name in ("first_course", "second_course", "main_course", "chicken_piece", "tortillas", "beans"):
+            choices = self.fields[name].choices
+            if name == "chicken_piece":
+                choices = [choice for choice in choices if choice[0]]
+            self.fields[name].widget = forms.RadioSelect(choices=choices)
 
 
 class ProductCartForm(forms.Form):

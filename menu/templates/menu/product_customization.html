@@ -1,0 +1,29 @@
+{% extends "base_internal.html" %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Esta pantalla administra la receta configurable de un producto. Un grupo organiza opciones
+relacionadas; Estándar significa que normalmente se incluye y el cargo modifica el precio base.
+Pegar grupo crea una copia independiente. Borra esta nota después de leerla. -->
+{% block title %}Ingredientes · {{ product.name }}{% endblock %}
+{% block content %}
+  <div class="page-heading customization-heading">
+    <div><a href="{% url 'menu:configuration' %}">← Administrar menú</a><h1>{{ product.name }}</h1><p>{{ product.category.name }} · Precio base ${{ product.price }}</p></div>
+    <div class="action-group"><a class="button-link secondary" href="{% url 'menu:option_group_copy' product.id %}">Pegar grupo existente</a><a class="button-link" href="{% url 'menu:option_group_create' product.id %}">Nuevo grupo</a></div>
+  </div>
+  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  <section class="customization-guide card"><h2>¿Cómo funciona?</h2><p><strong>Varias opciones</strong> sirve para ingredientes que pueden agregarse o quitarse. <strong>Una opción</strong> sirve para elegir una alternativa. Marca como <strong>Estándar</strong> todo lo que contiene la receta normal.</p></section>
+  <div class="customization-group-list">
+    {% for group in product.option_groups.all %}
+      <section class="card customization-group-card">
+        <header><div><span class="mode-kicker">Grupo {{ forloop.counter }}</span><h2>{{ group.name }}</h2><p>{{ group.get_selection_type_display }} · {% if group.is_required %}Debe conservar una selección{% else %}Puede pedirse sin opciones{% endif %}</p></div><div class="action-group"><a href="{% url 'menu:option_group_edit' product.id group.id %}">Editar grupo</a><form method="post" action="{% url 'menu:option_group_delete' product.id group.id %}" onsubmit="return confirm('¿Eliminar este grupo y todas sus opciones?')">{% csrf_token %}<button class="danger compact-button" type="submit">Eliminar grupo</button></form></div></header>
+        <div class="customization-option-list">
+          {% for option in group.options.all %}
+            <article class="customization-option-row{% if not option.is_available %} is-unavailable{% endif %}"><div><strong>{{ option.name }}</strong><span>{% if option.is_default %}Estándar{% else %}Alternativa{% endif %}</span></div><div class="option-price">{% if option.price_adjustment > 0 %}+${{ option.price_adjustment }}{% elif option.price_adjustment < 0 %}-${{ option.price_adjustment|cut:'-' }}{% else %}Sin cargo{% endif %}</div><div>{% if option.is_available %}Disponible{% else %}No disponible{% endif %}</div><div class="action-group"><a href="{% url 'menu:product_option_edit' product.id group.id option.id %}">Editar</a><form method="post" action="{% url 'menu:product_option_delete' product.id group.id option.id %}" onsubmit="return confirm('¿Eliminar esta opción?')">{% csrf_token %}<button class="danger compact-button" type="submit" aria-label="Eliminar {{ option.name }}">×</button></form></div></article>
+          {% empty %}<p class="empty-customization-message">Este grupo todavía no tiene ingredientes.</p>{% endfor %}
+        </div>
+        <a class="button-link secondary add-option-link" href="{% url 'menu:product_option_create' product.id group.id %}">Agregar ingrediente u opción</a>
+      </section>
+    {% empty %}
+      <section class="card empty-customization"><h2>Este producto todavía no tiene ingredientes configurables</h2><p>Crea un grupo nuevo o pega uno utilizado por otro producto.</p><div class="action-group"><a class="button-link" href="{% url 'menu:option_group_create' product.id %}">Crear primer grupo</a><a class="button-link secondary" href="{% url 'menu:option_group_copy' product.id %}">Pegar grupo</a></div></section>
+    {% endfor %}
+  </div>
+{% endblock %}

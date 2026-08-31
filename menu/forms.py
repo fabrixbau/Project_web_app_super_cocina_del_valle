@@ -1,6 +1,18 @@
+# NOTA TEMPORAL PARA APRENDIZAJE:
+# El formulario de categoría expone el orden y visibilidad de ambos modos de mesas.
+# Así Administración controla la interfaz sin modificar código. Borra esta nota al leerla.
+# Orden de frijoles es un complemento opcional y no uno de los tres tiempos del paquete.
+# Los órdenes ya no se capturan como números aquí: se administran arrastrando todas las categorías.
+# ProductForm agrega ayudas cortas para explicar qué controla cada regla sin exigir que
+# quien administra el menú conozca los nombres internos del sistema. Borra esta nota.
+# Los nuevos formularios separan grupo e ingrediente: el grupo define cuántas opciones se
+# eligen y cada opción define si es estándar, disponible y si cobra extra. Borra esta nota.
+
 from django import forms
 
-from .models import Category, DailyMenu, MealPackage, Product
+from .models import (
+    Category, DailyMenu, MealPackage, Product, ProductOption, ProductOptionGroup,
+)
 
 
 MAX_IMAGE_SIZE = 4 * 1024 * 1024
@@ -15,8 +27,18 @@ def validate_image_size(image):
 class CategoryForm(forms.ModelForm):
     class Meta:
         model = Category
-        fields = ("name", "image", "sort_order")
-        labels = {"name": "Nombre", "image": "Imagen", "sort_order": "Orden visual"}
+        fields = (
+            "name", "image", "show_on_public_breakfast", "show_on_public_lunch",
+            "show_on_table_breakfast", "show_on_table_lunch", "show_table_packages",
+        )
+        labels = {
+            "name": "Nombre", "image": "Imagen",
+            "show_on_public_breakfast": "Mostrar a clientes · desayunos",
+            "show_on_public_lunch": "Mostrar a clientes · comida",
+            "show_on_table_breakfast": "Mostrar en mesas · desayunos",
+            "show_on_table_lunch": "Mostrar en mesas · comida",
+            "show_table_packages": "Mostrar paquetes al elegir esta categoría",
+        }
 
     def clean_name(self):
         name = " ".join(self.cleaned_data["name"].split())
@@ -51,6 +73,15 @@ class ProductForm(forms.ModelForm):
             "description": forms.Textarea(attrs={"rows": 3}),
             "service_periods": forms.CheckboxSelectMultiple(),
         }
+        help_texts = {
+            "category": "Determina en qué pestaña se encontrará el producto.",
+            "component_type": "Indica si participa en el menú diario, en un paquete o como producto general.",
+            "service_periods": "Sin selección no se limita por periodo. Mesas ignora el horario, pero el menú público sí lo aplica.",
+            "is_available": "Apágalo para retirar temporalmente el producto de la venta.",
+            "is_sold_individually": "Actívalo para que aparezca como producto suelto dentro de su categoría.",
+            "eligible_for_executive_meal": "Solo aplica a productos cuya función sea Producto de plancha.",
+            "sort_order": "Los números menores aparecen primero dentro de la categoría.",
+        }
 
     def clean_name(self):
         name = " ".join(self.cleaned_data["name"].split())
@@ -70,12 +101,120 @@ class ProductForm(forms.ModelForm):
         return cleaned_data
 
 
+class ProductOptionGroupForm(forms.ModelForm):
+    class Meta:
+        model = ProductOptionGroup
+        fields = ("name", "selection_type", "is_required", "sort_order")
+        labels = {
+            "name": "Nombre del grupo",
+            "selection_type": "Forma de elegir",
+            "is_required": "El cliente o mesero debe conservar al menos una opción",
+            "sort_order": "Orden visual",
+        }
+        help_texts = {
+            "selection_type": "Usa varias para ingredientes que pueden quitarse; una para elegir entre alternativas.",
+            "is_required": "Por ejemplo, una proteína obligatoria. Déjalo apagado si puede pedirse sin esos ingredientes.",
+            "sort_order": "Los grupos con números menores aparecen primero.",
+        }
+
+    def clean_name(self):
+        name = " ".join(self.cleaned_data["name"].split())
+        duplicate = ProductOptionGroup.objects.filter(
+            product=self.instance.product, name__iexact=name,
+        ).exclude(pk=self.instance.pk)
+        if duplicate.exists():
+            raise forms.ValidationError("Este producto ya tiene un grupo con ese nombre.")
+        return name
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if (
+            self.instance.pk
+            and cleaned_data.get("selection_type") == ProductOptionGroup.SelectionType.SINGLE
+            and self.instance.options.filter(is_default=True).count() > 1
+        ):
+            self.add_error(
+                "selection_type",
+                "Antes de cambiar a una opción, deja un solo ingrediente marcado como estándar.",
+            )
+        return cleaned_data
+
+
+class ProductOptionForm(forms.ModelForm):
+    class Meta:
+        model = ProductOption
+        fields = ("name", "price_adjustment", "replacement_pair", "is_default", "is_available", "sort_order")
+        labels = {
+            "name": "Ingrediente u opción",
+            "price_adjustment": "Cargo adicional",
+            "replacement_pair": "Par de sustitución",
+            "is_default": "Incluido en la preparación estándar",
+            "is_available": "Disponible para seleccionar",
+            "sort_order": "Orden visual",
+        }
+        widgets = {
+            "price_adjustment": forms.NumberInput(attrs={"step": "0.50"}),
+        }
+        help_texts = {
+            "price_adjustment": "Usa 0 cuando está incluido. Puede ser positivo para cobrar un extra.",
+            "replacement_pair": "Usa la misma clave en alternativas equivalentes, por ejemplo Aderezo para crema y mayonesa.",
+            "is_default": "Si se desmarca al ordenar, el ticket identificará el producto como Modificado.",
+            "sort_order": "Los números menores aparecen primero dentro del grupo.",
+        }
+
+    def clean_name(self):
+        name = " ".join(self.cleaned_data["name"].split())
+        duplicate = ProductOption.objects.filter(
+            group=self.instance.group, name__iexact=name,
+        ).exclude(pk=self.instance.pk)
+        if duplicate.exists():
+            raise forms.ValidationError("Este grupo ya contiene una opción con ese nombre.")
+        return name
+
+    def clean_is_default(self):
+        is_default = self.cleaned_data["is_default"]
+        group = self.instance.group
+        if (
+            is_default
+            and group.selection_type == ProductOptionGroup.SelectionType.SINGLE
+            and group.options.filter(is_default=True).exclude(pk=self.instance.pk).exists()
+        ):
+            raise forms.ValidationError("Un grupo de elección única solo puede tener una opción estándar.")
+        return is_default
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("is_default") and not cleaned_data.get("is_available"):
+            self.add_error(
+                "is_available", "Una opción incluida en la preparación estándar debe estar disponible.",
+            )
+        return cleaned_data
+
+
+class ProductOptionGroupCopyForm(forms.Form):
+    source_group = forms.ModelChoiceField(
+        label="Grupo que deseas pegar",
+        queryset=ProductOptionGroup.objects.none(),
+        empty_label="Selecciona un grupo existente",
+        help_text="Se copiarán ingredientes, cargos y preparación estándar. La copia podrá editarse sin cambiar el producto original.",
+    )
+
+    def __init__(self, *args, target_product, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["source_group"].queryset = ProductOptionGroup.objects.exclude(
+            product=target_product,
+        ).select_related("product").prefetch_related("options").order_by(
+            "product__name", "sort_order", "name",
+        )
+
+
 class DailyMenuForm(forms.ModelForm):
     class Meta:
         model = DailyMenu
         fields = (
             "date", "water_product", "chicken_consomme", "variable_first_course",
             "second_course_one", "second_course_two", "chicken_stew", "beef_stew", "varied_stew",
+            "beans_order",
         )
         labels = {
             "date": "Fecha",
@@ -87,6 +226,7 @@ class DailyMenuForm(forms.ModelForm):
             "chicken_stew": "Guisado de pollo",
             "beef_stew": "Guisado de res",
             "varied_stew": "Guisado variado",
+            "beans_order": "Orden de frijoles",
         }
         widgets = {"date": forms.DateInput(attrs={"type": "date"})}
 
@@ -101,6 +241,7 @@ class DailyMenuForm(forms.ModelForm):
             "chicken_stew": Product.ComponentType.CHICKEN_STEW,
             "beef_stew": Product.ComponentType.BEEF_STEW,
             "varied_stew": Product.ComponentType.VARIED_STEW,
+            "beans_order": Product.ComponentType.COMPLEMENT,
         }
         for field_name, component_type in field_types.items():
             self.fields[field_name].queryset = Product.objects.filter(

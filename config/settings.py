@@ -1,4 +1,5 @@
 # NOTA TEMPORAL PARA APRENDIZAJE:
+# Registramos `tables` para que Django descubra sus modelos, migraciones y plantillas.
 # Registramos notifications y su context processor para mostrar el contador en todas las
 # pantallas internas autorizadas. Borra esta nota después de leerla.
 
@@ -35,6 +36,7 @@ INSTALLED_APPS = [
     "menu",
     "orders.apps.OrdersConfig",
     "notifications.apps.NotificationsConfig",
+    "tables.apps.TablesConfig",
 ]
 
 MIDDLEWARE = [
@@ -43,6 +45,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "accounts.middleware.QuickSwitchLockMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -59,6 +62,8 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "notifications.context_processors.notification_counter",
+                "internal_portal.context_processors.internal_navigation",
+                "accounts.context_processors.quick_switch_context",
             ],
         },
     }

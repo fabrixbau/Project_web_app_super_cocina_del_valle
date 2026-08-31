@@ -1,0 +1,14 @@
+{% extends "base_internal.html" %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE:
+Esta biblioteca presenta una sola tarjeta por familia compartida aunque internamente exista una
+asociación por producto. Editar una tarjeta actualiza todos los productos enumerados. Borra la nota. -->
+{% block title %}Grupos de ingredientes{% endblock %}
+{% block content %}
+  <div class="page-heading"><div><a href="{% url 'menu:configuration' %}">← Menú</a><h1>Grupos de ingredientes</h1></div><a class="button-link" href="{% url 'menu:shared_group_create' %}">Nuevo grupo compartido</a></div>
+  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  <section class="card"><p>Edita una receta una sola vez y el cambio se reflejará en todos los productos asociados.</p></section>
+  <div class="shared-group-grid spaced-card">
+    {% for family in families %}<article class="card shared-group-card"><h2>{{ family.group.name }}</h2><p><strong>Productos:</strong> {% for product in family.products %}{{ product.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p><p><strong>Opciones:</strong> {% for option in family.group.options.all %}{{ option.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p><a class="button-link" href="{% url 'menu:shared_group_edit' family.group.shared_key %}">Editar grupo y asociaciones</a></article>
+    {% empty %}<section class="card"><p>Todavía no hay grupos de ingredientes.</p></section>{% endfor %}
+  </div>
+{% endblock %}

@@ -1,6 +1,9 @@
 from django.contrib import admin
 
-from .models import Category, DailyMenu, MealPackage, Product, ServicePeriod
+from .models import (
+    Category, DailyMenu, MealPackage, Product, ProductOption, ProductOptionGroup,
+    ServicePeriod,
+)
 
 
 @admin.register(Category)
@@ -14,6 +17,19 @@ class ProductAdmin(admin.ModelAdmin):
     list_display = ("name", "category", "component_type", "price", "is_available", "sort_order")
     list_filter = ("category", "component_type", "service_periods", "is_available")
     search_fields = ("name", "description")
+
+
+class ProductOptionInline(admin.TabularInline):
+    model = ProductOption
+    extra = 0
+
+
+@admin.register(ProductOptionGroup)
+class ProductOptionGroupAdmin(admin.ModelAdmin):
+    list_display = ("name", "product", "selection_type", "is_required", "sort_order")
+    list_filter = ("selection_type", "is_required")
+    search_fields = ("name", "product__name")
+    inlines = (ProductOptionInline,)
 
 
 @admin.register(ServicePeriod)

@@ -3,13 +3,17 @@
 # El carrito se guarda como datos simples dentro de la sesión del navegador. Este archivo
 # agrega, combina, actualiza y traduce esos datos a objetos actuales con precios del servidor.
 # No crea pedidos todavía. Borra esta nota después de leerla.
+# Productos personalizados se agrupan por producto + firma; el precio y las diferencias se
+# recalculan con opciones vigentes antes de checkout. Borra esta nota.
 
 from decimal import Decimal
 import uuid
 
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from menu.models import DailyMenu, MealPackage, Product
+from menu.selection import resolve_product_selection
 
 
 SESSION_KEY = "public_order_cart"
@@ -46,15 +50,57 @@ def add_package(session, *, package, daily_menu, cleaned_data):
     session.modified = True
 
 
-def add_product(session, *, product, quantity):
+def add_product(session, *, product, quantity, selection):
     cart = _cart(session)
     for existing in cart:
-        if existing.get("kind") == "product" and existing.get("product_id") == product.pk:
+        if (
+            existing.get("kind") == "product"
+            and existing.get("product_id") == product.pk
+            and existing.get("configuration_signature", "") == selection["signature"]
+        ):
             existing["quantity"] = min(99, existing["quantity"] + quantity)
             session.modified = True
             return
-    cart.append({"key": uuid.uuid4().hex, "kind": "product", "product_id": product.pk, "quantity": quantity})
+    cart.append({
+        "key": uuid.uuid4().hex, "kind": "product", "product_id": product.pk,
+        "option_ids": selection["option_ids"],
+        "customization_comment": selection["comment"],
+        "configuration_signature": selection["signature"], "quantity": quantity,
+    })
     session.modified = True
+
+
+def decrease_product(session, *, product, configuration_signature):
+    """Resta solamente la partida del producto que comparte la firma indicada."""
+    cart = _cart(session)
+    for index in range(len(cart) - 1, -1, -1):
+        item = cart[index]
+        if (
+            item.get("kind") == "product"
+            and item.get("product_id") == product.pk
+            and item.get("configuration_signature", "") == configuration_signature
+        ):
+            if item.get("quantity", 0) > 1:
+                item["quantity"] -= 1
+            else:
+                cart.pop(index)
+            session.modified = True
+            return True
+    return False
+
+
+def cart_control_summary(session):
+    cart = resolve_cart(session)
+    standard_quantities = {}
+    for item in cart["items"]:
+        if item.get("kind") == "product" and not item["configuration"]["is_customized"]:
+            product_id = str(item["product_id"])
+            standard_quantities[product_id] = standard_quantities.get(product_id, 0) + item["quantity"]
+    return {
+        "count": cart["count"],
+        "total_display": f"{cart['total']:.2f}",
+        "standard_quantities": standard_quantities,
+    }
 
 
 def update_item(session, *, key, quantity):
@@ -120,7 +166,7 @@ def resolve_cart(session):
     package_ids = {item["package_id"] for item in raw_items if item.get("kind") == "package"}
     product_ids = {item["product_id"] for item in raw_items if item.get("kind") == "product"}
     packages = {item.pk: item for item in MealPackage.objects.filter(pk__in=package_ids, is_active=True)}
-    products = {item.pk: item for item in Product.objects.filter(pk__in=product_ids).prefetch_related("service_periods")}
+    products = {item.pk: item for item in Product.objects.filter(pk__in=product_ids).prefetch_related("service_periods", "option_groups__options")}
     resolved = []
     valid_keys = set()
     total = Decimal("0.00")
@@ -132,8 +178,19 @@ def resolve_cart(session):
             product = products.get(raw["product_id"])
             if not product or not product_is_orderable(product):
                 continue
-            unit_price = product.price
-            item = {**raw, "product": product, "name": product.name, "unit_price": unit_price}
+            try:
+                selection = resolve_product_selection(
+                    product, raw.get("option_ids"), raw.get("customization_comment", ""),
+                )
+            except ValidationError:
+                continue
+            unit_price = selection["unit_price"]
+            item = {
+                **raw, "product": product,
+                "name": f"{product.name} ({selection['comment']})" if selection["comment"] else product.name,
+                "unit_price": unit_price,
+                "configuration": selection,
+            }
         else:
             package = packages.get(raw.get("package_id"))
             daily_menu = DailyMenu.objects.filter(
