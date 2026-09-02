@@ -900,3 +900,59 @@ templates/
 - Los componentes de Corrida y Ejecutiva usan la misma tarjeta con menos, más y Personalizar, aunque conservan su función de completar automáticamente un paquete.
 - Los formularios manuales de Corrida/Ejecutiva muestran los tres tiempos como bloques de opciones grandes, extras separados y confirmación fija al pie.
 - Corrida y Ejecutiva manuales aceptan un comentario de cocina de hasta 150 caracteres; se conserva al editar y aparece entre paréntesis junto al nombre del paquete.
+# Captura interna de pedidos
+
+- Telefonista/Administrador crean folios persistentes desde `/app/pedidos/nuevo/` para recoger o entrega.
+- Ambos tipos guardan forma de pago; entrega exige teléfono, domicilio y referencias. Efectivo registra pago exacto o monto para cambio.
+- `requested_for` conserva la hora prometida y `created_by` al operador que originó el pedido.
+- El buscador existente localiza por folio, nombre o teléfono y abre el editor para agregar productos posteriormente.
+- El editor tiene switch Desayuno/Comida, categorías, controles rápidos, personalización universal y paquetes del menú diario.
+- La captura empieza como `draft`: modalidad, menú, ticket y datos permanecen accesibles. Cerrar captura confirma y envía al listado, pero no bloquea ediciones.
+- Recoger puede confirmarse sin pago; para marcarlo finalmente como recogido debe haberse registrado. Entrega exige pago al confirmar la captura.
+## Ajuste del capturador interno de pedidos (2026-08-31)
+
+- `/app/pedidos/<id>/editar/` comparte ahora la estructura visual de mesas: catálogo izquierdo y ticket fijo derecho.
+- Guardar datos y cerrar captura viven dentro del ticket, pero envían el formulario único de cliente, domicilio, pago y notas.
+- Las categorías virtuales Corrida, Ejecutiva y Comida por orden ya no se duplican con categorías normales.
+- Terminal y transferencia ocultan el efectivo; pulsar un billete selecciona Efectivo automáticamente.
+- Comida por orden valida y vende exclusivamente componentes del menú diario publicado.
+- El ticket permanece fijo a la derecha durante la captura en computadora/tablet y tiene desplazamiento interno si acumula muchas partidas.
+- `Guardar sin cerrar` acepta datos parciales; las obligaciones de domicilio y pago se exigen al cerrar la captura. Los errores de formulario ahora se anuncian claramente y conservan lo escrito.
+- El rediseño POS usa una cuadrícula real: catálogo y controles a la izquierda, ticket `sticky` a la derecha sin superposición.
+- La barra operativa concentra modalidad, panel desplegable de cliente y botones de Efectivo/Terminal/Transferencia. El efectivo despliega denominaciones y el ticket calcula el cambio.
+- Telefonistas arma corrida/ejecutiva desde tarjetas `- / + / Personalizar`; cada primer+segundo+tercero forma un paquete independiente. `OrderItem.is_package_candidate` distingue tiempos pendientes y el cierre los rechaza.
+- Agua, tortillas, frijoles y comentario configuran el siguiente paquete completado. El ticket separa `Cambio de` (efectivo recibido) y `Cambio` (importe a devolver).
+- En captura interna, fecha/hora de entrega parten de la apertura del ticket y son editables. Recoger requiere nombre+fecha+hora; Entrega suma calle+número exterior. Teléfono, interior, colonia, referencias y notas son opcionales; colonia inicia como `del valle centro` en Entrega.
+- Cliente/domicilio se autoguardan con debounce; los dos botones inferiores sólo retraen el panel. Un cierre inválido conserva la pantalla, resume errores y enfoca el primer campo.
+- Paquetes internos exponen `Editar extras` para agua/tortillas/frijoles/comentario. Agregar el agua del día como bebida convierte el primer paquete sin agua y recalcula precio, en vez de duplicar el producto.
+- La imagen de cualquier tarjeta agregable funciona como `+`. Extras bloquea sólo `OrderItem` antes de leer su paquete, evitando el `FOR UPDATE` sobre un outer join nullable de PostgreSQL.
+## Validación visible al cerrar pedidos internos (2026-09-01)
+
+- El formulario de `/app/pedidos/<id>/editar/` usa `novalidate` para que los campos HTML ocultos/retraídos no bloqueen silenciosamente el POST.
+- Django conserva la validación autoritativa y muestra un resumen con cada dato faltante.
+- Cuando hay errores, el panel del cliente se abre y la interfaz desplaza y enfoca el primer campo que debe corregirse.
+- La imagen del producto conserva la acción de sumar una unidad, pero ya no muestra un distintivo `+` superpuesto.
+- `Guardar sin cerrar` conserva el borrador y vuelve al listado; cerrar exige forma de pago tanto para Recoger como para Entrega.
+- Los pedidos internos para Recoger nacen con cliente `Mostrador`; al enfocar ese campo se selecciona todo para reemplazarlo escribiendo directamente.
+- Una solicitud con al menos una hora de anticipación cierra como `Programado`; una más cercana cierra como `En preparación`. Recoger termina en `Listo → Recogido`; domicilio usa `Listo → En reparto → Entregado`.
+- El listado separa `Editar` de `Estado y seguimiento`; este último abre las transiciones disponibles y la bitácora. La captura también enlaza directamente al seguimiento.
+- El tablero de pedidos ahora tiene encabezados, resumen de hasta tres partidas, domicilio, color de fila por modalidad y badge por estado. La fila abre el detalle y un botón avanza directamente al siguiente estado no destructivo.
+- El avance de estado usa `fetch`: actualiza fila, badge y siguiente acción sin recarga ni pérdida de scroll. Los selectores filtran al cambiar y la búsqueda se envía tras 500 ms sin escribir; se eliminó el botón Filtrar.
+- Recoger puede cerrar captura sin pago, pero `complete_pickup` exige definirlo. Entrega sigue exigiéndolo al cerrar. El AJAX incluye CSRF explícito y muestra errores en la fila; el clic de fila abre directamente `/editar/`.
+- Corrección AJAX: el input `name="action"` ocultaba `HTMLFormElement.action` y generaba `/app/pedidos/[object HTMLInputElement]`; el fetch ahora lee la URL mediante `getAttribute("action")`.
+- Los errores operativos incluyen enlace de recuperación: pago abre `/editar/#payment-methods`; repartidor abre Repartos filtrado por folio.
+- Repartos usa un tablero único con filtros por texto/folio/dirección/cliente, estado y repartidor. Asignar o reasignar se hace con botones de nombres vía AJAX, sin recargar.
+- Repartos se presenta como lista horizontal de filas altas. Sus transiciones `Listo → En reparto → Entregado` también son AJAX y conservan el scroll. Los contenedores de error respetan `hidden` y no dibujan bordes vacíos.
+- El ticket interno usa flex: sólo las partidas hacen scroll y total/acciones permanecen visibles. Entregas con Terminal/Transferencia guardan propina separada, beneficiario, editor y fecha; Repartos permite montos rápidos o libre. En Mesas, clicar la imagen envía el mismo formulario que `+`.
+- Corrección PostgreSQL en propinas: `update_delivery_tip` bloquea sólo `Order`; no combina `select_for_update()` con `select_related("delivery_person")` porque la FK nullable genera un outer join no bloqueable.
+- La propina ya no tiene botón visible de guardado: montos rápidos guardan al instante y el libre usa debounce de 600 ms. En `/app/pedidos/<id>/editar/` aparece para Entrega + Terminal/Transferencia; el pago se autoguarda antes de permitir la propina.
+- El folio visible combina `DDMM` con el consecutivo diario de tres posiciones: el primer pedido del 1 de septiembre es `0109001`. El consecutivo interno y su reinicio diario no cambian; los buscadores aceptan el folio compuesto.
+- La agenda interna usa `Customer` y múltiples `CustomerAddress`. Al autoguardar una entrega completa se crea o actualiza la ficha enlazada al pedido; teléfono identifica al cliente cuando existe y nombre exacto sólo cuando está vacío. Telefonista/Admin pueden buscar, editar y seleccionar un domicilio para rellenar la captura.
+- El alta manual muestra cliente y domicilio desde el inicio. El domicilio es opcional; si se empieza a llenar, calle y número exterior conservan su validación y ambos registros se crean juntos.
+- En entregas internas, `Nombre del cliente` es el autocompletado de agenda; ya no existe un buscador separado. El teléfono se consulta normalizado y advierte el nombre duplicado con enlaces para revisar o reutilizar la ficha. `CustomerForm` repite la protección en backend.
+- El autocompletado de Nombre se retrae al cambiar de campo. El autoguardado también devuelve la colisión telefónica, y la sincronización no escribe un teléfono sobre una ficha provisional si ya pertenece a otro contacto.
+- `/app/pedidos/` desglosa Consumo, Propina y Total con propina cuando la entrega tiene propina registrada; sin propina evita repetir importes.
+- El ticket interno permite editar una nota general de hasta 1000 caracteres y una nota por partida de hasta 150, sin reconstruir productos. Los botones grandes de Corrida/Ejecutiva vuelven a mostrarse sobre las categorías en modo comida.
+- Los tickets laterales de Mesas y Telefonistas comparten `ticket-expand.js`: un clic sobre fondo/texto no interactivo amplía su columna y activa un fondo oscuro que bloquea el resto de la aplicación. Un segundo clic dentro del fondo blanco del ticket, un clic fuera de él o Escape restaura la vista; el clic exterior sólo cierra el enfoque y no activa controles subyacentes. Los controles internos del ticket continúan funcionando y no disparan la expansión.
+- `/app/caja/` es un tablero exclusivo de Administrador para pedidos operativos. Prioriza entregas y permite buscar, asignar/reasignar repartidor, registrar Efectivo/Terminal/Transferencia y confirmar por separado que el cambio físico fue entregado al repartidor. Los pedidos para recoger aparecen en una sección secundaria sin asignación ni entrega de cambio.
+- `Order.cash_handoff_confirmed`, `cash_handoff_by` y `cash_handoff_at` auditan la entrega física del cambio. Cambiar la forma de pago o el billete invalida esa confirmación para evitar conservar un movimiento obsoleto.

@@ -291,6 +291,20 @@ document.addEventListener("click", (event) => {
     dialog.showModal();
     return;
   }
+  // NOTA TEMPORAL PARA APRENDIZAJE: la imagen envía el mismo formulario estándar
+  // que el botón +. Así conserva personalización, pollo y armado automático sin
+  // duplicar reglas. Borra esta nota después de leerla.
+  const productImage = event.target.closest(".catalog-product-visual");
+  if (productImage) {
+    const standardAddForm = productImage.closest("[data-catalog-product]")?.querySelector(
+      "form[data-product-add]:not([data-customizable-product])"
+    );
+    if (standardAddForm) {
+      event.preventDefault();
+      standardAddForm.requestSubmit();
+      return;
+    }
+  }
   const catalogDecrease = event.target.closest("[data-catalog-decrease]");
   if (catalogDecrease) {
     event.preventDefault();

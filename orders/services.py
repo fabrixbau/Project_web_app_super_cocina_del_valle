@@ -8,15 +8,19 @@
 # no queda medio pedido guardado. También vuelve a leer el precio y genera el folio diario
 # con bloqueo para evitar números repetidos. Borra esta nota después de leerla.
 
+from datetime import datetime, timedelta
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
 from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, user_has_any_role
-from menu.models import DailyMenu, MealPackage
+from menu.models import DailyMenu, MealPackage, Product
+from menu.selection import resolve_product_selection
 from notifications.models import InternalNotification
 
-from .models import DailyOrderCounter, Order, OrderItem, OrderStatusHistory
+from .models import Customer, CustomerAddress, DailyOrderCounter, Order, OrderItem, OrderStatusHistory
 
 
 ACTION_LABELS = {
@@ -24,21 +28,567 @@ ACTION_LABELS = {
     "cancel": "Cancelar pedido",
     "start_preparing": "Iniciar preparación",
     "mark_ready": "Marcar como listo",
+    "dispatch_delivery": "Marcar como en reparto",
     "complete_pickup": "Marcar como recogido",
     "complete_delivery": "Marcar como entregado",
     "restart_cycle": "Iniciar nuevo ciclo",
 }
 
 
+@transaction.atomic
+def update_cashier_payment(*, order, payment_method, cash_amount, actor):
+    """Persist the payment instruction selected at the cash desk."""
+    # NOTA TEMPORAL PARA APRENDIZAJE: al cambiar cómo pagará el cliente anulamos una
+    # confirmación anterior de cambio. Caja deberá confirmar otra vez el dinero físico
+    # porque el importe pudo cambiar. Borra esta nota después de leerla.
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if payment_method not in Order.PaymentMethod.values:
+        raise ValidationError("Selecciona efectivo, terminal o transferencia.")
+    order.payment_method = payment_method
+    order.cash_handoff_confirmed = False
+    order.cash_handoff_by = None
+    order.cash_handoff_at = None
+    if payment_method == Order.PaymentMethod.CASH:
+        if cash_amount == "exact":
+            order.needs_change = False
+            order.cash_tendered = order.total
+        else:
+            try:
+                tendered = Decimal(cash_amount)
+            except Exception as error:
+                raise ValidationError("Selecciona el billete o indica pago exacto.") from error
+            if tendered < order.total:
+                raise ValidationError("El efectivo indicado no cubre el total del pedido.")
+            order.cash_tendered = tendered
+            order.needs_change = tendered > order.total
+    else:
+        order.needs_change = False
+        order.cash_tendered = None
+    if payment_method == Order.PaymentMethod.CASH:
+        order.delivery_tip_amount = 0
+        order.delivery_tip_recipient = None
+        order.delivery_tip_updated_by = None
+        order.delivery_tip_updated_at = None
+    order.save(update_fields=(
+        "payment_method", "needs_change", "cash_tendered", "cash_handoff_confirmed",
+        "cash_handoff_by", "cash_handoff_at", "delivery_tip_amount",
+        "delivery_tip_recipient", "delivery_tip_updated_by", "delivery_tip_updated_at",
+        "updated_at",
+    ))
+    return order
+
+
+@transaction.atomic
+def confirm_cash_handoff(*, order, actor, confirmed=True):
+    """Record that cash/change was physically handed to the assigned courier."""
+    # Bloqueamos sólo Order: delivery_person es nullable y PostgreSQL no permite
+    # FOR UPDATE sobre ese lado de un OUTER JOIN.
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if order.order_type != Order.OrderType.DELIVERY:
+        raise ValidationError("La entrega de cambio sólo aplica a pedidos a domicilio.")
+    if not order.delivery_person:
+        raise ValidationError("Asigna un repartidor antes de entregar el cambio.")
+    if order.payment_method != Order.PaymentMethod.CASH:
+        raise ValidationError("Este pedido no está marcado para pago en efectivo.")
+    order.cash_handoff_confirmed = confirmed
+    order.cash_handoff_by = actor if confirmed else None
+    order.cash_handoff_at = timezone.now() if confirmed else None
+    order.save(update_fields=("cash_handoff_confirmed", "cash_handoff_by", "cash_handoff_at", "updated_at"))
+    return order
+
+
+def scheduled_initial_status(order):
+    # NOTA TEMPORAL PARA APRENDIZAJE: una hora o más convierte la captura en
+    # Programado. Un pedido más cercano entra directamente a preparación.
+    # El backend decide para no depender del reloj del navegador. Borra esta nota.
+    if order.requested_for and order.created_at:
+        if order.requested_for >= order.created_at + timedelta(hours=1):
+            return Order.Status.SCHEDULED
+    return Order.Status.PREPARING
+
+
+def _normalize_phone(value):
+    return "".join(character for character in value if character.isdigit())
+
+
+def sync_order_customer_agenda(order, form_data):
+    """Create or update the agenda record represented by a complete delivery form."""
+    # NOTA TEMPORAL PARA APRENDIZAJE: enlazamos el pedido con la ficha creada. En
+    # autoguardados posteriores actualizamos esa misma dirección y evitamos duplicarla
+    # mientras el telefonista continúa escribiendo. Borra esta nota después de leerla.
+    if order.order_type != Order.OrderType.DELIVERY:
+        return order
+    name = " ".join(form_data.get("customer_name", "").split())
+    street = form_data.get("street", "").strip()
+    exterior = form_data.get("exterior_number", "").strip()
+    if not name or not street or not exterior:
+        return order
+    phone = form_data.get("phone", "").strip()
+    normalized_phone = _normalize_phone(phone)
+    customer_id = form_data.get("agenda_customer_id")
+    customer = Customer.objects.filter(pk=customer_id).first() if customer_id else None
+    phone_match = Customer.objects.filter(phone_key=normalized_phone).first() if normalized_phone else None
+    # Si el teléfono pertenece a otra ficha, conservamos el pedido pero no tocamos
+    # la agenda hasta que el operador elija expresamente ese contacto.
+    if phone_match and (customer is None or phone_match.pk != customer.pk):
+        return order
+    if customer is None and phone_match:
+        customer = phone_match
+    if customer is None and not normalized_phone:
+        customer = Customer.objects.filter(name__iexact=name).first()
+    if customer is None:
+        customer = Customer.objects.create(name=name, phone=phone)
+    else:
+        customer.name = name
+        if phone:
+            customer.phone = phone
+        customer.save(update_fields=("name", "phone", "updated_at"))
+
+    address_id = form_data.get("agenda_address_id")
+    address = CustomerAddress.objects.filter(pk=address_id, customer=customer).first() if address_id else None
+    if address is None:
+        address = CustomerAddress.objects.filter(
+            customer=customer, street__iexact=street, exterior_number__iexact=exterior,
+            interior_number__iexact=form_data.get("interior_number", "").strip(),
+        ).first()
+    values = {
+        "street": street, "exterior_number": exterior,
+        "interior_number": form_data.get("interior_number", "").strip(),
+        "neighborhood": form_data.get("neighborhood", "").strip(),
+        "references": form_data.get("references", "").strip(),
+    }
+    if address is None:
+        address = CustomerAddress.objects.create(customer=customer, **values)
+    else:
+        for field, value in values.items():
+            setattr(address, field, value)
+        address.save(update_fields=(*values.keys(), "updated_at"))
+    order.agenda_customer = customer
+    order.agenda_address = address
+    order.save(update_fields=("agenda_customer", "agenda_address", "updated_at"))
+    return order
+
+
+@transaction.atomic
+def save_internal_order(*, form_data, actor, order=None):
+    """Crea el folio una sola vez o actualiza sus datos sin borrar el ticket."""
+    today = timezone.localdate()
+    if order is None:
+        counter, _ = DailyOrderCounter.objects.select_for_update().get_or_create(operating_date=today)
+        counter.last_number += 1
+        counter.save(update_fields=("last_number",))
+        order = Order(
+            daily_number=counter.last_number, operating_date=today,
+            source=Order.Source.INTERNAL, status=Order.Status.DRAFT,
+            created_by=actor, total=0,
+        )
+    else:
+        order = Order.objects.select_for_update().get(pk=order.pk)
+    order.order_type = form_data["order_type"]
+    order.customer_name = " ".join(form_data["customer_name"].split())
+    order.phone = form_data.get("phone", "").strip()
+    order.requested_for = form_data.get("requested_for")
+    order.requested_date = form_data.get("requested_date")
+    order.requested_time = form_data.get("requested_time")
+    is_delivery = order.order_type == Order.OrderType.DELIVERY
+    for field in ("street", "exterior_number", "interior_number", "neighborhood", "references"):
+        setattr(order, field, form_data.get(field, "").strip() if is_delivery else "")
+    order.notes = form_data.get("notes", "").strip()
+    order.payment_method = form_data["payment_method"]
+    order.needs_change = form_data["needs_change"]
+    order.cash_tendered = form_data["cash_tendered"]
+    order.save()
+    sync_order_customer_agenda(order, form_data)
+    if not order.status_history.exists():
+        OrderStatusHistory.objects.create(order=order, from_status="", to_status=order.status, changed_by=actor)
+    return order
+
+
+@transaction.atomic
+def autosave_internal_order_customer(*, order, form_data):
+    """Persiste el panel del cliente sin exigir que el pedido ya esté completo."""
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    order.order_type = form_data["order_type"]
+    order.customer_name = " ".join(form_data.get("customer_name", "").split())
+    order.phone = form_data.get("phone", "").strip()
+    order.requested_date = form_data.get("requested_date")
+    order.requested_time = form_data.get("requested_time")
+    order.requested_for = (
+        timezone.make_aware(datetime.combine(order.requested_date, order.requested_time))
+        if order.requested_date and order.requested_time else None
+    )
+    for field in ("street", "exterior_number", "interior_number", "neighborhood", "references"):
+        setattr(order, field, form_data.get(field, "").strip())
+    order.notes = form_data.get("notes", "").strip()
+    order.payment_method = form_data.get("payment_method", "")
+    if order.order_type != Order.OrderType.DELIVERY or order.payment_method not in {
+        Order.PaymentMethod.CARD, Order.PaymentMethod.TRANSFER,
+    }:
+        order.delivery_tip_amount = 0
+        order.delivery_tip_recipient = None
+        order.delivery_tip_updated_by = None
+        order.delivery_tip_updated_at = None
+    order.save(update_fields=(
+        "order_type", "customer_name", "phone", "requested_date", "requested_time",
+        "requested_for", "street", "exterior_number", "interior_number",
+        "neighborhood", "references", "notes", "payment_method",
+        "delivery_tip_amount", "delivery_tip_recipient", "delivery_tip_updated_by",
+        "delivery_tip_updated_at", "updated_at",
+    ))
+    sync_order_customer_agenda(order, form_data)
+    return order
+
+
+@transaction.atomic
+def start_internal_order(*, order_type, actor):
+    if order_type not in Order.OrderType.values:
+        raise ValidationError("Selecciona una modalidad válida.")
+    now = timezone.localtime()
+    today = now.date()
+    counter, _ = DailyOrderCounter.objects.select_for_update().get_or_create(operating_date=today)
+    counter.last_number += 1
+    counter.save(update_fields=("last_number",))
+    order = Order.objects.create(
+        daily_number=counter.last_number, operating_date=today, order_type=order_type,
+        source=Order.Source.INTERNAL, status=Order.Status.DRAFT, created_by=actor,
+        # NOTA TEMPORAL PARA APRENDIZAJE: Recoger representa normalmente una venta
+        # inmediata de mostrador. Guardamos ese nombre desde el inicio, pero la interfaz
+        # permite reemplazarlo rápidamente si el cliente sí proporciona uno. Borra esta nota.
+        customer_name="Mostrador" if order_type == Order.OrderType.PICKUP else "",
+        phone="", total=0, requested_date=today,
+        requested_time=now.time().replace(second=0, microsecond=0),
+        neighborhood="del valle centro" if order_type == Order.OrderType.DELIVERY else "",
+    )
+    OrderStatusHistory.objects.create(order=order, from_status="", to_status=Order.Status.DRAFT, changed_by=actor)
+    return order
+
+
+@transaction.atomic
+def close_internal_order_capture(*, order, actor):
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if order.status != Order.Status.DRAFT:
+        return order
+    if not order.items.exists():
+        raise ValidationError("Agrega al menos un producto antes de cerrar el ticket.")
+    if order.items.filter(is_package_candidate=True).exists():
+        raise ValidationError("Hay una comida incompleta. Agrega los tiempos faltantes o elimina sus componentes.")
+    if not order.customer_name.strip():
+        raise ValidationError("Escribe el nombre del cliente.")
+    if not order.requested_date or not order.requested_time:
+        raise ValidationError("Completa la fecha y hora de entrega.")
+    if order.order_type == Order.OrderType.DELIVERY:
+        if not order.payment_method:
+            raise ValidationError("Selecciona la forma de pago de la entrega antes de cerrar.")
+        required = (order.street, order.exterior_number)
+        if not all(value.strip() for value in required):
+            raise ValidationError("Completa la calle y el número exterior de la entrega.")
+    if order.payment_method == Order.PaymentMethod.CASH and order.needs_change:
+        if order.cash_tendered is None or order.cash_tendered < order.total:
+            raise ValidationError("Actualiza el efectivo: la cantidad no cubre el total.")
+    previous = order.status
+    order.status = scheduled_initial_status(order)
+    order.save(update_fields=("status", "updated_at"))
+    OrderStatusHistory.objects.create(order=order, from_status=previous, to_status=order.status, changed_by=actor)
+    return order
+
+
+def recalculate_order_total(order):
+    order.total = sum((item.subtotal for item in order.items.all()), start=0)
+    update_fields = ["total", "updated_at"]
+    if order.payment_method == Order.PaymentMethod.CASH and not order.needs_change:
+        order.cash_tendered = order.total
+        update_fields.append("cash_tendered")
+    order.save(update_fields=update_fields)
+
+
+@transaction.atomic
+def add_internal_order_product(
+    *, order, product, actor, raw_option_ids=None, comment="", require_individual=True,
+    is_package_candidate=False, chicken_piece="",
+):
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if order.status in {Order.Status.PICKED_UP, Order.Status.DELIVERED, Order.Status.CANCELED}:
+        raise ValidationError("Este pedido ya no admite productos.")
+    product = Product.objects.select_for_update().prefetch_related("option_groups__options").get(pk=product.pk)
+    if not product.is_available or (require_individual and not product.is_sold_individually):
+        raise ValidationError("El producto ya no está disponible por orden.")
+    selection = resolve_product_selection(product, raw_option_ids, comment)
+    item = OrderItem.objects.select_for_update().filter(
+        order=order, item_type=OrderItem.ItemType.PRODUCT, product=product,
+        configuration_signature=selection["signature"], is_package_candidate=is_package_candidate,
+        chicken_piece=chicken_piece,
+    ).first()
+    if item:
+        item.quantity += 1
+        item.subtotal = item.unit_price * item.quantity
+        item.save(update_fields=("quantity", "subtotal"))
+    else:
+        item = OrderItem.objects.create(
+            order=order, item_type=OrderItem.ItemType.PRODUCT, product=product,
+            product_name_snapshot=product.name, unit_price=selection["unit_price"],
+            quantity=1, subtotal=selection["unit_price"], tortillas=False, beans=False,
+            configuration_snapshot=selection["snapshot"],
+            configuration_signature=selection["signature"],
+            customization_comment=selection["comment"], is_customized=selection["is_customized"],
+            is_package_candidate=is_package_candidate, chicken_piece=chicken_piece,
+        )
+    recalculate_order_total(order)
+    return item
+
+
+def _consume_internal_candidate(*, order, product_id, chicken_product_id=None, chicken_piece=""):
+    queryset = OrderItem.objects.select_for_update().filter(
+        order=order, product_id=product_id, item_type=OrderItem.ItemType.PRODUCT,
+        is_package_candidate=True,
+    )
+    if product_id == chicken_product_id:
+        queryset = queryset.filter(chicken_piece=chicken_piece)
+    item = queryset.order_by("-id").first()
+    if not item:
+        raise ValidationError("Cambió el ticket y no encontramos todos los tiempos seleccionados.")
+    if item.quantity == 1:
+        item.delete()
+    else:
+        item.quantity -= 1
+        item.subtotal = item.unit_price * item.quantity
+        item.save(update_fields=("quantity", "subtotal"))
+
+
+@transaction.atomic
+def add_internal_auto_meal_component(
+    *, order, product, daily_menu, completed_selection, actor, chicken_piece="",
+    raw_option_ids=None, comment="", with_water=False, tortillas=False, beans=False,
+    package_comment="",
+):
+    """Guarda un tiempo pendiente y lo convierte en paquete al completar los tres espacios."""
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    daily_menu = DailyMenu.objects.select_for_update().get(
+        pk=daily_menu.pk, date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED,
+    )
+    daily_ids = {
+        pk for pk in (
+            daily_menu.chicken_consomme_id, daily_menu.variable_first_course_id,
+            daily_menu.second_course_one_id, daily_menu.second_course_two_id,
+            daily_menu.chicken_stew_id, daily_menu.beef_stew_id, daily_menu.varied_stew_id,
+        ) if pk
+    }
+    eligible_grill = product.component_type == Product.ComponentType.GRILL and product.eligible_for_executive_meal
+    if product.pk not in daily_ids and not eligible_grill:
+        raise ValidationError("Este producto no puede formar una comida del menú de hoy.")
+    clicked_piece = chicken_piece if product.pk == daily_menu.chicken_stew_id else ""
+    if product.pk == daily_menu.chicken_stew_id and clicked_piece not in {"leg", "thigh"}:
+        raise ValidationError("Selecciona si el pollo es pierna o muslo.")
+    add_internal_order_product(
+        order=order, product=product, actor=actor, require_individual=False,
+        is_package_candidate=True, chicken_piece=clicked_piece,
+        raw_option_ids=raw_option_ids, comment=comment,
+    )
+    if not completed_selection:
+        return None
+    selected = Product.objects.in_bulk(completed_selection[key] for key in ("first", "second", "main"))
+    try:
+        first = selected[completed_selection["first"]]
+        second = selected[completed_selection["second"]]
+        main = selected[completed_selection["main"]]
+    except KeyError as error:
+        raise ValidationError("No encontramos uno de los tiempos elegidos.") from error
+    package_type = (
+        MealPackage.PackageType.EXECUTIVE
+        if main.component_type == Product.ComponentType.GRILL and main.eligible_for_executive_meal
+        else MealPackage.PackageType.RUNNING
+    )
+    package = MealPackage.objects.select_for_update().filter(package_type=package_type, is_active=True).order_by("id").first()
+    if not package:
+        raise ValidationError("No existe un paquete activo para completar esta comida.")
+    final_piece = completed_selection.get("chicken_piece", "") if main.pk == daily_menu.chicken_stew_id else ""
+    component_comments = []
+    for selected_product in (first, second, main):
+        candidate = OrderItem.objects.filter(
+            order=order, product=selected_product, is_package_candidate=True,
+        ).exclude(customization_comment="").order_by("-id").first()
+        if candidate:
+            component_comments.append(f"{candidate.product_name_snapshot}: {candidate.customization_comment}")
+    if package_comment:
+        component_comments.append(package_comment)
+    final_comment = " · ".join(component_comments)
+    for product_id in (first.pk, second.pk, main.pk):
+        _consume_internal_candidate(
+            order=order, product_id=product_id,
+            chicken_product_id=daily_menu.chicken_stew_id, chicken_piece=final_piece,
+        )
+    cleaned_data = {
+        "first_course": first, "second_course": second, "main_course": main,
+        "chicken_piece": final_piece, "with_water": with_water,
+        "tortillas": "yes" if tortillas else "no", "beans": "yes" if beans else "no",
+        "quantity": 1, "customization_comment": final_comment,
+    }
+    return add_internal_order_package(
+        order=order, package=package, daily_menu=daily_menu, cleaned_data=cleaned_data,
+        merge_identical=False,
+    )
+
+
+@transaction.atomic
+def change_internal_order_item(*, order, item, action):
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if order.status in {Order.Status.PICKED_UP, Order.Status.DELIVERED, Order.Status.CANCELED}:
+        raise ValidationError("Este pedido ya no admite modificaciones.")
+    item = OrderItem.objects.select_for_update().get(pk=item.pk, order=order)
+    if action == "increase":
+        item.quantity += 1
+        item.subtotal = item.unit_price * item.quantity
+        item.save(update_fields=("quantity", "subtotal"))
+    elif action == "decrease" and item.quantity > 1:
+        item.quantity -= 1
+        item.subtotal = item.unit_price * item.quantity
+        item.save(update_fields=("quantity", "subtotal"))
+    elif action in {"decrease", "remove"}:
+        item.delete()
+    else:
+        raise ValidationError("La acción solicitada no es válida.")
+    recalculate_order_total(order)
+
+
+@transaction.atomic
+def add_internal_order_package(*, order, package, daily_menu, cleaned_data, merge_identical=True):
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if order.status in {Order.Status.PICKED_UP, Order.Status.DELIVERED, Order.Status.CANCELED}:
+        raise ValidationError("Este pedido ya no admite productos.")
+    package = MealPackage.objects.select_for_update().get(pk=package.pk, is_active=True)
+    daily_menu = DailyMenu.objects.select_for_update().get(pk=daily_menu.pk, status=DailyMenu.Status.PUBLISHED)
+    first, second, main = (cleaned_data[name] for name in ("first_course", "second_course", "main_course"))
+    comment = cleaned_data.get("customization_comment", "")
+    unit_price = package.price_with_water if cleaned_data["with_water"] else package.price_without_water
+    signature = "|".join(map(str, (
+        first.pk, second.pk, main.pk, cleaned_data["chicken_piece"],
+        int(cleaned_data["with_water"]), cleaned_data["tortillas"], cleaned_data["beans"], comment.casefold(),
+    )))
+    item = None
+    if merge_identical:
+        item = OrderItem.objects.select_for_update().filter(
+            order=order, item_type=OrderItem.ItemType.PACKAGE, package=package,
+            configuration_signature=signature,
+        ).first()
+    quantity = cleaned_data["quantity"]
+    if item:
+        item.quantity += quantity
+        item.subtotal = item.unit_price * item.quantity
+        item.save(update_fields=("quantity", "subtotal"))
+    else:
+        item = OrderItem.objects.create(
+            order=order, item_type=OrderItem.ItemType.PACKAGE, package=package,
+            package_name_snapshot=package.name, first_course=first,
+            first_course_name_snapshot=first.name, second_course=second,
+            second_course_name_snapshot=second.name, main_course=main,
+            main_course_name_snapshot=main.name, chicken_piece=cleaned_data["chicken_piece"],
+            with_water=cleaned_data["with_water"],
+            water_name_snapshot=daily_menu.water_product.name if cleaned_data["with_water"] else "",
+            tortillas=cleaned_data["tortillas"] == "yes", beans=cleaned_data["beans"] == "yes",
+            unit_price=unit_price, quantity=quantity, subtotal=unit_price * quantity,
+            configuration_signature=signature, customization_comment=comment,
+            configuration_snapshot={"comment": comment}, is_customized=bool(comment),
+        )
+    recalculate_order_total(order)
+    return item
+
+
+@transaction.atomic
+def update_internal_order_note(*, order, note):
+    # NOTA TEMPORAL PARA APRENDIZAJE: la nota general pertenece al encabezado del
+    # pedido; la nota de partida pertenece sólo al producto o paquete elegido.
+    # Ambas se actualizan sin reconstruir el ticket. Borra esta nota al leerla.
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    order.notes = " ".join(note.split())
+    order.save(update_fields=("notes", "updated_at"))
+    return order
+
+
+@transaction.atomic
+def update_internal_order_item_note(*, order, item, note):
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    item = OrderItem.objects.select_for_update().get(pk=item.pk, order=order)
+    item.customization_comment = " ".join(note.split())
+    item.is_customized = bool(item.customization_comment or item.configuration_snapshot)
+    item.save(update_fields=("customization_comment", "is_customized"))
+    return item
+
+
+@transaction.atomic
+def update_internal_package_extras(*, order, item, cleaned_data):
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    # NOTA TEMPORAL PARA APRENDIZAJE: PostgreSQL no permite FOR UPDATE sobre el lado
+    # nullable de un OUTER JOIN. Bloqueamos la partida sola y leemos el paquete después.
+    item = OrderItem.objects.select_for_update().get(
+        pk=item.pk, order=order, item_type=OrderItem.ItemType.PACKAGE,
+    )
+    if not item.package_id:
+        raise ValidationError("El paquete ya no tiene una configuración vigente.")
+    package = MealPackage.objects.get(pk=item.package_id)
+    item.with_water = cleaned_data["with_water"]
+    item.water_name_snapshot = (
+        DailyMenu.objects.filter(date=order.operating_date).values_list("water_product__name", flat=True).first() or "Agua del día"
+        if item.with_water else ""
+    )
+    item.tortillas = cleaned_data["tortillas"]
+    item.beans = cleaned_data["beans"]
+    item.customization_comment = cleaned_data["customization_comment"]
+    item.is_customized = bool(item.customization_comment)
+    item.configuration_snapshot = {"comment": item.customization_comment}
+    item.configuration_signature = "|".join(map(str, (
+        item.first_course_id, item.second_course_id, item.main_course_id,
+        item.chicken_piece, int(item.with_water), int(item.tortillas), int(item.beans),
+        item.customization_comment.casefold(), item.pk,
+    )))
+    item.unit_price = package.price_with_water if item.with_water else package.price_without_water
+    item.subtotal = item.unit_price * item.quantity
+    item.save(update_fields=(
+        "with_water", "water_name_snapshot", "tortillas", "beans",
+        "customization_comment", "is_customized", "configuration_snapshot",
+        "configuration_signature", "unit_price", "subtotal",
+    ))
+    recalculate_order_total(order)
+    return item
+
+
+@transaction.atomic
+def add_water_to_internal_package(*, order, water_product):
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    daily_menu = DailyMenu.objects.filter(
+        date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED,
+        water_product=water_product,
+    ).first()
+    if not daily_menu:
+        return None
+    item = OrderItem.objects.select_for_update().select_related("package").filter(
+        order=order, item_type=OrderItem.ItemType.PACKAGE, with_water=False,
+    ).order_by("id").first()
+    if not item or not item.package:
+        return None
+    item.with_water = True
+    item.water_name_snapshot = water_product.name
+    item.unit_price = item.package.price_with_water
+    item.subtotal = item.unit_price * item.quantity
+    item.configuration_signature = f"{item.configuration_signature}|agua:{item.pk}"
+    item.save(update_fields=(
+        "with_water", "water_name_snapshot", "unit_price", "subtotal", "configuration_signature",
+    ))
+    recalculate_order_total(order)
+    return item
+
+
 def available_order_actions(order):
     if order.status == Order.Status.PENDING_CONFIRMATION:
         return ("confirm", "cancel")
-    if order.status == Order.Status.CONFIRMED:
+    if order.status in {Order.Status.CONFIRMED, Order.Status.SCHEDULED}:
         return ("start_preparing",)
     if order.status == Order.Status.PREPARING:
         return ("mark_ready",)
     if order.status == Order.Status.READY and order.order_type == Order.OrderType.PICKUP:
         return ("complete_pickup",)
+    if order.status == Order.Status.READY and order.order_type == Order.OrderType.DELIVERY:
+        return ("dispatch_delivery",)
+    if order.status == Order.Status.OUT_FOR_DELIVERY:
+        return ("complete_delivery",)
     if order.status in {Order.Status.PICKED_UP, Order.Status.DELIVERED}:
         return ("restart_cycle",)
     return ()
@@ -176,22 +726,44 @@ def create_public_package_order(*, package, daily_menu, cleaned_data):
 def transition_order(*, order, action, actor=None):
     order = Order.objects.select_for_update().get(pk=order.pk)
     transitions = {
-        (Order.Status.PENDING_CONFIRMATION, "confirm"): Order.Status.CONFIRMED,
         (Order.Status.PENDING_CONFIRMATION, "cancel"): Order.Status.CANCELED,
         (Order.Status.CONFIRMED, "start_preparing"): Order.Status.PREPARING,
+        (Order.Status.SCHEDULED, "start_preparing"): Order.Status.PREPARING,
         (Order.Status.PREPARING, "mark_ready"): Order.Status.READY,
         (Order.Status.READY, "complete_pickup"): Order.Status.PICKED_UP,
-        (Order.Status.READY, "complete_delivery"): Order.Status.DELIVERED,
+        (Order.Status.READY, "dispatch_delivery"): Order.Status.OUT_FOR_DELIVERY,
+        (Order.Status.OUT_FOR_DELIVERY, "complete_delivery"): Order.Status.DELIVERED,
         (Order.Status.PICKED_UP, "restart_cycle"): Order.Status.PENDING_CONFIRMATION,
         (Order.Status.DELIVERED, "restart_cycle"): Order.Status.PENDING_CONFIRMATION,
     }
-    target_status = transitions.get((order.status, action))
+    target_status = (
+        scheduled_initial_status(order)
+        if order.status == Order.Status.PENDING_CONFIRMATION and action == "confirm"
+        else transitions.get((order.status, action))
+    )
     if not target_status:
         raise ValidationError("Ese cambio no está permitido desde el estado actual.")
     if action == "complete_pickup" and order.order_type != Order.OrderType.PICKUP:
         raise ValidationError("Solo un pedido para recoger puede marcarse como recogido.")
+    if action == "complete_pickup":
+        if not order.payment_method:
+            raise ValidationError("Registra la forma de pago antes de cerrar completamente el ticket.")
+        if order.payment_method == Order.PaymentMethod.CASH and order.needs_change and (
+            order.cash_tendered is None or order.cash_tendered < order.total
+        ):
+            raise ValidationError("Actualiza el efectivo recibido antes de cerrar el ticket.")
     if action == "complete_delivery" and order.order_type != Order.OrderType.DELIVERY:
         raise ValidationError("Solo un pedido de entrega puede marcarse como entregado.")
+    if action == "dispatch_delivery" and order.order_type != Order.OrderType.DELIVERY:
+        raise ValidationError("Solo un pedido a domicilio puede pasar a reparto.")
+    if action == "dispatch_delivery" and order.delivery_person_id is None:
+        raise ValidationError("Asigna un repartidor antes de marcar la salida.")
+    if action == "dispatch_delivery":
+        can_dispatch = actor == order.delivery_person or user_has_any_role(
+            actor, (ADMIN, ORDER_TAKER)
+        )
+        if not can_dispatch:
+            raise ValidationError("Solo el repartidor asignado puede iniciar este reparto.")
     if action == "complete_delivery":
         if order.delivery_person_id is None:
             raise ValidationError("Primero debes asignar el pedido a un repartidor.")
@@ -235,7 +807,34 @@ def assign_delivery(*, order, delivery_person, assigned_by):
     order.delivery_person = delivery_person
     order.delivery_assigned_by = assigned_by
     order.delivery_assigned_at = timezone.now()
+    if order.delivery_tip_amount > 0:
+        order.delivery_tip_recipient = delivery_person
     order.save(update_fields=[
-        "delivery_person", "delivery_assigned_by", "delivery_assigned_at", "updated_at",
+        "delivery_person", "delivery_assigned_by", "delivery_assigned_at",
+        "delivery_tip_recipient", "updated_at",
     ])
+    return order
+
+
+@transaction.atomic
+def update_delivery_tip(*, order, amount, actor):
+    # NOTA TEMPORAL PARA APRENDIZAJE: efectivo no se registra aquí porque el cliente
+    # entrega esa propina directamente. Terminal/Transferencia sí pasan por el negocio
+    # y deben quedar como deuda a favor del repartidor asignado. Borra esta nota.
+    # NOTA TEMPORAL PARA APRENDIZAJE: delivery_person es opcional. PostgreSQL no
+    # permite FOR UPDATE sobre el lado nullable de un OUTER JOIN, así que bloqueamos
+    # únicamente Order y Django lee el repartidor aparte si hace falta. Borra esta nota.
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if order.order_type != Order.OrderType.DELIVERY:
+        raise ValidationError("La propina de reparto sólo aplica a entregas a domicilio.")
+    if order.payment_method not in {Order.PaymentMethod.CARD, Order.PaymentMethod.TRANSFER}:
+        raise ValidationError("La propina registrada sólo aplica a pagos con Terminal o Transferencia.")
+    order.delivery_tip_amount = amount
+    order.delivery_tip_recipient = order.delivery_person if amount > 0 else None
+    order.delivery_tip_updated_by = actor
+    order.delivery_tip_updated_at = timezone.now()
+    order.save(update_fields=(
+        "delivery_tip_amount", "delivery_tip_recipient", "delivery_tip_updated_by",
+        "delivery_tip_updated_at", "updated_at",
+    ))
     return order

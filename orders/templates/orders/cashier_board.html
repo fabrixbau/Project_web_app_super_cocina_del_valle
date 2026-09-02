@@ -1,0 +1,50 @@
+{% extends "base_internal.html" %}
+{% load static %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: Este panel no crea pedidos nuevos. Presenta en
+una sola fila los datos y acciones que Caja necesita para despachar: identificar al
+cliente, asignar repartidor, registrar pago y confirmar cambio. Borra esta nota. -->
+{% block title %}Caja{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>Caja</h1><p>Prepara el cobro y el cambio de cada salida con pocos toques.</p></div><a href="{% url 'internal_portal:dashboard' %}">Volver al panel</a></div>
+<p class="message" data-cashier-feedback hidden></p>
+
+<section class="card cashier-filter-card">
+  <form method="get" class="cashier-filters" data-cashier-filters>
+    <label>Buscar pedido<input name="q" value="{{ search }}" placeholder="Folio, cliente, teléfono o calle"></label>
+    <label>Modalidad<select name="type"><option value="">Todos</option><option value="delivery" {% if selected_type == 'delivery' %}selected{% endif %}>Entrega a domicilio</option><option value="pickup" {% if selected_type == 'pickup' %}selected{% endif %}>Recoger en la fonda</option></select></label>
+  </form>
+</section>
+
+{% if selected_type != 'pickup' %}
+<section class="cashier-section"><div class="cashier-section-heading"><div><h2>Entregas a domicilio</h2><p>Prioridad de Caja: repartidor, cobro y cambio.</p></div><strong>{{ delivery_orders|length }} pedidos</strong></div>
+  <div class="cashier-list">
+  {% for order in delivery_orders %}
+    <article class="cashier-order type-delivery" data-cashier-order>
+      <div class="cashier-identity"><span class="status-badge status-{{ order.status }}">{{ order.get_status_display }}</span><h3>{{ order.formatted_number }}</h3><strong>{{ order.customer_name|default:'Sin nombre' }}</strong><small>{{ order.phone|default:'Sin teléfono' }}</small></div>
+      <div class="cashier-destination"><strong>Entregar en</strong><p>{{ order.street }} {{ order.exterior_number }}{% if order.interior_number %}, int. {{ order.interior_number }}{% endif %}<br>{{ order.neighborhood }}</p>{% if order.references %}<small>{{ order.references }}</small>{% endif %}</div>
+      <div class="cashier-ticket"><strong>Pedido · ${{ order.total }}</strong>{% for item in order.items.all|slice:':3' %}<small>{{ item.quantity }} × {{ item.product_name_snapshot|default:item.package_name_snapshot }}</small>{% endfor %}{% if order.items.count > 3 %}<small>y {{ order.items.count|add:'-3' }} partida(s) más</small>{% endif %}<a href="{% url 'orders:internal_order_edit' order.id %}">Abrir pedido</a></div>
+      <div class="cashier-assignment"><strong>Repartidor</strong><div class="cashier-person-buttons">{% for person in repartidores %}<form method="post" action="{% url 'deliveries:delivery_assign' order.id %}" data-cashier-assign>{% csrf_token %}<input type="hidden" name="delivery_person" value="{{ person.id }}"><button type="submit" data-person-id="{{ person.id }}" {% if person.id == order.delivery_person_id %}class="is-selected"{% endif %}>{{ person.get_full_name|default:person.username }}</button></form>{% empty %}<small>No hay repartidores activos.</small>{% endfor %}</div></div>
+      {% include "orders/includes/cashier_payment.html" with order=order %}
+    </article>
+  {% empty %}<p class="card">No hay entregas activas que coincidan.</p>{% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if selected_type != 'delivery' %}
+<section class="cashier-section cashier-pickups"><div class="cashier-section-heading"><div><h2>Recoger en la fonda</h2><p>Consulta y define su forma de pago cuando corresponda.</p></div><strong>{{ pickup_orders|length }} pedidos</strong></div>
+  <div class="cashier-list">
+  {% for order in pickup_orders %}
+    <article class="cashier-order type-pickup" data-cashier-order>
+      <div class="cashier-identity"><span class="status-badge status-{{ order.status }}">{{ order.get_status_display }}</span><h3>{{ order.formatted_number }}</h3><strong>{{ order.customer_name|default:'Mostrador' }}</strong><small>{{ order.phone|default:'Sin teléfono' }}</small></div>
+      <div class="cashier-destination"><strong>Entrega</strong><p>En mostrador<br>{{ order.requested_for|date:'d/m/Y H:i' }}</p></div>
+      <div class="cashier-ticket"><strong>Pedido · ${{ order.total }}</strong>{% for item in order.items.all|slice:':3' %}<small>{{ item.quantity }} × {{ item.product_name_snapshot|default:item.package_name_snapshot }}</small>{% endfor %}<a href="{% url 'orders:internal_order_edit' order.id %}">Abrir pedido</a></div>
+      <div class="cashier-assignment"><strong>Atención</strong><small>No requiere repartidor ni entrega de cambio.</small></div>
+      {% include "orders/includes/cashier_payment.html" with order=order pickup=True %}
+    </article>
+  {% empty %}<p class="card">No hay pedidos de mostrador activos que coincidan.</p>{% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/cashier-board.js' %}?v=1"></script>{% endblock %}

@@ -11,5 +11,6 @@ app_name = "deliveries"
 urlpatterns = [
     path("", views.delivery_board, name="delivery_board"),
     path("<int:order_id>/asignar/", views.delivery_assign, name="delivery_assign"),
+    path("<int:order_id>/propina/", views.delivery_tip_update, name="delivery_tip_update"),
     path("<int:order_id>/entregar/", views.delivery_complete, name="delivery_complete"),
 ]

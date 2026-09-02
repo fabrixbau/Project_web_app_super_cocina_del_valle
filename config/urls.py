@@ -26,6 +26,7 @@ urlpatterns = [
     path("app/mesas/", include("tables.urls")),
     path("app/pedidos/", include("orders.urls")),
     path("app/repartos/", include("orders.delivery_urls")),
+    path("app/caja/", include("orders.cashier_urls")),
     path("app/notificaciones/", include("notifications.urls")),
     path("app/", include("internal_portal.urls")),
     path("pedir/", include("public_portal.urls")),

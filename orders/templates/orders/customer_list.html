@@ -1,0 +1,13 @@
+{% extends "base_internal.html" %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: esta pantalla consulta Customer y sus direcciones;
+no busca pedidos. Cada ficha puede editarse sin alterar los datos históricos guardados en
+los tickets anteriores. Borra esta nota después de leerla. -->
+{% block title %}Agenda de clientes{% endblock %}
+{% block content %}
+  <div class="page-heading"><div><a href="{% url 'orders:order_list' %}">← Pedidos</a><h1>Agenda de clientes</h1><p>Busca por nombre, teléfono, calle o colonia.</p></div><a class="button-link" href="{% url 'orders:customer_create' %}">Agregar cliente</a></div>
+  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  <form method="get" class="customer-agenda-search"><label>Buscar<input type="search" name="q" value="{{ query }}" placeholder="Nombre, teléfono o dirección" autofocus></label><button type="submit">Buscar</button>{% if query %}<a href="{% url 'orders:customer_list' %}">Limpiar</a>{% endif %}</form>
+  <section class="customer-agenda-list">
+    {% for customer in customers %}<a class="customer-agenda-row" href="{% url 'orders:customer_edit' customer.id %}"><span><strong>{{ customer.name }}</strong><small>{{ customer.phone|default:'Sin teléfono' }}</small></span><span>{% for address in customer.addresses.all %}<small>{{ address.street }} {{ address.exterior_number }}{% if address.neighborhood %} · {{ address.neighborhood }}{% endif %}</small>{% empty %}<small>Sin direcciones registradas</small>{% endfor %}</span><strong>Editar →</strong></a>{% empty %}<p class="empty-state">No encontramos clientes con esos datos.</p>{% endfor %}
+  </section>
+{% endblock %}

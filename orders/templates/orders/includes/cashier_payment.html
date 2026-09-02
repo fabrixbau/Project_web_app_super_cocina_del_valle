@@ -1,0 +1,20 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: Este bloque se reutiliza en entrega y mostrador.
+JavaScript envía cada botón al backend sin recargar y repinta el resumen del pago.
+Borra esta nota después de leerla. -->
+<div class="cashier-payment" data-cashier-payment data-payment-url="{% url 'cashier:payment_update' order.id %}" data-handoff-url="{% url 'cashier:cash_handoff' order.id %}">
+  <strong>Cobro</strong>
+  <div class="cashier-payment-buttons">
+    <button type="button" data-payment-method="cash" {% if order.payment_method == 'cash' %}class="is-selected"{% endif %}>Efectivo</button>
+    <button type="button" data-payment-method="card" {% if order.payment_method == 'card' %}class="is-selected"{% endif %}>Terminal</button>
+    <button type="button" data-payment-method="transfer" {% if order.payment_method == 'transfer' %}class="is-selected"{% endif %}>Transferencia</button>
+  </div>
+  <div class="cashier-cash-options" data-cash-options {% if order.payment_method != 'cash' %}hidden{% endif %}>
+    <span>¿Con cuánto paga?</span>
+    <div><button type="button" data-cash-amount="20">$20</button><button type="button" data-cash-amount="50">$50</button><button type="button" data-cash-amount="100">$100</button><button type="button" data-cash-amount="200">$200</button><button type="button" data-cash-amount="500">$500</button><button type="button" data-cash-amount="exact">Exacto</button></div>
+    <label>Otro $<input type="number" min="0" step="0.01" data-custom-cash value="{% if order.payment_method == 'cash' and order.cash_tendered %}{{ order.cash_tendered }}{% endif %}"></label>
+  </div>
+  <div class="cashier-payment-result"><span data-payment-label>{% if order.payment_method %}{{ order.get_payment_method_display }}{% else %}Sin definir{% endif %}</span><strong data-change-label>{% if order.payment_method == 'cash' %}{% if order.needs_change %}Cambio ${{ order.change_required }}{% else %}Sin cambio{% endif %}{% endif %}</strong></div>
+  {% if not pickup %}<button type="button" class="cashier-handoff {% if order.cash_handoff_confirmed %}is-confirmed{% endif %}" data-handoff {% if order.payment_method != 'cash' %}hidden{% endif %}>{% if order.cash_handoff_confirmed %}✓ Cambio entregado{% elif order.needs_change %}Confirmar entrega de ${{ order.change_required }}{% else %}Confirmar sin cambio{% endif %}</button>{% endif %}
+  <small class="cashier-error" data-cashier-error hidden></small>
+  {% csrf_token %}
+</div>

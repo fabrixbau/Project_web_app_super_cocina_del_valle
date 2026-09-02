@@ -1641,3 +1641,65 @@ permite ocultar categorías sin afectar el otro modo ni la captura interna de Me
 La tablet puede permanecer habilitada para cambio rápido entre perfiles de Mesero. Cada persona usa un PIN propio y la cabecera muestra permanentemente el operador activo. El cambio sustituye la autenticación real, no una identidad visual simulada. Administradores y telefonistas continúan usando el inicio de sesión normal.
 
 La responsabilidad de una mesa y la autoría de un movimiento son conceptos distintos: el responsable conserva la propina salvo reasignación explícita, mientras la bitácora registra apertura, productos normales o modificados, cantidades, eliminaciones, paquetes, cliente, reasignación y cierre con el usuario que actuó.
+# Panel de telefonistas y mostrador
+
+Los pedidos internos y los pedidos públicos pueden reabrirse por folio, cliente o teléfono. El encabezado separa recoger y entrega, registra hora prometida y exige pago en ambos casos. El ticket persistente permite agregar productos después de una llamada o cuando el cliente llega, utilizando el mismo sistema de recetas, comentarios y paquetes.
+### Captura para telefonistas
+
+El editor interno conserva el patrón POS de mesas: menú y categorías a la izquierda, ticket y acciones a la derecha. La modalidad puede cambiarse durante la captura. Los datos del cliente, domicilio, forma de pago y notas se guardan como una unidad; en efectivo se muestran denominaciones rápidas y en terminal/transferencia se oculta el bloque de cambio. Los componentes de `Comida por orden` proceden del menú publicado del día.
+
+El ticket permanece visible a la derecha mientras el telefonista recorre el formulario. Guardar un borrador permite datos parciales; al cerrar se validan los requisitos completos de entrega, cliente y pago.
+
+La captura usa divulgación progresiva: los datos del cliente y domicilio se abren desde un botón de la barra operativa. Modalidad y pago permanecen como decisiones visibles; las denominaciones sólo aparecen con Efectivo. El ticket pertenece a una columna reservada y utiliza `sticky`, nunca `fixed`, para evitar cubrir el catálogo.
+
+Corrida y ejecutiva para telefonistas se construyen por unidades de tiempos, sin campo Cantidad. Cada clic llena el primer grupo que carece de ese tiempo; al reunir primero, segundo y tercero, el sistema sustituye los candidatos por un paquete. Los grupos incompletos bloquean el cierre. Las preferencias de agua, tortillas, frijoles y comentario corresponden al siguiente paquete que se complete.
+
+Datos internos: Recoger requiere nombre y fecha/hora de entrega; Entrega requiere además calle y número exterior. La fecha/hora se precarga desde la apertura del ticket y puede modificarse. Teléfono, interior, colonia, referencias y notas son opcionales; Entrega propone `del valle centro` como colonia.
+
+El panel de cliente se autoguarda mientras se escribe y sus botones inferiores sólo lo retraen. Al fallar el cierre, la captura permanece abierta, enumera causas y lleva al primer campo inválido. Los paquetes pueden editar agua, tortillas, frijoles y comentario desde el ticket. Elegir el agua del día desde Bebidas frías actualiza el primer paquete sin agua antes de crear una bebida independiente.
+
+En el catálogo interno, tocar la imagen equivale a pulsar `+`. La edición concurrente de extras bloquea primero la partida y consulta después el paquete nullable para respetar las restricciones `FOR UPDATE` de PostgreSQL.
+### Cierre guiado de captura interna
+
+Al cerrar un pedido de telefonista, cualquier dato obligatorio pendiente debe mostrarse en un resumen accionable. La interfaz abre automáticamente los datos del cliente y lleva el foco al primer campo inválido; el cierre nunca debe fallar sin explicar la causa.
+
+`Guardar sin cerrar` conserva la captura como borrador y regresa al listado. `Cerrar captura` exige siempre una forma de pago, incluso para pedidos que serán recogidos en la fonda.
+
+Los pedidos para Recoger usan `Mostrador` como cliente predeterminado. Si se conoce el nombre real, al entrar al campo el valor completo queda seleccionado para sustituirlo sin borrado manual.
+
+### Programación y estados de pedidos
+
+- Una hora o más entre apertura y entrega solicitada clasifica el pedido como `Programado`.
+- Menos de una hora entra directamente en `En preparación`.
+- Recoger: `Programado (si aplica) → En preparación → Listo → Recogido`.
+- Domicilio: `Programado (si aplica) → En preparación → Listo → En reparto → Entregado`.
+- La clasificación horaria se conserva separada del avance operativo.
+- `/app/pedidos/` funciona como tablero: fila clicable al detalle, resumen breve del ticket, destino y transición rápida. Recoger y domicilio usan fondos distintos; el estado se distingue mediante una etiqueta de color independiente.
+- Las transiciones rápidas son asíncronas para conservar el scroll. Estado y modalidad aplican el filtro al cambiar; la búsqueda utiliza una pausa breve antes de consultar.
+- Recoger puede abandonar captura sin pago, pero necesita registrarlo antes de `Recogido`; entrega lo requiere desde el cierre. Los errores de transición se muestran dentro de la misma fila.
+- Los errores accionables enlazan a su resolución. Repartos reúne todas las entregas, permite filtros operativos y asignación/reasignación con botones asíncronos por repartidor.
+- La presentación de Repartos es una lista horizontal; tanto asignación como avance de estado actualizan únicamente la fila para no perder la posición de trabajo.
+- La propina de entrega cobrada por Terminal/Transferencia se almacena fuera del consumo y queda vinculada al repartidor asignado y al usuario que la editó. Reasignar transfiere el beneficiario. El ticket interno mantiene siempre visibles total y cierre mientras desplaza únicamente sus partidas.
+- Capturar propina no requiere confirmación adicional: botones guardan inmediatamente y el monto libre después de una pausa. El editor del telefonista muestra el bloque sólo en Entrega con Terminal/Transferencia.
+
+### Formato de folio
+
+El folio presentado al personal y al cliente usa `DDMMNNN`: día, mes y consecutivo diario de tres posiciones. Por ejemplo, `0109001` identifica el primer pedido del 1 de septiembre. La numeración reinicia cada día y el buscador admite este formato compuesto.
+
+### Agenda interna de clientes
+
+Telefonistas y administradores cuentan con una agenda separada de los pedidos públicos. Una ficha conserva nombre, teléfono, indicaciones generales y múltiples domicilios con referencias. Una entrega interna completa sincroniza automáticamente su ficha y mantiene enlaces desde el pedido para que los siguientes autoguardados actualicen el mismo domicilio. Desde el capturador puede buscarse por nombre, teléfono o calle y rellenar todos los campos seleccionando una dirección.
+
+El alta manual presenta en una sola pantalla la ficha y un domicilio inicial opcional. Si el domicilio queda vacío se crea únicamente el cliente; si se captura parcialmente, se requieren calle y número exterior antes de guardar ambos registros juntos.
+
+En el capturador de entregas, el propio campo Nombre del cliente consulta la agenda y despliega las direcciones seleccionables. Un teléfono repetido se anuncia antes de continuar, identifica al propietario y ofrece revisar o reutilizar su ficha; el formulario de agenda también impide duplicarlo desde servidor. El listado operativo distingue consumo, propina y total final para entregas con propina.
+
+Las coincidencias de nombre se ocultan al abandonar el campo. La protección telefónica también se ejecuta durante el autoguardado: si una ficha provisional recibe un número perteneciente a otro contacto, no modifica la agenda y devuelve el contacto correcto para que el operador lo seleccione.
+
+El ticket de captura interna ofrece una nota general y una nota editable por cada partida. Ambas se actualizan sin eliminar productos y se destinan a la futura comanda de cocina. En modo comida se conservan simultáneamente los lanzadores grandes de Corrida/Ejecutiva y las categorías para armado automático por tiempos.
+
+Los tickets laterales de Mesas y Telefonistas pueden tomar el foco ampliando su columna al tocar una zona no interactiva. Un fondo oscuro bloquea el resto de la aplicación mientras el ticket está enfocado: tocar fuera sólo restaura la proporción, sin ejecutar el control que quedó detrás. Un segundo toque en el fondo blanco del ticket o Escape también cierra el enfoque. Los botones y campos internos siguen siendo utilizables y quedan excluidos del disparador.
+
+### Panel operativo de Caja
+
+`/app/caja/` concentra para Administración los pedidos activos, con prioridad visual para entrega a domicilio. Cada fila permite reconocer folio, cliente, teléfono, domicilio y resumen, asignar al repartidor y registrar Efectivo, Terminal o Transferencia sin recargar. En efectivo, Caja registra el billete o pago exacto y confirma en un paso separado la entrega física del cambio al repartidor; esa constancia guarda usuario y hora, y se invalida si cambia el pago.

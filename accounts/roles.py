@@ -18,7 +18,9 @@ OPERATIONAL_ROLES = (ADMIN, WAITER, ORDER_TAKER, DELIVERY)
 SECTION_ROLE_MATRIX = {
     "tables": (ADMIN, WAITER, ORDER_TAKER),
     "orders": (ADMIN, WAITER, ORDER_TAKER),
+    "customers": (ADMIN, ORDER_TAKER),
     "deliveries": (ADMIN, ORDER_TAKER, DELIVERY),
+    "cashier": (ADMIN,),
     "reports": (ADMIN,),
     "menu": (ADMIN,),
 }

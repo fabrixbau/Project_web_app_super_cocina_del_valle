@@ -1,0 +1,23 @@
+{% extends "base_internal.html" %}
+{% load static %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: cliente y domicilio son formularios separados;
+esto permite que una persona conserve varias direcciones sin repetir su nombre o teléfono.
+Borra esta nota después de leerla. -->
+{% block title %}{% if customer %}Editar {{ customer.name }}{% else %}Nuevo cliente{% endif %}{% endblock %}
+{% block content %}
+  <div class="page-heading"><div><a href="{% url 'orders:customer_list' %}">← Agenda</a><h1>{% if customer %}{{ customer.name }}{% else %}Agregar cliente{% endif %}</h1><p>Datos internos para agilizar pedidos por teléfono o mostrador.</p></div></div>
+  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  {% if not customer %}
+    <form method="post" class="customer-create-combined" data-customer-agenda-form data-customer-lookup-url="{% url 'orders:customer_lookup' %}">{% csrf_token %}
+      <section class="card customer-editor-card"><h2>Datos del cliente</h2>{{ form.non_field_errors }}{% for field in form %}<label>{{ field.label }}{{ field }}{{ field.errors }}</label>{% endfor %}<span class="duplicate-phone-warning" data-agenda-phone-warning hidden></span></section>
+      <section class="card customer-editor-card new-address-card"><h2>Domicilio inicial <small>(opcional)</small></h2><p>Déjalo completamente vacío si todavía no conocemos una dirección.</p>{% for field in new_address_form %}<label>{{ field.label }}{{ field }}{{ field.errors }}</label>{% endfor %}</section>
+      <button type="submit" class="customer-create-submit">Crear cliente</button>
+    </form>
+  {% else %}
+  <section class="customer-editor-grid">
+    <form method="post" class="card customer-editor-card" data-customer-agenda-form data-customer-id="{{ customer.id }}" data-customer-lookup-url="{% url 'orders:customer_lookup' %}">{% csrf_token %}<input type="hidden" name="action" value="customer"><h2>Datos del cliente</h2>{{ form.non_field_errors }}{% for field in form %}<label>{{ field.label }}{{ field }}{{ field.errors }}</label>{% endfor %}<span class="duplicate-phone-warning" data-agenda-phone-warning hidden></span><button type="submit">{% if customer %}Guardar cliente{% else %}Crear cliente{% endif %}</button></form>
+    {% if customer %}<div class="customer-address-column"><h2>Direcciones</h2>{% for address, address_form in address_forms %}<form method="post" class="card customer-editor-card">{% csrf_token %}<input type="hidden" name="action" value="address_{{ address.id }}"><h3>{{ address }}</h3>{% for field in address_form %}<label>{{ field.label }}{{ field }}{{ field.errors }}</label>{% endfor %}<button type="submit">Guardar dirección</button></form>{% endfor %}<form method="post" class="card customer-editor-card new-address-card">{% csrf_token %}<input type="hidden" name="action" value="new_address"><h3>Agregar otra dirección</h3>{% for field in new_address_form %}<label>{{ field.label }}{{ field }}{{ field.errors }}</label>{% endfor %}<button type="submit">Agregar dirección</button></form></div>{% endif %}
+  </section>
+  {% endif %}
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/customer-agenda-form.js' %}?v=1"></script>{% endblock %}

@@ -1,56 +1,32 @@
-<!-- NOTA TEMPORAL PARA APRENDIZAJE:
-Esta pantalla permite asignar o cambiar repartidor sin depender del estado del pedido.
-Administrador, Telefonista y Repartidor usan el mismo selector; Django repite la validación
-en backend. Borra esta nota después de leerla. -->
 {% extends "base_internal.html" %}
+{% load static %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: Este tablero reúne asignados y no asignados.
+Cada nombre es una acción directa; Django vuelve a validar el rol y JavaScript actualiza
+la tarjeta sin recargar. Borra esta nota después de leerla. -->
 {% block title %}Repartos{% endblock %}
 {% block content %}
-  <div class="page-heading">
-    <div><h1>Repartos</h1><p>Asigna responsables a los pedidos a domicilio en cualquier momento.</p></div>
-    <a href="{% url 'internal_portal:dashboard' %}">Volver al panel</a>
-  </div>
+  <div class="page-heading"><div><h1>Repartos</h1><p>Filtra, asigna o cambia al repartidor desde la misma tarjeta.</p></div><a href="{% url 'internal_portal:dashboard' %}">Volver al panel</a></div>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  <p class="message" data-delivery-feedback hidden></p>
 
-  <section class="spaced-card">
-    <h2>Disponibles sin repartidor</h2>
-    <div class="delivery-grid">
-      {% for order in unassigned_orders %}
-        <article class="card delivery-card">
-          <div class="delivery-title"><h3>{{ order.formatted_number }} · {{ order.customer_name }}</h3><span class="status-badge">{{ order.get_status_display }}</span></div>
-          <p><strong>Teléfono:</strong> {{ order.phone }}<br><strong>Domicilio:</strong> {{ order.street }} {{ order.exterior_number }}{% if order.interior_number %}, int. {{ order.interior_number }}{% endif %}, {{ order.neighborhood }}</p>
-          <p><strong>Referencias:</strong> {{ order.references }}</p>
-          <p class="delivery-payment"><strong>Pago:</strong> {{ order.get_payment_method_display }}{% if order.payment_method == 'card' %} · Llevar terminal{% elif order.needs_change %} · Paga con ${{ order.cash_tendered }} · Cambio ${{ order.change_required }}{% elif order.payment_method == 'cash' %} · Pago exacto{% endif %}</p>
-          {% if order.notes %}<p><strong>Notas:</strong> {{ order.notes }}</p>{% endif %}
-          <p class="package-total">Total: ${{ order.total }}</p>
-          <form method="post" action="{% url 'deliveries:delivery_assign' order.id %}" class="delivery-assignment-form">{% csrf_token %}
-            <label for="delivery-person-{{ order.id }}">Asignar a</label>
-            <select id="delivery-person-{{ order.id }}" name="delivery_person" required><option value="">Selecciona repartidor</option>{% for person in repartidores %}<option value="{{ person.id }}">{{ person.get_full_name|default:person.username }}</option>{% endfor %}</select>
-            <button type="submit">Asignar</button>
-          </form>
-        </article>
-      {% empty %}<p>No hay entregas disponibles en este momento.</p>{% endfor %}
-    </div>
-  </section>
+  <section class="card"><form method="get" class="filters delivery-filters" data-delivery-filters>
+    <label>Folio, dirección o cliente<input name="q" value="{{ search }}" placeholder="Ej. #018, Alejandro o Angel Urraza"></label>
+    <label>Estado<select name="status"><option value="">Todos</option>{% for value, label in status_choices %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label>Repartidor<select name="delivery_person"><option value="">Todos</option><option value="unassigned" {% if selected_delivery_person == 'unassigned' %}selected{% endif %}>Sin asignar</option>{% for person in repartidores %}<option value="{{ person.id }}" {% if selected_delivery_person == person.id|stringformat:'s' %}selected{% endif %}>{{ person.get_full_name|default:person.username }}</option>{% endfor %}</select></label>
+  </form></section>
 
-  <section class="spaced-card">
-    <h2>Asignadas</h2>
-    <div class="delivery-grid">
-      {% for order in assigned_orders %}
-        <article class="card delivery-card">
-          <div class="delivery-title"><h3>{{ order.formatted_number }} · {{ order.customer_name }}</h3><span class="status-badge">{{ order.get_status_display }}</span></div>
-          <p><strong>Repartidor:</strong> {{ order.delivery_person.get_full_name|default:order.delivery_person.username }}<br><small>Asignado {{ order.delivery_assigned_at|date:'d/m/Y H:i:s' }} por {{ order.delivery_assigned_by.get_full_name|default:order.delivery_assigned_by.username }}</small></p>
-          <p><strong>Teléfono:</strong> {{ order.phone }}<br><strong>Domicilio:</strong> {{ order.street }} {{ order.exterior_number }}{% if order.interior_number %}, int. {{ order.interior_number }}{% endif %}, {{ order.neighborhood }}</p>
-          <p><strong>Referencias:</strong> {{ order.references }}</p>
-          <p class="delivery-payment"><strong>Pago:</strong> {{ order.get_payment_method_display }}{% if order.payment_method == 'card' %} · Llevar terminal{% elif order.needs_change %} · Paga con ${{ order.cash_tendered }} · Cambio ${{ order.change_required }}{% elif order.payment_method == 'cash' %} · Pago exacto{% endif %}</p>
-          <p class="package-total">Total: ${{ order.total }}</p>
-          <form method="post" action="{% url 'deliveries:delivery_assign' order.id %}" class="delivery-assignment-form">{% csrf_token %}
-            <label for="change-delivery-person-{{ order.id }}">Cambiar repartidor</label>
-            <select id="change-delivery-person-{{ order.id }}" name="delivery_person" required>{% for person in repartidores %}<option value="{{ person.id }}" {% if person.id == order.delivery_person_id %}selected{% endif %}>{{ person.get_full_name|default:person.username }}</option>{% endfor %}</select>
-            <button type="submit">Guardar cambio</button>
-          </form>
-          {% if order.status == 'ready' and can_complete_any or order.status == 'ready' and order.delivery_person_id == user.id %}<form method="post" action="{% url 'deliveries:delivery_complete' order.id %}" class="spaced-card">{% csrf_token %}<button type="submit">Marcar como entregado</button></form>{% endif %}
-        </article>
-      {% empty %}<p>No hay entregas asignadas.</p>{% endfor %}
-    </div>
-  </section>
+  <section class="spaced-card"><div class="delivery-grid">
+    {% for order in delivery_orders %}
+      <article class="card delivery-card status-{{ order.status }}" data-delivery-card data-order-id="{{ order.id }}" data-delivery-status="{{ order.status }}">
+        <div class="delivery-summary"><div class="delivery-title"><h3>{{ order.formatted_number }} · {{ order.customer_name }}</h3><span class="status-badge" data-delivery-status-label>{{ order.get_status_display }}</span></div><p><strong>Solicitado:</strong> {{ order.requested_for|date:'d/m/Y H:i' }}<br>{{ order.timing_label }}</p><p class="package-total">Total: ${{ order.total }}</p></div>
+        <div class="delivery-address"><strong>Domicilio</strong><p>{{ order.street }} {{ order.exterior_number }}{% if order.interior_number %}, int. {{ order.interior_number }}{% endif %}<br>{{ order.neighborhood }}<br>{{ order.phone|default:'Sin teléfono' }}</p>{% if order.references %}<small>{{ order.references }}</small>{% endif %}</div>
+        <div class="delivery-payment"><strong>Pago:</strong> {{ order.get_payment_method_display }}{% if order.payment_method == 'card' %} · Llevar terminal{% elif order.needs_change %} · Paga con ${{ order.cash_tendered }} · Cambio ${{ order.change_required }}{% elif order.payment_method == 'cash' %} · Pago exacto{% endif %}{% if order.notes %}<p><strong>Notas:</strong> {{ order.notes }}</p>{% endif %}
+          {% if order.payment_method == 'card' or order.payment_method == 'transfer' %}<form method="post" action="{% url 'deliveries:delivery_tip_update' order.id %}" class="delivery-tip-form" data-delivery-tip>{% csrf_token %}<strong>Propina cobrada</strong><div class="delivery-tip-buttons"><button type="button" data-tip-value="5">$5</button><button type="button" data-tip-value="10">$10</button><button type="button" data-tip-value="15">$15</button><button type="button" data-tip-value="20">$20</button><button type="button" data-tip-value="25">$25</button><button type="button" data-tip-value="30">$30</button></div><label>Otro monto <input type="number" name="tip_amount" min="0" step="0.01" value="{{ order.delivery_tip_amount }}"></label><button type="submit">Guardar propina</button><small data-tip-error hidden></small></form><p class="delivery-tip-summary">Propina: $<span data-tip-amount>{{ order.delivery_tip_amount }}</span> · Total: $<span data-total-with-tip>{{ order.total_with_delivery_tip }}</span><br>Para: <span data-tip-recipient>{% if order.delivery_tip_recipient %}{{ order.delivery_tip_recipient.get_full_name|default:order.delivery_tip_recipient.username }}{% else %}Sin repartidor asignado{% endif %}</span></p>{% endif %}
+        </div>
+        <div class="delivery-assignment"><div class="delivery-current-assignee"><strong>Repartidor actual:</strong> <span data-current-assignee>{% if order.delivery_person %}{{ order.delivery_person.get_full_name|default:order.delivery_person.username }}{% else %}Sin asignar{% endif %}</span></div><div class="delivery-person-buttons" aria-label="Asignar repartidor">{% for person in repartidores %}<form method="post" action="{% url 'deliveries:delivery_assign' order.id %}" data-delivery-assign>{% csrf_token %}<input type="hidden" name="delivery_person" value="{{ person.id }}"><button type="submit" data-person-id="{{ person.id }}" {% if person.id == order.delivery_person_id %}class="is-selected"{% endif %}>{{ person.get_full_name|default:person.username }}</button></form>{% empty %}<p>No hay repartidores activos.</p>{% endfor %}</div></div>
+        <div class="delivery-row-action"><small class="row-status-error" data-delivery-error hidden></small>{% if order.status == 'ready' or order.status == 'out_for_delivery' %}<form method="post" action="{% url 'deliveries:delivery_complete' order.id %}" data-delivery-status-form>{% csrf_token %}<button type="submit">{% if order.status == 'ready' %}Marcar como en reparto{% else %}Marcar como entregado{% endif %}</button></form>{% endif %}</div>
+      </article>
+    {% empty %}<p>No hay entregas que coincidan con los filtros.</p>{% endfor %}
+  </div></section>
 {% endblock %}
+{% block extra_js %}<script src="{% static 'js/delivery-board.js' %}?v=4"></script>{% endblock %}

@@ -12,6 +12,7 @@
 # visible es Terminal porque el cobro se realiza presencialmente, no en línea. Borra esta nota.
 
 import uuid
+from datetime import timedelta
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
@@ -29,6 +30,47 @@ class DailyOrderCounter(models.Model):
         return f"{self.operating_date}: {self.last_number}"
 
 
+class Customer(models.Model):
+    # NOTA TEMPORAL PARA APRENDIZAJE: Customer guarda a la persona una sola vez;
+    # sus domicilios viven en CustomerAddress porque un cliente puede pedir desde
+    # más de una dirección. Borra esta nota después de leerla.
+    name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=30, blank=True)
+    phone_key = models.CharField(max_length=30, blank=True, db_index=True, editable=False)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("name", "id")
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        self.phone_key = "".join(character for character in self.phone if character.isdigit())
+        if kwargs.get("update_fields") and "phone" in kwargs["update_fields"]:
+            kwargs["update_fields"] = (*kwargs["update_fields"], "phone_key")
+        return super().save(*args, **kwargs)
+
+
+class CustomerAddress(models.Model):
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name="addresses")
+    street = models.CharField(max_length=150)
+    exterior_number = models.CharField(max_length=20)
+    interior_number = models.CharField(max_length=20, blank=True)
+    neighborhood = models.CharField(max_length=150, blank=True)
+    references = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-updated_at", "id")
+
+    def __str__(self):
+        return f"{self.street} {self.exterior_number}"
+
+
 class Order(models.Model):
     class OrderType(models.TextChoices):
         PICKUP = "pickup", "Recoger en la fonda"
@@ -39,8 +81,10 @@ class Order(models.Model):
         INTERNAL = "internal", "Captura interna"
 
     class Status(models.TextChoices):
+        DRAFT = "draft", "Capturando"
         PENDING_CONFIRMATION = "pending_confirmation", "Pendiente de confirmar"
         CONFIRMED = "confirmed", "Confirmado"
+        SCHEDULED = "scheduled", "Programado"
         PREPARING = "preparing", "En preparación"
         READY = "ready", "Listo"
         OUT_FOR_DELIVERY = "out_for_delivery", "En reparto"
@@ -58,6 +102,21 @@ class Order(models.Model):
     operating_date = models.DateField(default=timezone.localdate)
     order_type = models.CharField(max_length=20, choices=OrderType.choices)
     source = models.CharField(max_length=20, choices=Source.choices, default=Source.PUBLIC_WEB)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="internal_orders_created",
+    )
+    agenda_customer = models.ForeignKey(
+        Customer, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="orders",
+    )
+    agenda_address = models.ForeignKey(
+        CustomerAddress, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="orders",
+    )
+    requested_for = models.DateTimeField("hora solicitada", null=True, blank=True)
+    requested_date = models.DateField("fecha solicitada", null=True, blank=True)
+    requested_time = models.TimeField("hora solicitada", null=True, blank=True)
     status = models.CharField(
         max_length=30, choices=Status.choices, default=Status.PENDING_CONFIRMATION
     )
@@ -75,7 +134,31 @@ class Order(models.Model):
         max_digits=10, decimal_places=2, null=True, blank=True,
         validators=[MinValueValidator(0)],
     )
+    # NOTA TEMPORAL PARA APRENDIZAJE: estos campos no calculan el cambio; registran
+    # que Caja ya entregó físicamente ese cambio al repartidor. Así distinguimos lo
+    # solicitado por el cliente de la entrega real de dinero. Borra esta nota al leerla.
+    cash_handoff_confirmed = models.BooleanField(default=False)
+    cash_handoff_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="cash_handoffs_confirmed",
+    )
+    cash_handoff_at = models.DateTimeField(null=True, blank=True)
     total = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    # NOTA TEMPORAL PARA APRENDIZAJE: la propina de reparto no modifica el consumo.
+    # Se guarda aparte para saber cuánto devolver al repartidor cuando el restaurante
+    # la cobró por Terminal o Transferencia. Borra esta nota después de leerla.
+    delivery_tip_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)],
+    )
+    delivery_tip_recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="delivery_tips_received",
+    )
+    delivery_tip_updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="delivery_tips_updated",
+    )
+    delivery_tip_updated_at = models.DateTimeField(null=True, blank=True)
     attention_started_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="orders_attention_started",
@@ -100,17 +183,39 @@ class Order(models.Model):
         )]
 
     def __str__(self):
-        return f"#{self.daily_number:03d} · {self.operating_date}"
+        return f"#{self.formatted_number} · {self.operating_date}"
 
     @property
     def formatted_number(self):
-        return f"#{self.daily_number:03d}"
+        # NOTA TEMPORAL PARA APRENDIZAJE: el consecutivo sigue guardándose como
+        # un número sencillo que reinicia cada día. Aquí sólo construimos el
+        # folio visible uniendo día + mes + consecutivo. Borra esta nota al leerla.
+        return f"{self.operating_date:%d%m}{self.daily_number:03d}"
 
     @property
     def change_required(self):
         if self.needs_change and self.cash_tendered is not None:
             return self.cash_tendered - self.total
         return None
+
+    @property
+    def total_with_delivery_tip(self):
+        return self.total + self.delivery_tip_amount
+
+    @property
+    def is_advance_order(self):
+        # NOTA TEMPORAL PARA APRENDIZAJE: el horario solicitado y el avance de cocina
+        # son conceptos separados. Esta propiedad conserva la clasificación original.
+        # Borra esta nota después de leerla.
+        if not self.requested_for or not self.created_at:
+            return False
+        return self.requested_for >= self.created_at + timedelta(hours=1)
+
+    @property
+    def timing_label(self):
+        if self.is_advance_order:
+            return f"Programado · {timezone.localtime(self.requested_for):%d/%m %H:%M}"
+        return "Lo antes posible"
 
 
 class OrderItem(models.Model):
@@ -124,6 +229,7 @@ class OrderItem(models.Model):
 
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
     item_type = models.CharField(max_length=20, choices=ItemType.choices, default=ItemType.PACKAGE)
+    is_package_candidate = models.BooleanField(default=False)
     package = models.ForeignKey(
         MealPackage, on_delete=models.SET_NULL, null=True, blank=True, related_name="order_items"
     )

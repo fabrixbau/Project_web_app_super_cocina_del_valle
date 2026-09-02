@@ -7,11 +7,14 @@
 # orden. La dirección solo es obligatoria para entrega y los datos de cambio solo aplican
 # cuando el cliente pagará en efectivo. Borra esta nota después de leerla.
 
+from datetime import datetime
+
 from django import forms
+from django.utils import timezone
 
 from menu.forms import PackageSelectionForm
 
-from .models import Order
+from .models import Customer, CustomerAddress, Order
 
 
 class PackageCartForm(PackageSelectionForm):
@@ -27,8 +30,155 @@ class PackageCartForm(PackageSelectionForm):
             self.fields[name].widget = forms.RadioSelect(choices=choices)
 
 
+class InternalPackageForm(PackageCartForm):
+    customization_comment = forms.CharField(
+        label="Comentario para cocina", required=False, max_length=150,
+        widget=forms.Textarea(attrs={"rows": 2, "placeholder": "Ej. Sin cebolla"}),
+    )
+
+    def clean_customization_comment(self):
+        return " ".join(self.cleaned_data["customization_comment"].split())
+
+
+class InternalPackageExtrasForm(forms.Form):
+    # NOTA TEMPORAL PARA APRENDIZAJE: Este formulario edita sólo extras del paquete;
+    # los tres tiempos permanecen intactos. Borra esta nota después de leerla.
+    with_water = forms.BooleanField(label="Con agua del día", required=False)
+    tortillas = forms.BooleanField(label="Lleva tortillas", required=False)
+    beans = forms.BooleanField(label="Lleva frijoles", required=False)
+    customization_comment = forms.CharField(
+        label="Comentario para cocina", required=False, max_length=150,
+        widget=forms.TextInput(attrs={"placeholder": "Ej. Empacar por separado"}),
+    )
+
+    def clean_customization_comment(self):
+        return " ".join(self.cleaned_data["customization_comment"].split())
+
+
 class ProductCartForm(forms.Form):
     quantity = forms.IntegerField(label="Cantidad", min_value=1, max_value=99, initial=1)
+
+
+class InternalOrderForm(forms.Form):
+    # NOTA TEMPORAL PARA APRENDIZAJE:
+    # Un solo formulario atiende Recoger y Entrega. Django siempre valida todos los datos
+    # importantes aunque JavaScript oculte los que no aplican. Borra esta nota al probarlo.
+    order_type = forms.ChoiceField(label="Modalidad", choices=Order.OrderType.choices, widget=forms.RadioSelect)
+    agenda_customer_id = forms.IntegerField(required=False, widget=forms.HiddenInput)
+    agenda_address_id = forms.IntegerField(required=False, widget=forms.HiddenInput)
+    customer_name = forms.CharField(label="Nombre del cliente", max_length=150)
+    phone = forms.CharField(label="Teléfono", max_length=30, required=False)
+    requested_date = forms.DateField(label="Fecha de entrega", widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"), input_formats=("%Y-%m-%d",))
+    requested_time = forms.TimeField(label="Hora de entrega", widget=forms.TimeInput(attrs={"type": "time"}, format="%H:%M"), input_formats=("%H:%M",))
+    street = forms.CharField(label="Calle", max_length=150, required=False)
+    exterior_number = forms.CharField(label="Número exterior", max_length=20, required=False)
+    interior_number = forms.CharField(label="Número interior", max_length=20, required=False)
+    neighborhood = forms.CharField(label="Colonia", max_length=150, required=False)
+    references = forms.CharField(label="Referencias", required=False, widget=forms.Textarea(attrs={"rows": 2}))
+    payment_method = forms.ChoiceField(label="Forma de pago", required=False, choices=Order.PaymentMethod.choices, widget=forms.RadioSelect)
+    cash_bill = forms.ChoiceField(label="Billete", required=False, choices=(("", "Selecciona"), ("20", "$20"), ("50", "$50"), ("100", "$100"), ("200", "$200"), ("500", "$500")))
+    cash_custom_amount = forms.DecimalField(label="Otra cantidad", required=False, min_value=0, max_digits=10, decimal_places=2)
+    pays_exact = forms.BooleanField(label="Pago exacto", required=False)
+    notes = forms.CharField(label="Notas generales", required=False, widget=forms.Textarea(attrs={"rows": 2}))
+
+    def __init__(self, *args, order_total=0, closing=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.order_total = order_total
+        self.closing = closing
+
+    def clean(self):
+        data = super().clean()
+        order_type = data.get("order_type")
+        requested_date = data.get("requested_date")
+        requested_time = data.get("requested_time")
+        data["requested_for"] = (
+            timezone.make_aware(datetime.combine(requested_date, requested_time))
+            if requested_date and requested_time else None
+        )
+        if self.closing and order_type == Order.OrderType.DELIVERY:
+            for name in ("street", "exterior_number"):
+                if not data.get(name):
+                    self.add_error(name, "Este dato es obligatorio para entrega.")
+        method = data.get("payment_method")
+        # NOTA TEMPORAL PARA APRENDIZAJE: Entrega necesita pago antes de salir de
+        # captura. Recoger puede definirlo después, pero no podrá finalizar como
+        # Recogido mientras siga vacío. Borra esta nota después de leerla.
+        if self.closing and order_type == Order.OrderType.DELIVERY and not method:
+            self.add_error("payment_method", "Selecciona la forma de pago de la entrega antes de cerrar.")
+            return data
+        if not method:
+            data.update({"needs_change": False, "cash_tendered": None})
+            return data
+        if method != Order.PaymentMethod.CASH:
+            data.update({"needs_change": False, "cash_tendered": None})
+            return data
+        choices = sum(bool(data.get(name)) for name in ("cash_bill", "cash_custom_amount", "pays_exact"))
+        if choices != 1:
+            self.add_error("cash_bill", "Elige un billete, otra cantidad o pago exacto.")
+            return data
+        amount = self.order_total if data.get("pays_exact") else data.get("cash_custom_amount")
+        if data.get("cash_bill"):
+            amount = int(data["cash_bill"])
+        if amount is not None and amount < self.order_total:
+            self.add_error("cash_custom_amount", "El efectivo no alcanza para cubrir el pedido.")
+        data.update({"needs_change": not data.get("pays_exact"), "cash_tendered": amount})
+        return data
+
+
+class InternalOrderAutosaveForm(forms.Form):
+    # NOTA TEMPORAL PARA APRENDIZAJE: El autoguardado acepta campos parciales mientras el
+    # telefonista escribe; la validación estricta continúa ocurriendo al cerrar. Borra esta nota.
+    order_type = forms.ChoiceField(choices=Order.OrderType.choices)
+    agenda_customer_id = forms.IntegerField(required=False)
+    agenda_address_id = forms.IntegerField(required=False)
+    payment_method = forms.ChoiceField(choices=Order.PaymentMethod.choices, required=False)
+    customer_name = forms.CharField(max_length=150, required=False)
+    phone = forms.CharField(max_length=30, required=False)
+    requested_date = forms.DateField(required=False, input_formats=("%Y-%m-%d",))
+    requested_time = forms.TimeField(required=False, input_formats=("%H:%M",))
+    street = forms.CharField(max_length=150, required=False)
+    exterior_number = forms.CharField(max_length=20, required=False)
+    interior_number = forms.CharField(max_length=20, required=False)
+    neighborhood = forms.CharField(max_length=150, required=False)
+    references = forms.CharField(required=False)
+    notes = forms.CharField(required=False)
+
+
+class DeliveryTipForm(forms.Form):
+    tip_amount = forms.DecimalField(min_value=0, max_digits=10, decimal_places=2)
+
+
+class CustomerForm(forms.ModelForm):
+    class Meta:
+        model = Customer
+        fields = ("name", "phone", "notes")
+        labels = {"name": "Nombre", "phone": "Teléfono", "notes": "Indicaciones generales"}
+        widgets = {"notes": forms.Textarea(attrs={"rows": 3})}
+
+    def clean_phone(self):
+        # NOTA TEMPORAL PARA APRENDIZAJE: normalizamos sólo para comparar; el valor
+        # escrito conserva su formato visible. La validación del servidor evita que
+        # un segundo formulario salte la advertencia del navegador. Borra esta nota.
+        phone = self.cleaned_data["phone"].strip()
+        phone_key = "".join(character for character in phone if character.isdigit())
+        if not phone_key:
+            return phone
+        duplicate = Customer.objects.filter(phone_key=phone_key).exclude(pk=self.instance.pk).first()
+        if duplicate:
+            raise forms.ValidationError(f"Este teléfono ya pertenece a {duplicate.name}. Revisa su ficha antes de crear otro registro.")
+        return phone
+
+
+class CustomerAddressForm(forms.ModelForm):
+    class Meta:
+        model = CustomerAddress
+        fields = ("street", "exterior_number", "interior_number", "neighborhood", "references")
+        labels = {
+            "street": "Calle", "exterior_number": "Número exterior",
+            "interior_number": "Número interior", "neighborhood": "Colonia",
+            "references": "Referencias",
+        }
+        widgets = {"references": forms.Textarea(attrs={"rows": 3})}
 
 
 class PublicOrderModeForm(forms.Form):
