@@ -1,7 +1,7 @@
 <!-- NOTA TEMPORAL PARA APRENDIZAJE: Este bloque se reutiliza en entrega y mostrador.
 JavaScript envía cada botón al backend sin recargar y repinta el resumen del pago.
 Borra esta nota después de leerla. -->
-<div class="cashier-payment" data-cashier-payment data-payment-url="{% url 'cashier:payment_update' order.id %}" data-handoff-url="{% url 'cashier:cash_handoff' order.id %}">
+<div class="cashier-payment" data-cashier-payment data-payment-url="{% url 'cashier:payment_update' order.id %}" data-release-url="{% url 'cashier:release_order' order.id %}">
   <strong>Cobro</strong>
   <div class="cashier-payment-buttons">
     <button type="button" data-payment-method="cash" {% if order.payment_method == 'cash' %}class="is-selected"{% endif %}>Efectivo</button>
@@ -10,11 +10,23 @@ Borra esta nota después de leerla. -->
   </div>
   <div class="cashier-cash-options" data-cash-options {% if order.payment_method != 'cash' %}hidden{% endif %}>
     <span>¿Con cuánto paga?</span>
-    <div><button type="button" data-cash-amount="20">$20</button><button type="button" data-cash-amount="50">$50</button><button type="button" data-cash-amount="100">$100</button><button type="button" data-cash-amount="200">$200</button><button type="button" data-cash-amount="500">$500</button><button type="button" data-cash-amount="exact">Exacto</button></div>
+    <div><button type="button" data-cash-amount="20" {% if order.payment_method == 'cash' and order.cash_tendered == 20 and order.needs_change %}class="is-selected"{% endif %}>$20</button><button type="button" data-cash-amount="50" {% if order.payment_method == 'cash' and order.cash_tendered == 50 and order.needs_change %}class="is-selected"{% endif %}>$50</button><button type="button" data-cash-amount="100" {% if order.payment_method == 'cash' and order.cash_tendered == 100 and order.needs_change %}class="is-selected"{% endif %}>$100</button><button type="button" data-cash-amount="200" {% if order.payment_method == 'cash' and order.cash_tendered == 200 and order.needs_change %}class="is-selected"{% endif %}>$200</button><button type="button" data-cash-amount="500" {% if order.payment_method == 'cash' and order.cash_tendered == 500 and order.needs_change %}class="is-selected"{% endif %}>$500</button><button type="button" data-cash-amount="exact" {% if order.payment_method == 'cash' and order.cash_tendered is not None and not order.needs_change %}class="is-selected"{% endif %}>Exacto</button></div>
     <label>Otro $<input type="number" min="0" step="0.01" data-custom-cash value="{% if order.payment_method == 'cash' and order.cash_tendered %}{{ order.cash_tendered }}{% endif %}"></label>
   </div>
-  <div class="cashier-payment-result"><span data-payment-label>{% if order.payment_method %}{{ order.get_payment_method_display }}{% else %}Sin definir{% endif %}</span><strong data-change-label>{% if order.payment_method == 'cash' %}{% if order.needs_change %}Cambio ${{ order.change_required }}{% else %}Sin cambio{% endif %}{% endif %}</strong></div>
-  {% if not pickup %}<button type="button" class="cashier-handoff {% if order.cash_handoff_confirmed %}is-confirmed{% endif %}" data-handoff {% if order.payment_method != 'cash' %}hidden{% endif %}>{% if order.cash_handoff_confirmed %}✓ Cambio entregado{% elif order.needs_change %}Confirmar entrega de ${{ order.change_required }}{% else %}Confirmar sin cambio{% endif %}</button>{% endif %}
+  <div class="cashier-payment-result"><span data-payment-label>{% if order.payment_method %}{{ order.get_payment_method_display }}{% else %}Sin definir{% endif %}</span><strong data-change-label>{% if order.payment_method == 'cash' %}{% if order.cash_tendered is None %}Monto por definir{% elif order.needs_change %}Cambio ${{ order.change_required }}{% else %}Sin cambio{% endif %}{% endif %}</strong></div>
+  {% if not pickup %}
+  <!-- NOTA TEMPORAL PARA APRENDIZAJE: la propina administrada sólo existe con
+  Terminal o Transferencia. Los botones guardan al instante usando el mismo registro
+  que Repartos y el reporte de Caja. Borra esta nota después de leerla. -->
+  <div class="cashier-tip" data-cashier-tip data-tip-url="{% url 'deliveries:delivery_tip_update' order.id %}" {% if order.payment_method != 'card' and order.payment_method != 'transfer' %}hidden{% endif %}>
+    <strong>Propina</strong>
+    <div class="cashier-tip-buttons"><button type="button" data-cashier-tip-amount="0" {% if order.delivery_tip_amount == 0 %}class="is-selected"{% endif %}>$0</button><button type="button" data-cashier-tip-amount="5" {% if order.delivery_tip_amount == 5 %}class="is-selected"{% endif %}>$5</button><button type="button" data-cashier-tip-amount="10" {% if order.delivery_tip_amount == 10 %}class="is-selected"{% endif %}>$10</button><button type="button" data-cashier-tip-amount="15" {% if order.delivery_tip_amount == 15 %}class="is-selected"{% endif %}>$15</button><button type="button" data-cashier-tip-amount="20" {% if order.delivery_tip_amount == 20 %}class="is-selected"{% endif %}>$20</button><button type="button" data-cashier-tip-amount="25" {% if order.delivery_tip_amount == 25 %}class="is-selected"{% endif %}>$25</button><button type="button" data-cashier-tip-amount="30" {% if order.delivery_tip_amount == 30 %}class="is-selected"{% endif %}>$30</button></div>
+    <label>Otro $ <input type="number" min="0" step="0.01" value="{{ order.delivery_tip_amount }}" data-cashier-custom-tip></label>
+    <small>Propina: $<span data-cashier-tip-value>{{ order.delivery_tip_amount }}</span> · Total: $<span data-cashier-total-tip>{{ order.total_with_delivery_tip }}</span></small>
+    <small class="cashier-error" data-cashier-tip-error hidden></small>
+  </div>
+  {% endif %}
+  <button type="button" class="cashier-release" data-cashier-release>Liberar de Caja</button>
   <small class="cashier-error" data-cashier-error hidden></small>
   {% csrf_token %}
 </div>

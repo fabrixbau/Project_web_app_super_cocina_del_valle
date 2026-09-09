@@ -36,7 +36,9 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
 from accounts.roles import ADMIN, ORDER_TAKER, SECTION_ROLE_MATRIX, WAITER, role_required, user_has_any_role
+from config.printing import printable_item, selected_printable_items, table_print_context
 from menu.models import Category, DailyMenu, MealPackage, Product
+from menu.packaging import parse_packaging_quantities
 from menu.selection import resolve_product_selection, serialize_product_selector
 
 from .forms import TableAccountCloseForm, TablePackageForm
@@ -350,6 +352,13 @@ def table_detail(request, account_id):
         ]
         if category.available_products or category.show_table_packages:
             categories.append(category)
+    # NOTA TEMPORAL PARA APRENDIZAJE: Envases se consulta por su clasificación y no
+    # por el nombre de la categoría; así puede cambiarse de categoría sin romper la
+    # barra rápida. Los precios continúan perteneciendo al catálogo. Borra esta nota.
+    packaging_products = list(Product.objects.filter(
+        is_available=True,
+        is_sold_individually=True,
+    ).exclude(packaging_kind=Product.PackagingKind.NONE).order_by("sort_order", "name"))
     # NOTA TEMPORAL PARA APRENDIZAJE:
     # "Comida por orden" usa una categoría como marcador de posición, pero su contenido
     # real sale del menú diario. Esta lista mezcla ese acceso virtual con las categorías
@@ -434,12 +443,20 @@ def table_detail(request, account_id):
         ]
     package_options = []
     if daily_menu:
-        package_options = [
-            {"package": package, "form": TablePackageForm(
+        # NOTA TEMPORAL PARA APRENDIZAJE: igual que Pedidos, Mesas conserva el
+        # formulario Django para validar pero entrega también los productos completos
+        # para poder dibujar sus fotografías. Borra esta nota después de leerla.
+        for package in MealPackage.objects.filter(is_active=True):
+            package_form = TablePackageForm(
                 package=package, daily_menu=daily_menu, prefix=f"package-{package.pk}",
-            )}
-            for package in MealPackage.objects.filter(is_active=True)
-        ]
+            )
+            package_options.append({
+                "package": package,
+                "form": package_form,
+                "first_products": list(package_form.fields["first_course"].queryset),
+                "second_products": list(package_form.fields["second_course"].queryset),
+                "main_products": list(package_form.fields["main_course"].queryset),
+            })
     package_edit_options = []
     package_items = account.items.filter(
         item_type=TableAccountItem.ItemType.PACKAGE,
@@ -475,6 +492,7 @@ def table_detail(request, account_id):
     selector_products = {
         product.pk: product for category in categories for product in category.available_products
     }
+    selector_products.update({product.pk: product for product in packaging_products})
     selector_products.update({product.pk: product for product in daily_order_products})
     selector_products.update({product.pk: product for product in running_meal_products})
     selector_products.update({product.pk: product for product in executive_meal_products})
@@ -498,6 +516,7 @@ def table_detail(request, account_id):
     context = {
         "account": account,
         "categories": categories,
+        "packaging_products": packaging_products,
         "lunch_category_navigation": lunch_category_navigation,
         "ticket": ticket,
         "daily_menu": daily_menu,
@@ -695,6 +714,7 @@ def table_package_add(request, account_id, package_id):
         add_package_to_table(
             account=account, package=package, daily_menu=daily_menu,
             cleaned_data=form.cleaned_data, added_by=request.user,
+            packaging_quantities=parse_packaging_quantities(request.POST),
         )
     except ValidationError as error:
         return JsonResponse({"ok": False, "error": error.message}, status=400)
@@ -804,3 +824,56 @@ def table_close(request, account_id):
             f"La cuenta de {account.table.name} quedó cerrada y la mesa está disponible.",
         )
     return redirect("tables:table_detail", account_id=account.pk)
+
+
+@role_required(ADMIN, WAITER, ORDER_TAKER)
+def table_kitchen_print(request, account_id):
+    # NOTA TEMPORAL PARA APRENDIZAJE: esta ruta abre la comanda completa; la selección
+    # parcial vive en la variante "modificado". Borra esta nota al leerla.
+    account = get_object_or_404(
+        TableAccount.objects.select_related("table", "assigned_waiter", "opened_by"),
+        pk=account_id,
+    )
+    context = table_print_context(account)
+    context.update({
+        "items": [printable_item(item) for item in account.items.all()],
+        "back_url": reverse("tables:table_detail", args=(account.pk,)),
+    })
+    return render(request, "printing/kitchen_ticket.html", context)
+
+
+@role_required(ADMIN, WAITER, ORDER_TAKER)
+def table_kitchen_custom_print(request, account_id):
+    # NOTA TEMPORAL PARA APRENDIZAJE: esta variante permite escoger partidas sin
+    # alterar las cantidades reales del ticket. Borra esta nota al leerla.
+    account = get_object_or_404(
+        TableAccount.objects.select_related("table", "assigned_waiter", "opened_by"),
+        pk=account_id,
+    )
+    queryset = account.items.select_related("product", "package").all()
+    selected, result = selected_printable_items(request, queryset)
+    context = table_print_context(account)
+    context["back_url"] = reverse("tables:table_detail", args=(account.pk,))
+    if request.method == "POST" and selected is not None and not result:
+        context["items"] = selected
+        return render(request, "printing/kitchen_ticket.html", context)
+    context.update({
+        "selection_items": [printable_item(item) for item in queryset],
+        "selection_errors": result if request.method == "POST" else [],
+        "submit_url": reverse("tables:table_kitchen_custom_print", args=(account.pk,)),
+    })
+    return render(request, "printing/kitchen_select.html", context)
+
+
+@role_required(ADMIN, WAITER, ORDER_TAKER)
+def table_payment_print(request, account_id):
+    account = get_object_or_404(
+        TableAccount.objects.select_related("table", "assigned_waiter", "opened_by"),
+        pk=account_id,
+    )
+    context = table_print_context(account)
+    context.update({
+        "items": [printable_item(item) for item in account.items.all()],
+        "back_url": reverse("tables:table_detail", args=(account.pk,)),
+    })
+    return render(request, "printing/payment_ticket.html", context)

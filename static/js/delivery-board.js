@@ -5,9 +5,14 @@ const deliveryFilters = document.querySelector("[data-delivery-filters]");
 if (deliveryFilters) {
   let timer = null;
   deliveryFilters.querySelectorAll("select").forEach((field) => field.addEventListener("change", () => deliveryFilters.requestSubmit()));
+  deliveryFilters.querySelectorAll("input[name='status']").forEach((field) => field.addEventListener("change", () => deliveryFilters.requestSubmit()));
   deliveryFilters.querySelector("input[name='q']")?.addEventListener("input", () => {
     window.clearTimeout(timer);
     timer = window.setTimeout(() => deliveryFilters.requestSubmit(), 500);
+  });
+  deliveryFilters.querySelector("[data-clear-delivery-status]")?.addEventListener("click", () => {
+    deliveryFilters.querySelectorAll("input[name='status']").forEach((field) => { field.checked = false; });
+    deliveryFilters.requestSubmit();
   });
 }
 

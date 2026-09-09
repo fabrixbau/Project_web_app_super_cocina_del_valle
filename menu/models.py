@@ -62,6 +62,12 @@ class Category(models.Model):
 
 
 class Product(models.Model):
+    class PackagingKind(models.TextChoices):
+        NONE = "none", "No es envase"
+        PACKAGE = "package", "Paquete de envases"
+        INDIVIDUAL = "individual", "Envase individual"
+        CUSTOMER_OWN = "customer_own", "Cliente trae recipientes"
+
     class ComponentType(models.TextChoices):
         GENERAL = "general", "Producto general"
         CHICKEN_CONSOMME = "chicken_consomme", "Consomé de pollo"
@@ -88,6 +94,14 @@ class Product(models.Model):
     service_periods = models.ManyToManyField(ServicePeriod, blank=True, related_name="products")
     is_sold_individually = models.BooleanField(default=True)
     eligible_for_executive_meal = models.BooleanField(default=False)
+    packaging_kind = models.CharField(
+        "tipo de envase",
+        max_length=20,
+        choices=PackagingKind.choices,
+        default=PackagingKind.NONE,
+        db_index=True,
+        help_text="Los envases aparecen en una barra rápida exclusiva para Mesas y Pedidos.",
+    )
     sort_order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

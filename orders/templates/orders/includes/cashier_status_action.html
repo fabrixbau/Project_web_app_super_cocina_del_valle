@@ -1,0 +1,17 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: Este bloque muestra el estado actual y sólo la
+siguiente transición válida. JavaScript reemplaza el botón después de cada cambio,
+sin recargar Caja ni mover el scroll. Borra esta nota después de leerla. -->
+<div class="cashier-status-action" data-cashier-status>
+  <strong>Estado del pedido</strong>
+  <span class="status-badge status-{{ order.status }}" data-cashier-status-label>{{ order.get_status_display }}</span>
+  {% if order.quick_action %}
+    <form method="post" action="{% url 'orders:order_resolve' order.id %}" data-cashier-status-form>
+      {% csrf_token %}
+      <input type="hidden" name="action" value="{{ order.quick_action }}">
+      <button type="submit">{{ order.quick_action_label }}</button>
+    </form>
+  {% else %}
+    <small data-cashier-no-action>Sin acción pendiente</small>
+  {% endif %}
+  <a class="cashier-status-error" data-cashier-status-error hidden></a>
+</div>

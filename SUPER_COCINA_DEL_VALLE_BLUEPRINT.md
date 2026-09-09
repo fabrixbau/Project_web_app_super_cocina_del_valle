@@ -144,6 +144,69 @@ Antes de reutilizar una parte del proyecto Suerte Café se debe revisar:
 3. si debe adaptarse;
 4. si existe lógica que ya no es válida.
 
+## 3.1 Funcionalidad implementada en Suerte Café relevante para Super Cocina del Valle
+
+### Vista de Cocina con Filtros de Barras
+
+**Fecha de implementación**: 4 de septiembre de 2026
+
+**Propósito**: Implementar una vista de cocina que permita a los baristas filtrar pedidos según la barra que operan, con capacidad de marcar el estado de cada barra independientemente.
+
+**Contexto**: La cafetería Suerte Café tiene dividida la cocina en dos barras:
+- **Barra fría**: Bebidas (frías, calientes, sodas, etc.)
+- **Barra caliente**: Comida (hot dogs, waffles, postres, sandwiches, etc.)
+
+**Características principales**:
+
+1. **Tres modos de filtro**:
+   - **Barra fría**: Muestra solo productos clasificados como "COLD" (bebidas)
+   - **Barra caliente**: Muestra solo productos clasificados como "HOT" (comida)
+   - **2 players**: Vista dividida en dos columnas mostrando ambas barras simultáneamente
+
+2. **Estados independientes**:
+   - Cada pedido tiene `cold_bar_status` y `hot_bar_status` independientes
+   - El estado general del pedido solo se marca como COMPLETED cuando ambas barras están COMPLETED
+   - Evita que una barra cierre accidentalmente todo el pedido
+
+3. **Diseño de la interfaz**:
+   - **Prioridad visual**: Producto, cantidad, personalizaciones, notas, tipo de pedido
+   - **Información secundaria**: Nombre del cliente, mesa, total
+   - **Botones grandes**: Filtros principales fáciles de usar en ambiente de cocina
+   - **Auto-refresco**: Actualización cada 30 segundos
+   - **Responsive**: Funciona en móviles y tablets
+
+**Implementación técnica**:
+
+- **Modelo Order**: Agregados campos `cold_bar_status` y `hot_bar_status`
+- **Modelo Category**: Campo `preparation_station` (COLD/HOT)
+- **Modelo Product**: Campo `preparation_station` opcional para sobrescribir la categoría
+- **Modelo OrderItem**: Campo `preparation_station_snapshot` para preservar histórico
+- **Vista kitchen_view**: Filtra y separa pedidos por barra
+- **API update_bar_status**: Actualiza estado de cada barra independientemente
+- **Método update_overall_status**: Actualiza estado general basado en barras
+
+**Configuración de categorías**:
+- Bebidas (frías y calientes) → Barra fría (COLD)
+- Alimentos, Postres → Barra caliente (HOT)
+
+**Relevancia para Super Cocina del Valle**:
+- Super Cocina del Valle podría tener una división similar de cocina
+- La lógica de estados independientes es aplicable a operaciones de cocina más complejas
+- El concepto de clasificación por estación de preparación es escalable
+- La vista dividida puede adaptarse para múltiples estaciones de trabajo
+- Super Cocina del Valle maneja mayor volumen (170-250 pedidos/día vs volumen menor de Suerte Café)
+- La funcionalidad de auto-refresco es crítica para alto volumen
+- La clasificación por estaciones ayuda a distribuir carga de trabajo en cocina grande
+
+**Consideraciones para adaptación**:
+- Super Cocina del Valle podría necesitar más de dos barras/estaciones
+- Los nombres de las estaciones pueden personalizarse según la operación
+- La lógica de actualización de estados puede extenderse para N estaciones
+- La vista "2 players" puede adaptarse a "N players" según necesidades
+- Para alto volumen, considerar WebSockets en lugar de auto-refresco por intervalos
+- Posible necesidad de vista de cocina específica para menú diario vs menú fijo
+- Integración con sistema de impresión de comandas separadas por estación
+
 ---
 
 # 4. Tipos de usuario
@@ -1675,7 +1738,7 @@ Los pedidos para Recoger usan `Mostrador` como cliente predeterminado. Si se con
 - Domicilio: `Programado (si aplica) → En preparación → Listo → En reparto → Entregado`.
 - La clasificación horaria se conserva separada del avance operativo.
 - `/app/pedidos/` funciona como tablero: fila clicable al detalle, resumen breve del ticket, destino y transición rápida. Recoger y domicilio usan fondos distintos; el estado se distingue mediante una etiqueta de color independiente.
-- Las transiciones rápidas son asíncronas para conservar el scroll. Estado y modalidad aplican el filtro al cambiar; la búsqueda utiliza una pausa breve antes de consultar.
+- Las transiciones rápidas son asíncronas para conservar el scroll. Estado y modalidad aplican el filtro al cambiar; la búsqueda utiliza una pausa breve antes de consultar. El tablero vuelve a consultar sus filtros cada siete segundos y sustituye exclusivamente las filas cuando cambiaron; espera si existe una interacción o guardado activo.
 - Recoger puede abandonar captura sin pago, pero necesita registrarlo antes de `Recogido`; entrega lo requiere desde el cierre. Los errores de transición se muestran dentro de la misma fila.
 - Los errores accionables enlazan a su resolución. Repartos reúne todas las entregas, permite filtros operativos y asignación/reasignación con botones asíncronos por repartidor.
 - La presentación de Repartos es una lista horizontal; tanto asignación como avance de estado actualizan únicamente la fila para no perder la posición de trabajo.
@@ -1692,7 +1755,9 @@ Telefonistas y administradores cuentan con una agenda separada de los pedidos p�
 
 El alta manual presenta en una sola pantalla la ficha y un domicilio inicial opcional. Si el domicilio queda vacío se crea únicamente el cliente; si se captura parcialmente, se requieren calle y número exterior antes de guardar ambos registros juntos.
 
-En el capturador de entregas, el propio campo Nombre del cliente consulta la agenda y despliega las direcciones seleccionables. Un teléfono repetido se anuncia antes de continuar, identifica al propietario y ofrece revisar o reutilizar su ficha; el formulario de agenda también impide duplicarlo desde servidor. El listado operativo distingue consumo, propina y total final para entregas con propina.
+La eliminación de clientes pertenece exclusivamente a Administrador y requiere confirmación. Una ficha con cualquier historial de adeudos no puede eliminarse, incluso cuando el registro financiero ya esté pagado o condonado. Al eliminar una ficha permitida desaparecen sus domicilios, mientras los pedidos históricos permanecen y simplemente dejan de apuntar a la agenda.
+
+En el capturador, el propio campo Nombre del cliente consulta la agenda. Para Entrega despliega los domicilios y completa todos los datos; para Recoger muestra una selección por contacto, completa solamente nombre y teléfono y conserva la ficha vinculada sin domicilio. Un teléfono repetido se anuncia antes de continuar, identifica al propietario y ofrece revisar o reutilizar su ficha; el formulario de agenda también impide duplicarlo desde servidor. El listado operativo distingue consumo, propina y total final para entregas con propina.
 
 Las coincidencias de nombre se ocultan al abandonar el campo. La protección telefónica también se ejecuta durante el autoguardado: si una ficha provisional recibe un número perteneciente a otro contacto, no modifica la agenda y devuelve el contacto correcto para que el operador lo seleccione.
 
@@ -1703,3 +1768,101 @@ Los tickets laterales de Mesas y Telefonistas pueden tomar el foco ampliando su 
 ### Panel operativo de Caja
 
 `/app/caja/` concentra para Administración los pedidos activos, con prioridad visual para entrega a domicilio. Cada fila permite reconocer folio, cliente, teléfono, domicilio y resumen, asignar al repartidor y registrar Efectivo, Terminal o Transferencia sin recargar. En efectivo, Caja registra el billete o pago exacto y confirma en un paso separado la entrega física del cambio al repartidor; esa constancia guarda usuario y hora, y se invalida si cambia el pago.
+
+El listado de Caja se sincroniza automáticamente cada siete segundos. Sólo reemplaza las filas cuando detecta cambios y conserva el scroll; mientras el operador escribe o guarda una acción, la sincronización espera para no interrumpirlo.
+
+Caja posee un cierre de revisión independiente del estado operativo: `cashier_released_at/by` retira de su bandeja un pedido ya verificado sin marcarlo como entregado ni afectar Cocina/Reparto. Una entrega requiere forma de pago y repartidor; el control de devolución de cambio al final del día es independiente y no bloquea el despacho. Al liberar se ofrece durante tres segundos `Seguir orden` para recuperar la fila; el billete vigente se resalta visualmente.
+
+`/app/caja/cambios/` concentra las entregas en efectivo liberadas que sí generaron cambio. Por defecto muestra lo pendiente del día, permite filtrar por fechas, repartidor o conciliados, presenta totales por repartidor y registra el usuario y la hora al confirmar una devolución. Pago exacto queda fuera porque no genera un monto por conciliar.
+
+Confirmar la devolución culmina también el pedido como `Entregado` mediante la máquina de estados, conservando las transiciones en el historial. El listado `/app/pedidos/` separa mediante el filtro `Mostrar` los pedidos activos —excluyendo Entregados, Recogidos y Cancelados—, los finalizados `Entregado/Recogido` y el conjunto completo.
+
+Los tres paneles de Caja ofrecen navegación directa entre Caja, Cambios pendientes y Reporte de propinas. Las filas operativas mantienen azul para domicilio y naranja para recoger, con variantes más intensas cuando el horario es programado. En Caja, tocar una zona libre de la fila abre el pedido; botones, enlaces y campos quedan excluidos para conservar sus acciones rápidas.
+
+La condición programada se refuerza mediante fondo, borde y una etiqueta con fecha/hora, sin depender de una diferencia cromática sutil. La columna completa de Cobro se excluye del acceso por fila. El monto personalizado de efectivo reduce su debounce a 250 ms y comunica de inmediato que está actualizando.
+
+El reporte `/app/caja/propinas/`, también exclusivo de Administración, reúne las propinas cerradas de mesa y las registradas para reparto. Permite filtrar por fechas, Mesero/Repartidor, persona y método. Efectivo permanece visible como información pero no forma parte del total administrado, que sólo suma Terminal y Transferencia. El resultado ofrece totales globales, desglose por empleado y movimientos individuales.
+
+Cada movimiento es seleccionable y consulta su ticket sólo al solicitarlo. El detalle se presenta como un panel modal que bloquea el fondo, conserva filtros y posición del reporte, y reúne cliente, responsable, destino, pago, propina, productos y notas. Puede cerrarse desde su botón, con Escape o tocando fuera.
+
+El panel de Caja también permite avanzar el estado operativo usando exactamente la misma máquina de estados e historial que el listado de Pedidos. Cada fila presenta únicamente el siguiente paso válido y lo actualiza sin recarga; las reglas centrales siguen exigiendo, por ejemplo, un repartidor antes de iniciar reparto y una forma de pago antes de completar una recolección. En el listado general, las entregas identifican junto al domicilio al repartidor asignado o indican claramente que continúa sin asignar.
+
+Para entregas cobradas con Terminal o Transferencia, la misma columna de Cobro ofrece propinas rápidas de `$0`, `$5`, `$10`, `$15`, `$20`, `$25` y `$30`, además de monto libre. Todo se guarda automáticamente en el registro compartido con Repartos y el reporte de propinas. Cambiar a Efectivo oculta el control porque esa propina no es administrada por el negocio.
+
+En la captura interna, los lanzadores manuales de Comida corrida y Comida ejecutiva abren un selector visual con fotografía para primer tiempo, segundo tiempo y plato principal. La Corrida utiliza exclusivamente las opciones del menú diario publicado. La Ejecutiva conserva esos dos primeros tiempos y las opciones de plancha habilitadas, e incorpora una búsqueda local por nombre dentro del modal para localizar productos con rapidez.
+
+En pantallas de operación amplias, los tres tiempos se distribuyen horizontalmente y usan tarjetas compactas para evitar desplazamiento en un menú diario normal. Agua, tortillas y frijoles se resuelven en una sola fila mediante controles grandes: Agua alterna Sí/No y tortillas/frijoles presentan ambos botones explícitos. Cada confirmación representa una comida, por lo que la cantidad permanece internamente fija en uno.
+
+La elección Pierna/Muslo pertenece únicamente al guisado de pollo de la Comida corrida: permanece oculta hasta seleccionar ese producto y se limpia al cambiar a res o guisado variado. Comida ejecutiva utiliza plancha y nunca presenta una pieza de pollo. Los controles Sí/No se dibujan como botones completos aunque internamente preservan radios accesibles y la validación del servidor.
+
+### Privacidad operativa de Repartos
+
+El perfil Repartidor sólo consulta entregas todavía sin asignar y aquellas asignadas a su propio usuario. Puede tomar una entrega exclusivamente mediante autoasignación; no puede elegir a otro repartidor ni apropiarse de una entrega que ya tenga responsable. Administrador mantiene la asignación y reasignación completa, mientras Telefonista y Mesero no poseen esa acción. Estas reglas viven también en el servidor y no dependen de que un botón esté oculto.
+
+Las propinas asignadas a una entrega propia pueden capturarse por el Repartidor mientras el pedido esté operativo, pero quedan bloqueadas para ese perfil después de Entregado o Recogido. El filtro de estados admite selección múltiple; no marcar ninguno equivale a consultar todos los estados permitidos para el usuario.
+
+En una captura interna pagada en Efectivo, tanto para Entrega como para Recoger, la denominación es opcional al cerrar y enviar al listado. Si todavía no se conoce, `cash_tendered` permanece vacío y Caja/Repartos muestran `Monto por definir`; esto es distinto de Pago exacto. Si el operador sí selecciona billete, monto libre o exacto, se aplican las reglas y el cálculo de cambio habituales.
+
+Liberar desde Caja funciona además como confirmación operativa acumulada. Un pedido para recoger recorre las transiciones pendientes hasta `Recogido`; una entrega a domicilio lo hace hasta `En reparto`. Se invoca la misma máquina de estados para registrar cada paso intermedio, usuario y hora. La operación es atómica: si falta pago, repartidor u otra condición, no avanza estados ni libera la fila.
+
+En Repartos, el perfil Repartidor tiene una única transición: `En reparto → Entregado`, y sólo sobre un pedido asignado a su cuenta. No puede iniciar el reparto ni reiniciar ciclos; esas etapas permanecen en los perfiles internos autorizados. El detalle `/app/pedidos/<id>/` actualiza las transiciones y añade el nuevo renglón del historial mediante AJAX, conservando la posición vertical de la página.
+
+Al alcanzar `En reparto`, el registro pasa a sólo lectura para cualquier perfil que no sea Administrador. El bloqueo se valida en cada endpoint de captura y también se refleja ocultando controles de productos, notas, datos del cliente, domicilio, pago, propina, extras y asignación. Telefonista sólo conserva la transición `En reparto → Entregado`; `Iniciar nuevo ciclo` es una operación exclusiva de Administrador.
+
+La propina constituye una excepción acotada: durante `En reparto`, solamente el Repartidor asignado puede registrarla o corregirla; `Entregado` cierra ese permiso. Esto no habilita ninguna otra parte del pedido. Telefonista no captura propina al seleccionar Terminal porque aún no existe un importe confirmado; Transferencia sí puede conservar captura anticipada.
+
+### Comandas imprimibles de 80 mm
+
+Mesas y Pedidos internos ofrecen el mismo par de documentos: `Comanda cocina` y `Ticket de cobro`. Sólo Administrador, Mesero y Telefonista pueden abrirlos. Ninguna vista imprime automáticamente; el operador revisa la vista previa y pulsa el botón que abre el diálogo del navegador y Windows para la impresora térmica OFICHIDO POS-8360 conectada por USB.
+
+La comanda de cocina comienza con una selección explícita de partidas. Cada renglón permite elegir una cantidad entre uno y la cantidad existente en el ticket, sin modificar el pedido original. De esta forma una segunda comanda puede incluir únicamente productos recién agregados o una fracción de una partida. La impresión enfatiza cantidad, nombre, componentes del paquete, modificaciones y comentarios; cliente, responsable, precios y total aparecen con jerarquía secundaria.
+
+El ticket de cobro no admite selección parcial y siempre reconstruye todas las partidas. Para mesa destaca cliente/mesa, importes, pago, propina y total. Para recoger o entrega destaca además modalidad, teléfono, horario, dirección, referencias, necesidad de terminal, efectivo recibido y cambio. Ambos documentos usan CSS específico para papel de 80 mm y permanecen independientes de la futura integración directa con el controlador USB.
+
+La presentación toma como guía las muestras operativas del negocio. Cocina encabeza con `Super Cocina Del Valle`, folio y modalidad (`A DOMICILIO`, `RECOGER` o `MESAS`), coloca cliente/dirección/mesero antes de las partidas y une el comentario al producto entre paréntesis. Cobro mantiene productos en dos columnas compactas y aumenta la jerarquía de cliente, domicilio, total y método. Los separadores de partidas son guiones horizontales rectos; nota general y productos comentados usan un marco de pequeños trazos diagonales, sin etiquetas adicionales, por lo que ambas señales se distinguen sin grandes manchas de tinta. En cobro de Mesa, tanto la etiqueta como el número se presentan sin negritas. En cobro de Recoger y Domicilio se incluyen la nota general y el texto de cada comentario de producto, sin prefijo, con tipografía secundaria.
+
+La impresión de cocina dispone de dos recorridos explícitos. `Imprimir cocina` genera inmediatamente la vista previa con todas las partidas y cantidades. `Imprimir cocina modificado` conduce primero al selector, donde el operador decide qué partidas y cuántas unidades incluir sin alterar el ticket original. El ticket de cobro permanece siempre completo.
+
+### Conciliación de terminales
+
+`/app/caja/terminales/` digitaliza el registro manual de Clover y Mercado Pago. Por cada fecha existe un corte independiente por proveedor. Sus movimientos conservan total cobrado, propina, consumo calculado como `total − propina`, referencia visible de la terminal, vínculo opcional a pedido/mesa y la persona seleccionada como acreedora. Una propina mayor a cero exige beneficiario; el nombre mostrado por Clover permanece sólo como referencia y nunca asigna dinero automáticamente.
+
+El mismo panel incluye un corte independiente de `Transferencias`. Clover y Mercado Pago sólo ofrecen como vínculos entregas a domicilio y cuentas de mesa cuyo pago sea Terminal; Transferencias ofrece exclusivamente entregas a domicilio pagadas por Transferencia. Los pedidos de tipo Recoger se excluyen de todos los selectores. Las cifras físicas y esperadas se concilian por separado: Clover+Mercado Pago contra Terminal, y Transferencias contra Transferencia.
+
+Seleccionar un vínculo autocompleta el total cobrado, la propina y la persona beneficiaria. Para una entrega se toma primero `delivery_tip_recipient` y después el repartidor asignado; para una mesa se toma primero `tip_recipient` y después el mesero responsable. Caja puede editar cualquiera de esos valores tras vincularlo.
+
+`Conciliación` funciona como una cuarta pestaña de sólo lectura. Agrupa por beneficiario la propina capturada en Clover, Mercado Pago y Transferencias, mostrando los tres subtotales, total por persona y total general. Para evitar fallos intermitentes, el cliente conserva una opción seleccionada hasta que el servidor confirma el guardado; una respuesta fallida no elimina prematuramente el candidato del resto de la interfaz.
+
+La navegación Clover/Mercado Pago/Transferencias/Conciliación vive únicamente en las cuatro pestañas superiores. Los filtros visibles se limitan a Fecha y Persona; un valor oculto conserva la pestaña activa cuando cualquiera de esos filtros se aplica automáticamente.
+
+### Cuentas por cobrar
+
+`/app/caja/adeudos/` separa el cobro pendiente del flujo operativo: el pedido permanece `Entregado` o `Recogido`, mientras un `CustomerDebt` registra cliente de agenda, pedido, importe original, abonado, saldo y estado. Un pedido sólo puede generar un adeudo. Los estados son Pendiente, Pago parcial, Pagado y Condonado.
+
+Cada abono, condonación o reapertura genera un `CustomerDebtMovement` con importe, método, nota, administrador y fecha. Administrador posee todas las mutaciones; Telefonista recibe lectura para consultar antes de atender. Caja incorpora un alta rápida por folio y la agenda muestra el historial del cliente. Al seleccionar un cliente con saldo en la captura, una advertencia persistente muestra total, número de pedidos y un enlace directo al panel filtrado.
+
+Para la conciliación diaria, el importe esperado de Terminal o Transferencia se reconoce cuando la operación realmente concluyó: suma mesas cerradas, pedidos recogidos o entregados y abonos de adeudos cobrados durante la fecha seleccionada. Los pedidos activos, cancelados y aquellos convertidos en adeudo se excluyen del cobro original; el abono se incorpora en la fecha y mediante el método con que efectivamente se recibió. La posibilidad de vincular un renglón sigue reglas operativas más estrechas y no determina qué ingresos forman parte del total esperado.
+
+El ticket de captura de Pedidos comparte el patrón responsivo de Mesas: columna proporcional, partidas con la misma estructura visual y desplazamiento de la tarjeta completa cuando rebasa el alto disponible. De esta forma los controles finales no quedan aislados de la lectura del ticket y en dispositivos estrechos el contenido se integra al flujo vertical sin un scroll interno forzado.
+
+### Cargos e indicaciones de envases
+
+Los envases se modelan como productos internos mediante `Product.packaging_kind`: paquete de envases, envase individual o cliente con recipientes propios. Pedidos mantiene una barra rápida independiente del horario y Mesas los agrupa dentro de la categoría `Envases`. Los formularios manuales para armar Corrida o Ejecutiva en ambos módulos permiten elegir cada tipo mediante `− cantidad +`; al confirmar, paquete y cargos se guardan atómicamente como partidas separadas. Cada envase participa naturalmente en total, impresión e historial y su cantidad puede corregirse desde el ticket. Nunca se muestran ni se aceptan desde el menú público. El catálogo inicial evita inventar tarifas: los cargos de paquete y tamaños nacen desactivados hasta que Administración capture su precio, mientras `Cliente trae recipientes` queda disponible con costo cero.
+
+El selector manual de Corrida/Ejecutiva de Mesas comparte con Pedidos la presentación fotográfica en tres columnas. La estandarización es visual, no elimina reglas del flujo de mesa: permite guardar tiempos pendientes, conserva el refill y mantiene oculta la pieza de pollo hasta elegir el guisado correspondiente. Su formulario usa una sola columna estructural para no comprimir los tiempos; debajo muestra Envases como bloque independiente con imagen, precio y contador en ambos paquetes.
+
+La captura se autoguarda: al completar una fila aparece otra vacía y las ediciones posteriores actualizan el mismo movimiento. Un corte cerrado bloquea edición y eliminación, registra usuario/hora y puede reabrirse para corregirlo. Se puede consultar por fecha, proveedor y persona, además de navegar directamente a Caja, Propinas y Cambios pendientes.
+
+Los movimientos de conciliación no forman una segunda fuente contable. La interfaz muestra subtotales de Clover y Mercado Pago, pero compara la suma física de ambos contra todas las mesas y pedidos de esa fecha marcados como Terminal. Esto es necesario porque las ventas existentes conocen el método `Terminal`, pero no el proveedor físico. La propina se compara también por mesero o repartidor; coincidencias se muestran en verde y disparidades en rojo con sus importes.
+
+Cada pedido o cuenta de mesa puede vincularse una sola vez, protegido tanto por la interfaz como por restricciones de base de datos. Al elegir el vínculo, total y propina se rellenan con el ticket original y luego permanecen editables para corregirlos contra la lectura real de Clover/Mercado Pago. Una opción utilizada deja de aparecer en otras filas y vuelve a habilitarse si se elimina o cambia su movimiento.
+
+Administrador puede originar un adeudo directamente desde una fila finalizada o `En reparto` de `Pedidos` o `Cambios pendientes`. Esta última pantalla conserva como vista inicial los repartos en efectivo con cambio, pero permite ampliar por tipo, estado y forma de pago, incluyendo Terminal y Transferencia. Reportar `No pagó` desde `En reparto` completa primero la entrega mediante la máquina de estados y crea el adeudo en la misma transacción. Cuando el pedido ya está asociado, la acción se reemplaza por un enlace a su adeudo.
+
+La unicidad abarca ambos proveedores: un ticket conciliado en Clover no puede reaparecer ni guardarse en Mercado Pago, y viceversa. Para mantener fluida la captura, un movimiento con propina puede vincularse antes de elegir beneficiario; queda temporalmente como `Sin asignar` y el toque posterior sobre un mesero/repartidor autoguarda esa asignación en la misma fila.
+
+### Portal público visual y ticket en vivo
+
+`/pedir/menu/` utiliza la modalidad guardada en sesión, presentada como dos botones grandes, y decide automáticamente la interfaz por hora. Desayuno ocupa el primer bloque hasta las 12:30 y muestra debajo la comida que puede adelantarse para después de la 1 p. m.; desde las 12:31 se priorizan en dos columnas los accesos a Corrida/Ejecutiva y una carta visual del menú diario. Las categorías se recorren con pestañas horizontales y las tarjetas agregan una unidad al tocar su fotografía.
+
+El carrito se representa como ticket lateral en vivo desde la primera partida. Todas sus mutaciones —cantidad, eliminación, complementos, nota por partida y nota general— actualizan la sesión mediante JSON sin abandonar el menú. El ticket puede enfocarse y contraerse como los tickets internos; la nota general se precarga después en el checkout y las notas individuales se conservan en las partidas creadas.

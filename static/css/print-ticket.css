@@ -1,0 +1,58 @@
+:root { font-family: Arial, Helvetica, sans-serif; color: #111; background: #ece9e1; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 1.25rem; }
+.thermal-ticket { width: 80mm; max-width: 100%; min-height: 100mm; margin: 0 auto; padding: 4mm 5mm; background: #fff; box-shadow: 0 3px 18px #0002; font-size: 14px; line-height: 1.18; }
+.thermal-ticket p { margin: 1mm 0; }
+.receipt-header { padding-bottom: 2mm; text-align: center; }
+.business-name { margin-bottom: 1.5mm !important; font-size: 16px; }
+.receipt-header p { font-size: 15px; }
+.ticket-meta { padding: 1mm 0 2mm; font-size: 15px; }
+.general-print-note { position: relative; margin: 1mm 0 2mm; padding: 2mm 1mm; font-size: 17px; font-weight: 800; }
+.general-print-note::before, .general-print-note::after,
+.kitchen-lines article::after, .customer-focus::after, .payment-lines::after,
+.totals::after, .collection-focus::after { content: ""; position: absolute; right: 0; left: 0; height: 1px; background-image: repeating-linear-gradient(to right, #111 0 1px, transparent 1px 10px); }
+.general-print-note::before { top: 0; }
+.general-print-note::after { bottom: 0; }
+.general-print-note::before, .general-print-note::after { height: 2px; background-image: repeating-linear-gradient(135deg, #111 0 2px, transparent 2px 7px); }
+.general-print-note { background-image: repeating-linear-gradient(45deg, #111 0 2px, transparent 2px 7px), repeating-linear-gradient(45deg, #111 0 2px, transparent 2px 7px); background-position: left top, right top; background-repeat: repeat-y; background-size: 2px 7px; }
+.kitchen-lines article { position: relative; padding: 2mm 1mm 2.5mm; }
+.kitchen-lines article::after { bottom: 0; background-image: repeating-linear-gradient(to right, #111 0 4px, transparent 4px 9px); }
+.kitchen-lines article:last-child::after { display: none; }
+.kitchen-item-title h3 { margin: 0; font-size: 25px; line-height: 1.14; overflow-wrap: anywhere; }
+.kitchen-lines article > p { margin: 1mm 0; font-size: 17px; font-weight: 750; }
+.kitchen-lines article > small { display: block; margin-top: 1mm; font-size: 14px; }
+.kitchen-lines .modified-item { margin: 3mm 0 2mm; padding: 3mm 2mm 3mm; background-image: repeating-linear-gradient(135deg, #111 0 2px, transparent 2px 7px), repeating-linear-gradient(135deg, #111 0 2px, transparent 2px 7px), repeating-linear-gradient(45deg, #111 0 2px, transparent 2px 7px), repeating-linear-gradient(45deg, #111 0 2px, transparent 2px 7px); background-position: left top, left bottom, left top, right top; background-repeat: repeat-x, repeat-x, repeat-y, repeat-y; background-size: 7px 2px, 7px 2px, 2px 7px, 2px 7px; }
+.kitchen-lines .modified-item::after { display: none; }
+.receipt-footer { margin-top: 1mm; font-size: 14px; }
+.customer-focus { position: relative; padding: 1mm 0 2.5mm; font-size: 17px; }
+.customer-focus::after { bottom: 0; }
+.customer-focus h2 { margin: 0 0 1mm; font-size: 22px; line-height: 1.08; text-align: left; }
+.table-payment-identity { font-size: 18px; font-weight: 400; }
+.customer-name { font-size: 17px; }
+.address-focus { font-size: 18px; font-weight: 800; }
+.payment-lines { position: relative; padding: 1mm 0 2.5mm; }
+.payment-lines::after { bottom: 0; }
+.payment-lines article { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5mm 2mm; padding: 1mm 0; font-size: 15px; }
+.payment-lines article span:first-child { overflow-wrap: anywhere; }
+.payment-lines article small { grid-column: 1 / -1; font-size: 12px; }
+.payment-general-note { margin: 1.5mm 0 !important; padding: 1.5mm 0; font-size: 12px; line-height: 1.2; }
+.payment-item-note { display: block; margin-top: .5mm; font-size: 11px; font-style: italic; line-height: 1.2; }
+.totals { position: relative; padding: 1.5mm 0 2.5mm; }
+.totals::after { bottom: 0; }
+.totals p { display: flex; justify-content: space-between; gap: 2mm; }
+.grand-total { margin: 0 !important; font-size: 24px; }
+.collection-focus { position: relative; padding: 2mm 0 2.5mm; text-align: center; font-size: 19px; }
+.collection-focus::after { bottom: 0; }
+.collection-focus > p:first-child { font-size: 19px; }
+.collection-focus > strong { display: block; margin: 1.5mm 0; font-size: 20px; }
+.change-line { margin-top: 2mm !important; font-size: 22px; font-weight: 800; }
+.centered-footer { padding-top: 1mm; text-align: center; }
+.print-preview-actions { display: flex; justify-content: center; gap: .75rem; margin: 1rem auto; }
+.print-preview-actions a, .print-preview-actions button { padding: .75rem 1rem; border: 2px solid #174c3a; border-radius: .5rem; color: #fff; background: #174c3a; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+@page { size: 80mm auto; margin: 0; }
+@media print {
+  :root, body { background: #fff; }
+  body { width: 80mm; padding: 0; }
+  .thermal-ticket { width: 80mm; margin: 0; padding: 3mm 4mm; box-shadow: none; }
+  .print-preview-actions { display: none; }
+}

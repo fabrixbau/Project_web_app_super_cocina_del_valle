@@ -1,16 +1,18 @@
 /* NOTA TEMPORAL PARA APRENDIZAJE: La fila funciona como acceso al detalle, pero los
 botones y formularios conservan su propia acción. También aceptamos Enter para que el
 tablero pueda usarse con teclado. Borra esta nota después de leerla. */
-document.querySelectorAll("[data-order-row-url]").forEach((row) => {
-  const openDetail = () => { window.location.href = row.dataset.orderRowUrl; };
-  row.addEventListener("click", (event) => {
-    if (event.target.closest("a, button, input, select, textarea, form")) return;
-    openDetail();
-  });
-  row.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.target.closest("button, input, select, textarea")) return;
-    openDetail();
-  });
+// NOTA TEMPORAL PARA APRENDIZAJE: usamos delegación para que las filas recibidas
+// por la actualización periódica conserven su comportamiento sin volver a registrar
+// listeners en cada una. Borra esta nota después de leerla.
+document.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-order-row-url]");
+  if (!row || event.target.closest("a, button, input, select, textarea, form")) return;
+  window.location.href = row.dataset.orderRowUrl;
+});
+document.addEventListener("keydown", (event) => {
+  const row = event.target.closest?.("[data-order-row-url]");
+  if (!row || event.key !== "Enter" || event.target !== row) return;
+  window.location.href = row.dataset.orderRowUrl;
 });
 
 const filterForm = document.querySelector("[data-order-filters]");
@@ -26,9 +28,13 @@ if (filterForm) {
 }
 
 const feedback = document.querySelector("[data-order-board-feedback]");
+let orderBoardRequestsInProgress = 0;
 document.addEventListener("submit", async (event) => {
   const statusForm = event.target.closest(".order-row-actions form");
-  if (!statusForm) return;
+  // NOTA TEMPORAL PARA APRENDIZAJE: la columna también contiene la acción contable
+  // "No pagó". Esa acción debe conservar su POST normal y no entrar en la máquina
+  // AJAX de estados operativos. Borra esta nota después de leerla.
+  if (!statusForm || statusForm.matches("[data-debt-create-form]")) return;
   event.preventDefault();
   const row = statusForm.closest("[data-order-status]");
   const button = statusForm.querySelector("button[type='submit']");
@@ -36,6 +42,7 @@ document.addEventListener("submit", async (event) => {
   const originalLabel = button.textContent;
   button.disabled = true;
   button.textContent = "Actualizando…";
+  orderBoardRequestsInProgress += 1;
   try {
     // NOTA TEMPORAL PARA APRENDIZAJE: el formulario contiene un input llamado
     // `action`; en HTML eso puede ocultar la propiedad JavaScript form.action y
@@ -85,5 +92,34 @@ document.addEventListener("submit", async (event) => {
       rowError.href = error.recoveryUrl || "#";
       rowError.hidden = false;
     }
-  }
+  } finally { orderBoardRequestsInProgress -= 1; }
 });
+
+// NOTA TEMPORAL PARA APRENDIZAJE: cada siete segundos pedimos la misma URL, por lo
+// que se respetan Buscar/Mostrar/Estado/Tipo. Reemplazamos sólo la lista y mantenemos
+// el scroll. Si alguien está interactuando con una fila, esperamos al siguiente ciclo.
+// Borra esta nota después de leerla.
+const refreshOrderBoard = async () => {
+  const region = document.querySelector("[data-order-live-region]");
+  const activeInside = region?.contains(document.activeElement)
+    && document.activeElement?.matches("button, a, input, select, textarea");
+  if (!region || document.hidden || orderBoardRequestsInProgress > 0 || activeInside) return;
+  try {
+    const response = await fetch(window.location.href, {
+      headers: {"X-Requested-With": "XMLHttpRequest"}, cache: "no-store",
+    });
+    if (!response.ok) return;
+    const nextDocument = new DOMParser().parseFromString(await response.text(), "text/html");
+    const nextRegion = nextDocument.querySelector("[data-order-live-region]");
+    if (!nextRegion || nextRegion.innerHTML === region.innerHTML) return;
+    region.innerHTML = nextRegion.innerHTML;
+    if (feedback) {
+      feedback.textContent = "El listado se actualizó con los movimientos más recientes.";
+      feedback.className = "message success";
+      feedback.hidden = false;
+    }
+  } catch (_) {
+    // Una interrupción temporal de red no bloquea el tablero; el siguiente ciclo reintenta.
+  }
+};
+window.setInterval(refreshOrderBoard, 7000);

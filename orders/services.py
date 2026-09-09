@@ -17,10 +17,11 @@ from django.utils import timezone
 
 from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, user_has_any_role
 from menu.models import DailyMenu, MealPackage, Product
+from menu.packaging import selected_packaging_products
 from menu.selection import resolve_product_selection
 from notifications.models import InternalNotification
 
-from .models import Customer, CustomerAddress, DailyOrderCounter, Order, OrderItem, OrderStatusHistory
+from .models import Customer, CustomerAddress, CustomerDebt, CustomerDebtMovement, DailyOrderCounter, Order, OrderItem, OrderStatusHistory
 
 
 ACTION_LABELS = {
@@ -36,6 +37,73 @@ ACTION_LABELS = {
 
 
 @transaction.atomic
+def create_customer_debt(*, order, actor, note=""):
+    """Move a delivered order into the ledger, completing an active delivery first."""
+    # NOTA TEMPORAL PARA APRENDIZAJE: PostgreSQL no permite FOR UPDATE sobre el lado
+    # nullable de un LEFT JOIN. Bloqueamos solamente Order y leemos agenda_customer
+    # después mediante una consulta normal. Borra esta nota después de leerla.
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if order.status == Order.Status.OUT_FOR_DELIVERY:
+        order = transition_order(order=order, action="complete_delivery", actor=actor)
+    if order.status not in {Order.Status.DELIVERED, Order.Status.PICKED_UP}:
+        raise ValidationError("El pedido debe estar entregado o recogido antes de dejarlo a cuenta.")
+    if not order.agenda_customer_id:
+        raise ValidationError("Vincula un cliente de la agenda antes de dejar este pedido a cuenta.")
+    if hasattr(order, "customer_debt"):
+        raise ValidationError("Este pedido ya está registrado en cuentas por cobrar.")
+    return CustomerDebt.objects.create(
+        customer=order.agenda_customer, order=order, original_amount=order.total,
+        created_by=actor, note=" ".join(note.split()),
+    )
+
+
+@transaction.atomic
+def register_customer_debt_payment(*, debt, amount, payment_method, actor, note=""):
+    debt = CustomerDebt.objects.select_for_update().get(pk=debt.pk)
+    if debt.status == CustomerDebt.Status.FORGIVEN:
+        raise ValidationError("Reabre el adeudo antes de registrar un abono.")
+    try:
+        amount = Decimal(amount)
+    except Exception as error:
+        raise ValidationError("Escribe un importe válido.") from error
+    if amount <= 0 or amount > debt.balance:
+        raise ValidationError(f"El abono debe ser mayor a cero y no superar el saldo de ${debt.balance:.2f}.")
+    if payment_method not in Order.PaymentMethod.values:
+        raise ValidationError("Selecciona cómo se recibió el abono.")
+    debt.paid_amount += amount
+    debt.status = CustomerDebt.Status.PAID if debt.paid_amount >= debt.original_amount else CustomerDebt.Status.PARTIAL
+    debt.save(update_fields=("paid_amount", "status", "updated_at"))
+    CustomerDebtMovement.objects.create(
+        debt=debt, action=CustomerDebtMovement.Action.PAYMENT, amount=amount,
+        payment_method=payment_method, note=" ".join(note.split()), registered_by=actor,
+    )
+    return debt
+
+
+@transaction.atomic
+def set_customer_debt_forgiven(*, debt, forgiven, actor, note=""):
+    debt = CustomerDebt.objects.select_for_update().get(pk=debt.pk)
+    if forgiven:
+        if debt.status in {CustomerDebt.Status.PAID, CustomerDebt.Status.FORGIVEN}:
+            raise ValidationError("Este adeudo ya está cerrado.")
+        action = CustomerDebtMovement.Action.FORGIVE
+        amount = debt.balance
+        debt.status = CustomerDebt.Status.FORGIVEN
+    else:
+        if debt.status != CustomerDebt.Status.FORGIVEN:
+            raise ValidationError("Sólo un adeudo condonado puede reabrirse.")
+        action = CustomerDebtMovement.Action.REOPEN
+        amount = Decimal("0")
+        debt.status = CustomerDebt.Status.PARTIAL if debt.paid_amount else CustomerDebt.Status.PENDING
+    debt.save(update_fields=("status", "updated_at"))
+    CustomerDebtMovement.objects.create(
+        debt=debt, action=action, amount=amount,
+        note=" ".join(note.split()), registered_by=actor,
+    )
+    return debt
+
+
+@transaction.atomic
 def update_cashier_payment(*, order, payment_method, cash_amount, actor):
     """Persist the payment instruction selected at the cash desk."""
     # NOTA TEMPORAL PARA APRENDIZAJE: al cambiar cómo pagará el cliente anulamos una
@@ -45,9 +113,9 @@ def update_cashier_payment(*, order, payment_method, cash_amount, actor):
     if payment_method not in Order.PaymentMethod.values:
         raise ValidationError("Selecciona efectivo, terminal o transferencia.")
     order.payment_method = payment_method
-    order.cash_handoff_confirmed = False
-    order.cash_handoff_by = None
-    order.cash_handoff_at = None
+    order.cash_settlement_confirmed = False
+    order.cash_settlement_by = None
+    order.cash_settlement_at = None
     if payment_method == Order.PaymentMethod.CASH:
         if cash_amount == "exact":
             order.needs_change = False
@@ -70,8 +138,8 @@ def update_cashier_payment(*, order, payment_method, cash_amount, actor):
         order.delivery_tip_updated_by = None
         order.delivery_tip_updated_at = None
     order.save(update_fields=(
-        "payment_method", "needs_change", "cash_tendered", "cash_handoff_confirmed",
-        "cash_handoff_by", "cash_handoff_at", "delivery_tip_amount",
+        "payment_method", "needs_change", "cash_tendered", "cash_settlement_confirmed",
+        "cash_settlement_by", "cash_settlement_at", "delivery_tip_amount",
         "delivery_tip_recipient", "delivery_tip_updated_by", "delivery_tip_updated_at",
         "updated_at",
     ))
@@ -79,8 +147,8 @@ def update_cashier_payment(*, order, payment_method, cash_amount, actor):
 
 
 @transaction.atomic
-def confirm_cash_handoff(*, order, actor, confirmed=True):
-    """Record that cash/change was physically handed to the assigned courier."""
+def confirm_cash_settlement(*, order, actor, confirmed=True):
+    """Record that the courier returned/settled the change with Cashier."""
     # Bloqueamos sólo Order: delivery_person es nullable y PostgreSQL no permite
     # FOR UPDATE sobre ese lado de un OUTER JOIN.
     order = Order.objects.select_for_update().get(pk=order.pk)
@@ -90,10 +158,61 @@ def confirm_cash_handoff(*, order, actor, confirmed=True):
         raise ValidationError("Asigna un repartidor antes de entregar el cambio.")
     if order.payment_method != Order.PaymentMethod.CASH:
         raise ValidationError("Este pedido no está marcado para pago en efectivo.")
-    order.cash_handoff_confirmed = confirmed
-    order.cash_handoff_by = actor if confirmed else None
-    order.cash_handoff_at = timezone.now() if confirmed else None
-    order.save(update_fields=("cash_handoff_confirmed", "cash_handoff_by", "cash_handoff_at", "updated_at"))
+    if not order.needs_change:
+        raise ValidationError("Este pedido no tiene cambio pendiente por conciliar.")
+    # NOTA TEMPORAL PARA APRENDIZAJE: confirmar la devolución también culmina la
+    # entrega, pero recorremos la máquina de estados para conservar toda la bitácora.
+    # Si cualquier transición falla, la transacción revierte también la conciliación.
+    # Borra esta nota después de leerla.
+    if confirmed:
+        safety_counter = 0
+        while order.status != Order.Status.DELIVERED and safety_counter < 7:
+            actions = [action for action in available_order_actions(order) if action != "cancel"]
+            if not actions or actions[0] == "restart_cycle":
+                raise ValidationError("El estado actual no permite completar la entrega.")
+            order = transition_order(order=order, action=actions[0], actor=actor)
+            safety_counter += 1
+        if order.status != Order.Status.DELIVERED:
+            raise ValidationError("No fue posible completar el estado de la entrega.")
+    order.cash_settlement_confirmed = confirmed
+    order.cash_settlement_by = actor if confirmed else None
+    order.cash_settlement_at = timezone.now() if confirmed else None
+    order.save(update_fields=("cash_settlement_confirmed", "cash_settlement_by", "cash_settlement_at", "updated_at"))
+    return order
+
+
+@transaction.atomic
+def set_cashier_release(*, order, actor, released=True):
+    """Finish or restore the order's independent cash-desk review."""
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if released:
+        if not order.payment_method:
+            raise ValidationError("Selecciona la forma de pago antes de liberar el pedido.")
+        if order.order_type == Order.OrderType.DELIVERY and not order.delivery_person_id:
+            raise ValidationError("Asigna un repartidor antes de liberar la entrega.")
+        # NOTA TEMPORAL PARA APRENDIZAJE: liberar en Caja completa de una vez las
+        # transiciones operativas previas, pero usa transition_order para conservar
+        # todas en el historial y sus validaciones. Borra esta nota después de leerla.
+        target_status = (
+            Order.Status.OUT_FOR_DELIVERY
+            if order.order_type == Order.OrderType.DELIVERY
+            else Order.Status.PICKED_UP
+        )
+        safety_counter = 0
+        while order.status != target_status and safety_counter < 7:
+            actions = [action for action in available_order_actions(order) if action != "cancel"]
+            if not actions:
+                raise ValidationError("El estado actual no permite completar el flujo de Caja.")
+            order = transition_order(order=order, action=actions[0], actor=actor)
+            safety_counter += 1
+        if order.status != target_status:
+            raise ValidationError("No fue posible completar el flujo operativo de Caja.")
+        order.cashier_released_at = timezone.now()
+        order.cashier_released_by = actor
+    else:
+        order.cashier_released_at = None
+        order.cashier_released_by = None
+    order.save(update_fields=("cashier_released_at", "cashier_released_by", "updated_at"))
     return order
 
 
@@ -112,11 +231,19 @@ def _normalize_phone(value):
 
 
 def sync_order_customer_agenda(order, form_data):
-    """Create or update the agenda record represented by a complete delivery form."""
+    """Link a pickup contact or create/update the contact and address for delivery."""
     # NOTA TEMPORAL PARA APRENDIZAJE: enlazamos el pedido con la ficha creada. En
     # autoguardados posteriores actualizamos esa misma dirección y evitamos duplicarla
     # mientras el telefonista continúa escribiendo. Borra esta nota después de leerla.
     if order.order_type != Order.OrderType.DELIVERY:
+        # NOTA TEMPORAL PARA APRENDIZAJE: Recoger no crea contactos implícitamente,
+        # pero sí conserva la ficha que el operador eligió. No asociamos domicilio
+        # porque la entrega sucede en mostrador. Borra esta nota después de leerla.
+        customer_id = form_data.get("agenda_customer_id")
+        customer = Customer.objects.filter(pk=customer_id).first() if customer_id else None
+        order.agenda_customer = customer
+        order.agenda_address = None
+        order.save(update_fields=("agenda_customer", "agenda_address", "updated_at"))
         return order
     name = " ".join(form_data.get("customer_name", "").split())
     street = form_data.get("street", "").strip()
@@ -450,7 +577,10 @@ def change_internal_order_item(*, order, item, action):
 
 
 @transaction.atomic
-def add_internal_order_package(*, order, package, daily_menu, cleaned_data, merge_identical=True):
+def add_internal_order_package(
+    *, order, package, daily_menu, cleaned_data, merge_identical=True,
+    packaging_quantities=None,
+):
     order = Order.objects.select_for_update().get(pk=order.pk)
     if order.status in {Order.Status.PICKED_UP, Order.Status.DELIVERED, Order.Status.CANCELED}:
         raise ValidationError("Este pedido ya no admite productos.")
@@ -489,6 +619,11 @@ def add_internal_order_package(*, order, package, daily_menu, cleaned_data, merg
             configuration_snapshot={"comment": comment}, is_customized=bool(comment),
         )
     recalculate_order_total(order)
+    for packaging_product, quantity in selected_packaging_products(packaging_quantities or {}):
+        for _ in range(quantity):
+            add_internal_order_product(
+                order=order, product=packaging_product, actor=None,
+            )
     return item
 
 
@@ -637,8 +772,8 @@ def create_public_cart_order(*, cart_data, cleaned_data):
                 product_name_snapshot=product.name, unit_price=item["unit_price"],
                 configuration_snapshot=item["configuration"]["snapshot"],
                 configuration_signature=item["configuration"]["signature"],
-                customization_comment=item["configuration"]["comment"],
-                is_customized=item["configuration"]["is_customized"],
+                customization_comment=" · ".join(filter(None, (item["configuration"]["comment"], item.get("item_note", "")))),
+                is_customized=bool(item["configuration"]["is_customized"] or item.get("item_note")),
                 quantity=item["quantity"], subtotal=item["subtotal"],
                 tortillas=False, beans=False,
             )
@@ -653,6 +788,7 @@ def create_public_cart_order(*, cart_data, cleaned_data):
                 water_name_snapshot=item["daily_menu"].water_product.name if item["with_water"] else "",
                 tortillas=item["tortillas"], beans=item["beans"], unit_price=item["unit_price"],
                 quantity=item["quantity"], subtotal=item["subtotal"],
+                customization_comment=item.get("item_note", ""), is_customized=bool(item.get("item_note")),
             )
     InternalNotification.objects.create(
         notification_type=InternalNotification.NotificationType.NEW_PUBLIC_ORDER,
@@ -725,6 +861,11 @@ def create_public_package_order(*, package, daily_menu, cleaned_data):
 @transaction.atomic
 def transition_order(*, order, action, actor=None):
     order = Order.objects.select_for_update().get(pk=order.pk)
+    # NOTA TEMPORAL PARA APRENDIZAJE: las reglas críticas viven también en el
+    # servicio central. Así ninguna vista futura puede habilitar accidentalmente
+    # Reiniciar para Telefonista ni Entregado para Repartidor. Borra esta nota.
+    if action == "restart_cycle" and not user_has_any_role(actor, (ADMIN,)):
+        raise ValidationError("Sólo un administrador puede reiniciar el ciclo del pedido.")
     transitions = {
         (Order.Status.PENDING_CONFIRMATION, "cancel"): Order.Status.CANCELED,
         (Order.Status.CONFIRMED, "start_preparing"): Order.Status.PREPARING,
@@ -759,19 +900,18 @@ def transition_order(*, order, action, actor=None):
     if action == "dispatch_delivery" and order.delivery_person_id is None:
         raise ValidationError("Asigna un repartidor antes de marcar la salida.")
     if action == "dispatch_delivery":
-        can_dispatch = actor == order.delivery_person or user_has_any_role(
-            actor, (ADMIN, ORDER_TAKER)
-        )
+        can_dispatch = user_has_any_role(actor, (ADMIN, ORDER_TAKER))
         if not can_dispatch:
-            raise ValidationError("Solo el repartidor asignado puede iniciar este reparto.")
+            raise ValidationError("Sólo Administrador o Telefonista pueden iniciar este reparto.")
     if action == "complete_delivery":
         if order.delivery_person_id is None:
             raise ValidationError("Primero debes asignar el pedido a un repartidor.")
-        can_complete = actor == order.delivery_person or user_has_any_role(
-            actor, (ADMIN, ORDER_TAKER)
+        can_complete = (
+            actor == order.delivery_person
+            or user_has_any_role(actor, (ADMIN, ORDER_TAKER))
         )
         if not can_complete:
-            raise ValidationError("Solo el repartidor asignado puede completar esta entrega.")
+            raise ValidationError("Sólo Administrador, Telefonista o el repartidor asignado pueden completar esta entrega.")
     if order.attention_started_at is None and actor is not None:
         order.attention_started_at = timezone.now()
         order.attention_started_by = actor

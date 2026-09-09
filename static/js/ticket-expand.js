@@ -3,7 +3,7 @@ El mismo comportamiento sirve para Mesas y Telefonistas porque ambos tickets usa
 `.table-ticket`. Sólo alternamos una clase en su cuadrícula; no movemos ni copiamos
 partidas, por lo que sus botones siguen funcionando. Borra esta nota después de leerla. */
 document.querySelectorAll(".table-ticket").forEach((ticket) => {
-  const workspace = ticket.closest("[data-table-pos], [data-internal-capture]");
+  const workspace = ticket.closest("[data-table-pos], [data-internal-capture], [data-public-workspace]");
   if (!workspace) return;
   ticket.classList.add("ticket-expandable");
   ticket.title = "Haz clic en el fondo para ampliar o reducir el ticket";

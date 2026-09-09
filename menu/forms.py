@@ -57,7 +57,7 @@ class ProductForm(forms.ModelForm):
         fields = (
             "category", "name", "price", "description", "image", "is_available",
             "component_type", "service_periods", "is_sold_individually",
-            "eligible_for_executive_meal", "sort_order",
+            "eligible_for_executive_meal", "packaging_kind", "sort_order",
         )
         labels = {
             "category": "Categoría", "name": "Nombre", "price": "Precio",
@@ -66,6 +66,7 @@ class ProductForm(forms.ModelForm):
             "service_periods": "Periodos en que se vende",
             "is_sold_individually": "Se puede vender por orden",
             "eligible_for_executive_meal": "Elegible para comida ejecutiva",
+            "packaging_kind": "Uso como envase",
             "sort_order": "Orden visual",
         }
         widgets = {
@@ -80,6 +81,7 @@ class ProductForm(forms.ModelForm):
             "is_available": "Apágalo para retirar temporalmente el producto de la venta.",
             "is_sold_individually": "Actívalo para que aparezca como producto suelto dentro de su categoría.",
             "eligible_for_executive_meal": "Solo aplica a productos cuya función sea Producto de plancha.",
+            "packaging_kind": "Clasifícalo para mostrarlo en Envases; estas opciones nunca aparecen en el menú público.",
             "sort_order": "Los números menores aparecen primero dentro de la categoría.",
         }
 

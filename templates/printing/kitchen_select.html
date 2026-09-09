@@ -1,0 +1,26 @@
+{% extends "base_internal.html" %}
+{% load static %}
+{% block title %}Elegir comanda · {{ reference }}{% endblock %}
+{% block content %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: esta pantalla no descuenta ni cambia cantidades;
+solamente decide qué sale en esta impresión de cocina. Borra esta nota al leerla. -->
+<div class="page-heading print-selection-heading">
+  <div><a href="{{ back_url }}">← Volver al ticket</a><h1>Comanda para cocina</h1><p>{{ reference }} · Elige únicamente lo nuevo que debe prepararse.</p></div>
+</div>
+{% for error in selection_errors %}<p class="message error">{{ error }}</p>{% endfor %}
+<form method="post" action="{{ submit_url }}" class="card kitchen-print-selection" data-kitchen-print-selection>
+  {% csrf_token %}
+  <div class="selection-toolbar"><button type="button" data-select-all>Seleccionar todo</button><button type="button" class="secondary-action" data-select-none>Quitar selección</button></div>
+  <div class="selection-list">
+    {% for item in selection_items %}
+      <label class="selection-row">
+        <input type="checkbox" name="item_{{ item.id }}" data-print-item checked>
+        <span class="selection-copy"><strong>{{ item.name }}</strong>{% if item.comment %}<small>Comentario: {{ item.comment }}</small>{% endif %}{% if item.details %}<small>{{ item.details|join:" · " }}</small>{% endif %}</span>
+        <span class="selection-quantity"><small>Imprimir</small><input type="number" name="quantity_{{ item.id }}" min="1" max="{{ item.available_quantity }}" value="{{ item.available_quantity }}"><small>de {{ item.available_quantity }}</small></span>
+      </label>
+    {% empty %}<p>Este ticket todavía no contiene productos.</p>{% endfor %}
+  </div>
+  <button type="submit" {% if not selection_items %}disabled{% endif %}>Preparar vista previa de cocina</button>
+</form>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/kitchen-print-select.js' %}?v=1"></script>{% endblock %}

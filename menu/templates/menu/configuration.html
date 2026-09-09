@@ -37,7 +37,7 @@ tiene configurados sin mezclar esta tarea con la edición de precio o categoría
       {% for product in products %}
         <article class="product-card">
           {% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% endif %}
-          <small>{{ product.category.name }} · {{ product.get_component_type_display }}</small><h3>{{ product.name }}</h3>
+          <small>{{ product.category.name }} · {{ product.get_component_type_display }}{% if product.packaging_kind != 'none' %} · {{ product.get_packaging_kind_display }}{% endif %}</small><h3>{{ product.name }}</h3>
           <p><strong>${{ product.price }}</strong></p><p>{{ product.description|default:"Sin descripción" }}</p>
           <p>{% if product.is_available %}Disponible{% else %}No disponible{% endif %}</p>
           <p>Periodos: {% for period in product.service_periods.all %}{{ period.name }}{% if not forloop.last %}, {% endif %}{% empty %}Todo el día{% endfor %}</p>

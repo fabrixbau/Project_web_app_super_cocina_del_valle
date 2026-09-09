@@ -1,0 +1,38 @@
+{% extends "base_internal.html" %}
+{% load static %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: Efectivo se muestra para conocer lo recibido,
+pero sólo Terminal y Transferencia alimentan el total administrado porque ese dinero
+sí pasa por el negocio y después debe entregarse al empleado. Borra esta nota. -->
+{% block title %}Reporte de propinas{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>Reporte de propinas</h1><p>Consulta lo correspondiente a meseros y repartidores sin mezclar efectivo con dinero administrado.</p></div><div class="page-heading-actions"><a class="button-link" href="{% url 'cashier:cashier_board' %}">Caja</a><a class="button-link" href="{% url 'cashier:terminal_board' %}">Corte de terminales</a><a class="button-link" href="{% url 'cashier:change_board' %}">Cambios pendientes</a></div></div>
+
+<section class="card tip-report-filters"><form method="get" data-tip-report-filters>
+  <label>Desde<input type="date" name="from" value="{{ start_date|date:'Y-m-d' }}"></label>
+  <label>Hasta<input type="date" name="to" value="{{ end_date|date:'Y-m-d' }}"></label>
+  <label>Pertenece a<select name="owner_type"><option value="">Meseros y repartidores</option><option value="waiter" {% if selected_owner_type == 'waiter' %}selected{% endif %}>Meseros</option><option value="delivery" {% if selected_owner_type == 'delivery' %}selected{% endif %}>Repartidores</option></select></label>
+  <label>Método<select name="payment_method"><option value="">Todos</option>{% for value, label in payment_method_choices %}<option value="{{ value }}" {% if selected_payment_method == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+  <label>Empleado<select name="person"><option value="">Todos</option><optgroup label="Meseros">{% for person in waiters %}<option value="{{ person.id }}" {% if selected_person == person.id|stringformat:'s' %}selected{% endif %}>{{ person.get_full_name|default:person.username }}</option>{% endfor %}</optgroup><optgroup label="Repartidores">{% for person in couriers %}<option value="{{ person.id }}" {% if selected_person == person.id|stringformat:'s' %}selected{% endif %}>{{ person.get_full_name|default:person.username }}</option>{% endfor %}</optgroup></select></label>
+</form></section>
+
+<section class="tip-summary-grid">
+  <article class="card tip-total-card managed"><small>Total administrado</small><strong>${{ managed_total|floatformat:2 }}</strong><p>Terminal + Transferencia</p></article>
+  <article class="card tip-total-card"><small>Terminal</small><strong>${{ totals.card|floatformat:2 }}</strong><p>Incluido en total</p></article>
+  <article class="card tip-total-card"><small>Transferencia</small><strong>${{ totals.transfer|floatformat:2 }}</strong><p>Incluido en total</p></article>
+  <article class="card tip-total-card informational"><small>Efectivo</small><strong>${{ totals.cash|floatformat:2 }}</strong><p>Sólo informativo · no se suma</p></article>
+</section>
+
+<section class="card tip-person-summary"><h2>Totales por persona</h2><div class="tip-person-row heading"><span>Responsable</span><span>Efectivo</span><span>Terminal</span><span>Transferencia</span><span>Total administrado</span></div>{% for person in person_totals %}<div class="tip-person-row"><span data-column="Responsable"><strong>{{ person.owner_type }}</strong><br>{% if person.owner %}{{ person.owner.get_full_name|default:person.owner.username }}{% else %}Sin asignar{% endif %}</span><span data-column="Efectivo">${{ person.cash|floatformat:2 }}<small>No se suma</small></span><span data-column="Terminal">${{ person.card|floatformat:2 }}</span><span data-column="Transferencia">${{ person.transfer|floatformat:2 }}</span><strong data-column="Total administrado">${{ person.managed_total|floatformat:2 }}</strong></div>{% empty %}<p>No hay totales para el periodo seleccionado.</p>{% endfor %}</section>
+
+<section class="card tip-report-table"><div class="tip-report-row heading"><span>Fecha</span><span>Pertenece a</span><span>Referencia</span><span>Método</span><span>Propina</span><span>Tratamiento</span></div>
+{% for row in rows %}<div class="tip-report-row is-clickable" role="button" tabindex="0" data-tip-detail-url="{% url 'cashier:tip_detail' row.source row.record_id %}" aria-label="Abrir detalle de {{ row.reference }}"><span data-column="Fecha">{{ row.occurred_at|date:'d/m/Y H:i' }}</span><span data-column="Pertenece a"><strong>{{ row.owner_type }}</strong><br>{% if row.owner %}{{ row.owner.get_full_name|default:row.owner.username }}{% else %}Sin asignar{% endif %}</span><span data-column="Referencia">{{ row.reference }}</span><span data-column="Método"><span class="tip-method method-{{ row.payment_method }}">{{ row.payment_label }}</span></span><strong data-column="Propina">${{ row.amount|floatformat:2 }}</strong><span data-column="Tratamiento">{% if row.is_managed %}Administrada{% else %}Sólo informativa{% endif %}</span></div>{% empty %}<p>No existen propinas que coincidan con los filtros.</p>{% endfor %}
+</section>
+
+<dialog class="tip-detail-dialog" data-tip-detail-dialog aria-labelledby="tip-detail-title">
+  <div class="tip-detail-shell">
+    <header><div><small data-detail-kind></small><h2 id="tip-detail-title" data-detail-reference>Detalle de propina</h2></div><button type="button" data-tip-detail-close aria-label="Cerrar detalle">×</button></header>
+    <div class="tip-detail-body" data-tip-detail-body><p>Consultando ticket…</p></div>
+  </div>
+</dialog>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/tip-report.js' %}?v=2"></script>{% endblock %}

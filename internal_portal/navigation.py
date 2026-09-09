@@ -8,6 +8,7 @@ SECTIONS = (
     {"key": "tables", "title": "Mesas", "description": "Atención y cuentas de mesas.", "url_name": "tables:table_map"},
     {"key": "orders", "title": "Pedidos", "description": "Pedidos internos y externos.", "url_name": "orders:order_list"},
     {"key": "customers", "title": "Clientes", "description": "Agenda de clientes y domicilios.", "url_name": "orders:customer_list"},
+    {"key": "debts", "title": "Adeudos", "description": "Consulta de cuentas por cobrar de clientes.", "url_name": "cashier:debt_board"},
     {"key": "deliveries", "title": "Repartos", "description": "Asignación y seguimiento de entregas.", "url_name": "deliveries:delivery_board"},
     {"key": "reports", "title": "Reportes", "description": "Información administrativa.", "url_name": "internal_portal:reports"},
     {"key": "menu", "title": "Menú", "description": "Categorías y productos.", "url_name": "menu:configuration"},

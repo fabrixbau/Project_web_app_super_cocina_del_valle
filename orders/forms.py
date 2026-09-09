@@ -113,6 +113,12 @@ class InternalOrderForm(forms.Form):
             data.update({"needs_change": False, "cash_tendered": None})
             return data
         choices = sum(bool(data.get(name)) for name in ("cash_bill", "cash_custom_amount", "pays_exact"))
+        # NOTA TEMPORAL PARA APRENDIZAJE: en captura interna basta saber que será en
+        # efectivo para cerrar Entrega o Recoger; Caja puede definir el billete después.
+        # None significa "monto pendiente", no "pago exacto". Borra esta nota.
+        if choices == 0:
+            data.update({"needs_change": False, "cash_tendered": None})
+            return data
         if choices != 1:
             self.add_error("cash_bill", "Elige un billete, otra cantidad o pago exacto.")
             return data

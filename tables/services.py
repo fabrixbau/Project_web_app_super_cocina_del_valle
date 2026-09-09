@@ -22,6 +22,7 @@ from django.utils import timezone
 from accounts.roles import WAITER
 
 from menu.models import DailyMenu, MealPackage, Product
+from menu.packaging import selected_packaging_products
 from menu.selection import resolve_product_selection
 
 from .models import DiningTable, TableAccount, TableAccountItem, TableActivity
@@ -280,7 +281,10 @@ def add_auto_meal_component(
 
 
 @transaction.atomic
-def add_package_to_table(*, account, package, daily_menu, cleaned_data, added_by):
+def add_package_to_table(
+    *, account, package, daily_menu, cleaned_data, added_by,
+    packaging_quantities=None,
+):
     account = TableAccount.objects.select_for_update().get(pk=account.pk)
     if account.status != TableAccount.Status.OPEN:
         raise ValidationError("La cuenta ya no está abierta.")
@@ -323,6 +327,14 @@ def add_package_to_table(*, account, package, daily_menu, cleaned_data, added_by
             unit_price=price, quantity=1, subtotal=price, added_by=added_by,
         )
     record_activity(account=account, actor=added_by, action=TableActivity.Action.PACKAGE, description=package.name, quantity_delta=1)
+    # NOTA TEMPORAL PARA APRENDIZAJE: los envases siguen siendo partidas separadas;
+    # este bloque sólo garantiza que comida y cargos se guarden juntos o ninguno se
+    # guarde si un envase dejó de estar disponible. Borra esta nota después de leerla.
+    for packaging_product, quantity in selected_packaging_products(packaging_quantities or {}):
+        for _ in range(quantity):
+            add_product_to_table(
+                account=account, product=packaging_product, added_by=added_by,
+            )
     return item
 
 

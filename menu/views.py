@@ -197,6 +197,8 @@ def product_create(request):
             sync_product_customization(product, clean_groups)
         messages.success(request, f"El producto {product.name} y sus ingredientes fueron creados.")
         return redirect("menu:configuration")
+    if request.method == "POST":
+        messages.error(request, "No se pudo crear el producto. Revisa los campos marcados.")
     return render(request, "menu/form.html", {
         "form": form, "title": "Nuevo producto", "is_product_form": True,
         "customization_data": customization_data,
@@ -217,6 +219,8 @@ def product_edit(request, product_id):
             sync_product_customization(product, clean_groups)
         messages.success(request, "El producto y sus ingredientes fueron actualizados.")
         return redirect("menu:configuration")
+    if request.method == "POST":
+        messages.error(request, "No se pudo actualizar el producto. Revisa los campos marcados.")
     return render(request, "menu/form.html", {
         "form": form, "title": f"Editar producto: {product.name}", "is_product_form": True,
         "customization_data": customization_data,
@@ -540,19 +544,40 @@ def public_menu(request):
         Product.ComponentType.BEEF_STEW,
         Product.ComponentType.VARIED_STEW,
     )
-    available_products = (
-        Product.objects.filter(is_available=True)
+    base_public_products = (
+        Product.objects.filter(
+            is_available=True, is_sold_individually=True,
+            packaging_kind=Product.PackagingKind.NONE,
+        )
         .exclude(component_type__in=daily_component_types)
-        .filter(Q(service_periods__isnull=True) | Q(service_periods__in=active_periods))
-        .distinct()
-        .order_by("sort_order", "name")
     )
-    categories = Category.objects.filter(**{public_visibility_field: True}).order_by(
-        public_order_field, "name",
-    ).prefetch_related(
-        Prefetch("products", queryset=available_products, to_attr="available_products")
+    # El portal sigue sus dos interfaces operativas (7:00–12:30 y 12:31–18:00).
+    # La visibilidad pública de la categoría decide el catálogo; los periodos internos
+    # no deben apagar comida a las 17:00 cuando el portal continúa hasta las 18:00.
+    available_now = base_public_products.distinct().order_by("sort_order", "name")
+    advance_lunch_products = base_public_products.distinct().order_by("sort_order", "name")
+
+    def visible_category_list(visibility_field, order_field, products):
+        queryset = Category.objects.filter(**{visibility_field: True}).order_by(
+            order_field, "name",
+        ).prefetch_related(Prefetch("products", queryset=products, to_attr="available_products"))
+        return [category for category in queryset if category.available_products]
+
+    breakfast_categories = visible_category_list(
+        "show_on_public_breakfast", "public_breakfast_order", available_now,
     )
-    visible_categories = [category for category in categories if category.available_products]
+    lunch_categories = visible_category_list(
+        "show_on_public_lunch", "public_lunch_order",
+        advance_lunch_products if public_mode == "breakfast" else available_now,
+    )
+    # Aunque una categoría esté habilitada en ambos modos, las familias llamadas
+    # “Comida …” pertenecen al bloque adelantado inferior durante desayuno.
+    breakfast_categories = [
+        category for category in breakfast_categories
+        if not category.name.casefold().startswith("comida ")
+    ]
+    visible_categories = breakfast_categories if public_mode == "breakfast" else lunch_categories
+    advance_lunch_categories = lunch_categories if public_mode == "breakfast" else []
     daily_menu = (
         DailyMenu.objects.filter(date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED)
         .select_related(
@@ -573,8 +598,9 @@ def public_menu(request):
             if visible_products:
                 daily_groups.append({"title": title, "products": visible_products})
 
+    all_rendered_categories = [*visible_categories, *advance_lunch_categories]
     selector_product_ids = {
-        product.pk for category in visible_categories for product in category.available_products
+        product.pk for category in all_rendered_categories for product in category.available_products
     }
     selector_product_ids.update(
         product.pk for group in daily_groups for product in group["products"]
@@ -586,7 +612,7 @@ def public_menu(request):
         str(product.pk): serialize_product_selector(product) for product in selector_products
     }
     customizable_ids = {int(product_id) for product_id in product_customizations}
-    for category in visible_categories:
+    for category in all_rendered_categories:
         for product in category.available_products:
             product.has_customization = product.pk in customizable_ids
     for group in daily_groups:
@@ -598,12 +624,14 @@ def public_menu(request):
 
     return render(request, "menu/public_menu.html", {
         "categories": visible_categories,
+        "advance_lunch_categories": advance_lunch_categories,
         "daily_menu": daily_menu,
         "daily_groups": daily_groups,
         "active_periods": active_periods,
         "meal_packages": MealPackage.objects.filter(is_active=True),
         "advance_food_order": current_time < time(13, 0),
         "public_menu_mode_label": "Desayunos" if public_mode == "breakfast" else "Comida",
+        "public_menu_mode": public_mode,
         "product_customizations": product_customizations,
         "cart_controls": cart_controls,
     })

@@ -15,16 +15,23 @@
   const ticketCashAmount = document.querySelector("[data-ticket-cash-amount]");
   const tipSection = document.querySelector("[data-internal-tip-section]");
   const tipForm = document.querySelector("[data-internal-tip-form]");
+  const deliveryCashHint = form.querySelector("[data-delivery-cash-hint]");
   const agendaSearch = form.querySelector("input[name='customer_name']");
   const agendaResults = form.querySelector("[data-customer-agenda-results]");
+  const agendaHelp = form.querySelector("[data-customer-agenda-help]");
   const duplicatePhoneWarning = form.querySelector("[data-duplicate-phone-warning]");
+  const customerDebtWarning = form.querySelector("[data-customer-debt-warning]");
   const paymentLabels = {cash: "Efectivo", card: "Terminal", transfer: "Transferencia"};
   const refresh = () => {
     const orderType = form.querySelector("input[name='order_type']:checked")?.value || "pickup";
     const paymentMethod = form.querySelector("input[name='payment_method']:checked")?.value || "";
     delivery.hidden = orderType !== "delivery";
     cash.hidden = paymentMethod !== "cash";
-    if (tipSection) tipSection.hidden = !(orderType === "delivery" && ["card", "transfer"].includes(paymentMethod));
+    if (deliveryCashHint) deliveryCashHint.hidden = orderType !== "delivery";
+    // NOTA TEMPORAL PARA APRENDIZAJE: Telefonista aún puede registrar una propina
+    // confirmada por transferencia, pero Terminal se captura después por Caja o por
+    // el repartidor cuando realmente se conoce. Borra esta nota después de leerla.
+    if (tipSection) tipSection.hidden = !(orderType === "delivery" && paymentMethod === "transfer");
     form.querySelectorAll("[data-order-type-choice]").forEach((button) => button.classList.toggle("is-selected", button.dataset.orderTypeChoice === orderType));
     form.querySelectorAll("[data-payment-choice]").forEach((button) => button.classList.toggle("is-selected", button.dataset.paymentChoice === paymentMethod));
     if (ticketPayment) ticketPayment.textContent = paymentLabels[paymentMethod] || "Sin definir";
@@ -40,6 +47,9 @@
     const customerName = form.querySelector("input[name='customer_name']")?.value.trim();
     if (customerSummary) customerSummary.textContent = customerName || "Datos del cliente";
     if (customerState) customerState.textContent = customerName ? (orderType === "delivery" ? "Revisar entrega" : "Editar datos") : "Agregar datos";
+    if (agendaHelp) agendaHelp.textContent = orderType === "delivery"
+      ? "Si coincide con la agenda, selecciona el cliente o uno de sus domicilios."
+      : "Si coincide con la agenda, selecciónalo para completar nombre y teléfono.";
   };
   form.addEventListener("change", refresh);
   form.addEventListener("input", refresh);
@@ -60,6 +70,10 @@
   form.querySelectorAll("[data-payment-choice]").forEach((button) => button.addEventListener("click", async () => {
     const field = form.querySelector(`input[name='payment_method'][value='${button.dataset.paymentChoice}']`);
     if (field) field.checked = true;
+    // NOTA TEMPORAL PARA APRENDIZAJE: al pasar al pago cerramos Cliente para que
+    // ambos paneles no compitan por espacio. Efectivo muestra sus billetes mediante
+    // refresh() en la siguiente línea. Borra esta nota después de leerla.
+    customerPanel.hidden = true;
     refresh();
     window.clearTimeout(autosaveTimer);
     await autosaveCustomer();
@@ -110,16 +124,39 @@
   // elegir un domicilio copiamos sus valores a los campos reales y usamos el mismo
   // autoguardado existente. Borra esta nota después de leerla.
   let agendaTimer = null;
+  let agendaRequestVersion = 0;
   const setFieldValue = (name, value) => {
     const field = form.querySelector(`[name='${name}']`);
     if (field) field.value = value || "";
   };
+  function showCustomerDebt(customer) {
+    if (!customerDebtWarning) return;
+    const balance = Number(customer?.outstanding_balance || 0);
+    customerDebtWarning.replaceChildren();
+    if (!balance) { customerDebtWarning.hidden = true; return; }
+    const message = document.createElement("strong");
+    message.textContent = `Este cliente tiene $${balance.toFixed(2)} pendientes en ${customer.open_debt_count} pedido(s). `;
+    const link = document.createElement("a");
+    link.href = customer.debt_url;
+    link.textContent = "Revisar adeudo";
+    customerDebtWarning.append(message, link);
+    customerDebtWarning.hidden = false;
+  }
   function selectAgendaAddress(customer, address) {
+    // NOTA TEMPORAL PARA APRENDIZAJE: invalidamos cualquier consulta anterior para
+    // que una respuesta lenta no vuelva a abrir el menú después de seleccionar.
+    // Borra esta nota después de leerla.
+    agendaRequestVersion += 1;
+    window.clearTimeout(agendaTimer);
     setFieldValue("agenda_customer_id", customer.id);
-    setFieldValue("agenda_address_id", address?.id || "");
     setFieldValue("customer_name", customer.name);
     setFieldValue("phone", customer.phone);
-    if (address) {
+    const orderType = form.querySelector("input[name='order_type']:checked")?.value || "pickup";
+    setFieldValue("agenda_address_id", orderType === "delivery" ? (address?.id || "") : "");
+    // NOTA TEMPORAL PARA APRENDIZAJE: Recoger reutiliza la identidad del contacto,
+    // pero no su domicilio. Entrega conserva el comportamiento completo existente.
+    // Borra esta nota después de leerla.
+    if (orderType === "delivery" && address) {
       setFieldValue("street", address.street);
       setFieldValue("exterior_number", address.exterior_number);
       setFieldValue("interior_number", address.interior_number);
@@ -127,7 +164,9 @@
       setFieldValue("references", address.references);
     }
     agendaResults.hidden = true;
+    customerPanel.hidden = true;
     if (duplicatePhoneWarning) duplicatePhoneWarning.hidden = true;
+    showCustomerDebt(customer);
     refresh();
     window.clearTimeout(autosaveTimer);
     autosaveCustomer();
@@ -140,11 +179,15 @@
       agendaResults.append(empty);
     }
     customers.forEach((customer) => {
+      const orderType = form.querySelector("input[name='order_type']:checked")?.value || "pickup";
       const card = document.createElement("article");
-      const heading = document.createElement("strong");
+      const heading = document.createElement("button");
+      heading.type = "button";
+      heading.className = "customer-agenda-name";
       heading.textContent = `${customer.name}${customer.phone ? ` · ${customer.phone}` : ""}`;
+      heading.addEventListener("click", () => selectAgendaAddress(customer, customer.addresses[0] || null));
       card.append(heading);
-      (customer.addresses.length ? customer.addresses : [null]).forEach((address) => {
+      if (orderType === "delivery") (customer.addresses.length ? customer.addresses : [null]).forEach((address) => {
         const button = document.createElement("button");
         button.type = "button";
         button.textContent = address ? `${address.street} ${address.exterior_number}${address.neighborhood ? ` · ${address.neighborhood}` : ""}` : "Usar datos del cliente";
@@ -157,9 +200,10 @@
   }
   agendaSearch?.addEventListener("input", () => {
     window.clearTimeout(agendaTimer);
+    agendaRequestVersion += 1;
+    const requestVersion = agendaRequestVersion;
     const query = agendaSearch.value.trim();
-    const orderType = form.querySelector("input[name='order_type']:checked")?.value || "pickup";
-    if (query.length < 2 || orderType !== "delivery") {
+    if (query.length < 2) {
       agendaResults.hidden = true;
       return;
     }
@@ -168,8 +212,10 @@
         const response = await fetch(`${form.dataset.customerLookupUrl}?q=${encodeURIComponent(query)}`, {headers: {"Accept": "application/json"}});
         const data = await response.json();
         if (!response.ok) throw new Error();
+        if (requestVersion !== agendaRequestVersion || agendaSearch.value.trim() !== query) return;
         renderAgendaResults(data.customers || []);
       } catch (error) {
+        if (requestVersion !== agendaRequestVersion) return;
         agendaResults.replaceChildren();
         const message = document.createElement("p");
         message.textContent = "No se pudo consultar la agenda.";
@@ -179,7 +225,9 @@
     }, 300);
   });
   agendaSearch?.addEventListener("blur", () => {
-    window.setTimeout(() => { agendaResults.hidden = true; }, 160);
+    window.setTimeout(() => {
+      if (!agendaResults.contains(document.activeElement)) agendaResults.hidden = true;
+    }, 160);
   });
 
   let phoneLookupTimer = null;
@@ -402,6 +450,7 @@
     ticketItems.replaceChildren();
     ticket.items.forEach((item) => {
       const article = document.createElement("article");
+      article.className = "table-ticket-item internal-ticket-item";
       const description = document.createElement("span");
       const name = document.createElement("strong");
       name.textContent = `${item.quantity} × ${item.name}`;
@@ -424,6 +473,7 @@
       const subtotal = document.createElement("strong");
       subtotal.textContent = currency.format(Number(item.subtotal));
       const controls = document.createElement("div");
+      controls.className = "quantity-buttons";
       [["decrease", "−", ""], ["increase", "+", ""], ["remove", "×", "danger"]].forEach(([action, text, className]) => {
         const button = document.createElement("button");
         button.type = "button"; button.textContent = text; button.dataset.internalItemAction = action; button.dataset.url = item.change_url;
@@ -522,6 +572,40 @@
   }));
   document.querySelectorAll("[data-package-close]").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
 
+  // NOTA TEMPORAL PARA APRENDIZAJE: el buscador vive sólo en la Ejecutiva y filtra
+  // por nombre dentro de los tres tiempos. Normalizar acentos permite que "consome"
+  // encuentre "consomé". Borra esta nota después de leerla.
+  document.querySelectorAll("[data-package-product-search]").forEach((input) => input.addEventListener("input", () => {
+    const normalize = (value) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const query = normalize(input.value);
+    const form = input.closest("[data-internal-package]");
+    form.querySelectorAll("[data-package-choice-group]").forEach((group) => {
+      let visible = 0;
+      group.querySelectorAll("[data-package-choice]").forEach((card) => {
+        const matches = !query || normalize(card.dataset.searchName).includes(query);
+        card.hidden = !matches;
+        if (matches) visible += 1;
+      });
+      group.querySelector("[data-package-choice-empty]").hidden = visible > 0;
+    });
+  }));
+
+  // NOTA TEMPORAL PARA APRENDIZAJE: sólo la Corrida puede contener el guisado de
+  // pollo del día. Comparamos el ID seleccionado y mostramos Pierna/Muslo únicamente
+  // en ese caso; al elegir otro guisado limpiamos la pieza anterior. Borra esta nota.
+  document.querySelectorAll("form[data-internal-package]").forEach((form) => {
+    const chickenField = form.querySelector("[data-package-chicken-field]");
+    if (!chickenField) return;
+    const refreshChickenField = () => {
+      const selectedMain = form.querySelector("input[name$='main_course']:checked")?.value || "";
+      const show = selectedMain === form.dataset.chickenProduct;
+      chickenField.hidden = !show;
+      if (!show) chickenField.querySelectorAll("input[type='radio']").forEach((input) => { input.checked = false; });
+    };
+    form.querySelectorAll("input[name$='main_course']").forEach((input) => input.addEventListener("change", refreshChickenField));
+    refreshChickenField();
+  });
+
   const extrasDialog = document.querySelector("[data-package-extras-dialog]");
   const extrasForm = extrasDialog?.querySelector("[data-package-extras-form]");
   document.querySelector("[data-package-extras-close]")?.addEventListener("click", () => extrasDialog.close());
@@ -611,6 +695,10 @@
       await send(packageForm.action, new FormData(packageForm));
       packageForm.closest("dialog").close();
       packageForm.reset();
+      const resetChickenField = packageForm.querySelector("[data-package-chicken-field]");
+      if (resetChickenField) resetChickenField.hidden = true;
+      const packageSearch = packageForm.querySelector("[data-package-product-search]");
+      if (packageSearch) { packageSearch.value = ""; packageSearch.dispatchEvent(new Event("input")); }
       if (errorBox) errorBox.hidden = true;
     } catch (error) {
       if (errorBox) { errorBox.textContent = error.message; errorBox.hidden = false; }

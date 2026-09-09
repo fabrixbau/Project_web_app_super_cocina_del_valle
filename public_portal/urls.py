@@ -21,6 +21,9 @@ urlpatterns = [
     path("carrito/", order_views.public_cart, name="cart"),
     path("carrito/<str:key>/cantidad/", order_views.public_cart_update, name="cart_update"),
     path("carrito/<str:key>/eliminar/", order_views.public_cart_remove, name="cart_remove"),
+    path("carrito/<str:key>/producto/<int:product_id>/complementos/", order_views.public_cart_customize, name="cart_customize"),
+    path("carrito/<str:key>/nota/", order_views.public_cart_item_note, name="cart_item_note"),
+    path("carrito/nota/", order_views.public_cart_note, name="cart_note"),
     path("finalizar/", order_views.public_checkout, name="checkout"),
     path("confirmacion/<uuid:public_token>/", order_views.public_order_confirmation, name="order_confirmation"),
 ]

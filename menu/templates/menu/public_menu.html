@@ -1,28 +1,12 @@
-<!-- NOTA TEMPORAL PARA APRENDIZAJE:
-Cada tarjeta tiene menos, contador y más para la receta estándar. Personalizar abre el selector
-y conserva la configuración en una partida separada. Borra esta nota al terminar de probar. -->
-<!doctype html>
-<html lang="es-MX">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Menú | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css?v=12"></head>
-<body><main class="container">
-  <div class="page-heading"><div><p><a href="{% url 'public_portal:home' %}">← Inicio</a></p><small>{% if request.session.public_order_mode == 'pickup' %}Recoger en la fonda{% else %}Entrega a domicilio{% endif %} · <a href="{% url 'public_portal:order_mode' %}">Cambiar</a></small></div><a class="button-link" href="{% url 'public_portal:cart' %}">Ver carrito (<span data-public-cart-count>{{ cart_controls.count }}</span>)</a></div><h1>Nuestro menú</h1>
-  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
-  <p><strong>Menú de {{ public_menu_mode_label }}</strong> · Disponible ahora: {% for period in active_periods %}{{ period.name }}{% if not forloop.last %}, {% endif %}{% empty %}productos sin restricción horaria{% endfor %}</p>
-  {% if daily_menu %}
-    {% if advance_food_order %}<p class="message">Puedes agendar comida corrida o ejecutiva desde ahora. Se sirve y puede recogerse a partir de la 1:00 p. m.</p>{% endif %}
-    <section class="card daily-public-menu"><h2>Comida del día · {{ daily_menu.date }}</h2>
-      {% if daily_menu.water_product %}<p><strong>Agua del día:</strong> {{ daily_menu.water_product.name }}</p>{% endif %}
-      {% for group in daily_groups %}<div class="daily-group"><h3>{{ group.title }}</h3><div class="product-grid">{% for product in group.products %}{% include "menu/_public_product_card.html" with product=product %}{% endfor %}</div></div>{% endfor %}
-    </section>
-  {% endif %}
-  {% if daily_menu %}<section class="spaced-card"><h2>Paquetes de tres tiempos</h2><div class="package-grid">
-    {% for package in meal_packages %}<article class="card package-card"><h3>{{ package.name }}</h3><p>{{ package.description }}</p><p>Sin agua <strong>${{ package.price_without_water }}</strong><br>Con agua <strong>${{ package.price_with_water }}</strong></p><a class="button-link" href="{% url 'public_portal:package_selection' package.package_type %}">Armar paquete</a></article>{% empty %}<p>No hay paquetes disponibles.</p>{% endfor %}
-  </div></section>{% endif %}
-  <h2 class="spaced-card">Productos disponibles por orden</h2>
-  {% for category in categories %}
-    <section class="spaced-card"><h2>{{ category.name }}</h2><div class="product-grid">
-      {% for product in category.available_products %}{% include "menu/_public_product_card.html" with product=product %}{% endfor %}
-    </div></section>
-  {% empty %}<section class="card"><p>El menú todavía no tiene productos disponibles.</p></section>{% endfor %}
-</main>{{ product_customizations|json_script:"product-selector-data" }}{{ cart_controls|json_script:"public-cart-controls" }}{% include "menu/_product_selector_dialog.html" %}<script src="/static/js/product-selector.js?v=4"></script><script src="/static/js/public-menu-controls.js?v=1"></script></body>
-</html>
+{% load static %}
+<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Menú | Super Cocina del Valle</title><link rel="stylesheet" href="{% static 'css/app.css' %}?v=60"></head>
+<body><main class="container public-menu-page">
+<header class="public-menu-heading"><div><a href="{% url 'public_portal:home' %}">← Inicio</a><h1>Nuestro menú</h1><p>Mostrando {{ public_menu_mode_label|lower }} disponibles en este horario.</p></div><div><strong>{% if request.session.public_order_mode == 'pickup' %}Recoger en la fonda{% else %}Entrega a domicilio{% endif %}</strong><a href="{% url 'public_portal:order_mode' %}">Cambiar modalidad</a></div></header>
+{% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+<div class="public-menu-workspace" data-public-workspace><div class="public-menu-catalog">
+{% if public_menu_mode == 'breakfast' %}<section class="public-category-area"><h2>Desayunos</h2><nav class="public-category-tabs" data-public-tabs="breakfast">{% for category in categories %}<button type="button" data-public-category="breakfast-{{ category.id }}"{% if forloop.first %} class="is-selected"{% endif %}>{{ category.name }}</button>{% endfor %}</nav>{% for category in categories %}<section class="public-category-panel" data-public-panel="breakfast-{{ category.id }}"{% if not forloop.first %} hidden{% endif %}><h2>{{ category.name }}</h2><div class="table-product-grid">{% for product in category.available_products %}{% include "menu/_public_product_card.html" with product=product %}{% endfor %}</div></section>{% endfor %}</section><p class="message public-food-notice"><strong>Puedes pedir tu comida desde ahora.</strong> Las entregas y recolecciones de comida comienzan después de la 1:00 p. m., cuando el menú está listo.</p>{% endif %}
+{% if daily_menu %}<section class="public-food-feature{% if public_menu_mode == 'breakfast' %} is-advance{% endif %}"><div class="public-package-actions"><span>Arma tu comida</span><h2>Paquetes de comida</h2>{% for package in meal_packages %}<a href="{% url 'public_portal:package_selection' package.package_type %}"><strong>{{ package.name }}</strong><small>Desde ${{ package.price_without_water }}</small></a>{% endfor %}</div><article class="public-daily-board"><header><span>Menú diario</span><h2>Hoy tenemos</h2>{% if daily_menu.water_product %}<p>Agua del día · <strong>{{ daily_menu.water_product.name }}</strong></p>{% endif %}</header><div>{% for group in daily_groups %}<section><h3>{{ group.title }}</h3>{% for product in group.products %}<p>{{ product.name }}</p>{% endfor %}</section>{% endfor %}</div></article></section>{% endif %}
+{% if public_menu_mode == 'lunch' %}{% include "menu/_public_category_catalog.html" with food_categories=categories catalog_id="lunch" title="También puedes pedir" %}{% elif advance_lunch_categories %}{% include "menu/_public_category_catalog.html" with food_categories=advance_lunch_categories catalog_id="advance" title="Otros productos de comida" %}{% endif %}
+</div><aside class="table-ticket public-live-ticket" data-public-ticket{% if not cart_controls.count %} hidden{% endif %}><div class="current-ticket-heading"><div><small>Tu pedido</small><h2>Ticket</h2></div><span><strong data-public-ticket-count>0</strong> artículos</span></div><button type="button" class="public-note-button" data-public-note-open>Agregar nota general</button><p class="public-ticket-note" data-public-ticket-note hidden></p><div class="table-ticket-items" data-public-ticket-items></div><p class="table-ticket-total"><span>Total</span><strong data-public-ticket-total>$0.00</strong></p><a class="button-link public-checkout-link" href="{% url 'public_portal:checkout' %}">Continuar con datos y pago</a></aside></div>
+</main><dialog class="ticket-note-dialog" data-public-note-dialog><form method="post" action="{% url 'public_portal:cart_note' %}" data-public-note-form>{% csrf_token %}<div class="dialog-heading"><div><h2>Nota general</h2><p>Escribe una indicación para todo el pedido.</p></div><button type="button" data-public-note-close>×</button></div><label>Comentario<textarea name="note" rows="4" maxlength="1000"></textarea></label><button type="submit">Guardar nota</button></form></dialog>
+{{ product_customizations|json_script:"product-selector-data" }}{{ cart_controls|json_script:"public-cart-controls" }}{% include "menu/_product_selector_dialog.html" %}<script src="{% static 'js/product-selector.js' %}?v=4"></script><script src="{% static 'js/public-menu-controls.js' %}?v=2"></script><script src="{% static 'js/ticket-expand.js' %}?v=3"></script></body></html>

@@ -1,0 +1,28 @@
+{% extends "base_internal.html" %}
+{% load l10n %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: el tablero mezcla resumen y detalle expandible.
+Telefonista recibe exactamente la misma información, pero Django no renderiza ni
+acepta sus acciones financieras. Borra esta nota después de leerla. -->
+{% block title %}Cuentas por cobrar{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>Cuentas por cobrar</h1><p>Pedidos entregados que quedaron a cuenta de un cliente.</p></div><div class="page-heading-actions">{% if can_manage_debts %}<a class="button-link" href="{% url 'cashier:cashier_board' %}">Caja</a>{% endif %}<a class="button-link" href="{% url 'orders:customer_list' %}">Agenda</a><a class="button-link" href="{% url 'orders:order_list' %}">Pedidos</a></div></div>
+{% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+
+{% if can_manage_debts %}<section class="card debt-create-card"><div><h2>Registrar pedido no pagado</h2><p>El pedido debe estar Entregado o Recogido y vinculado con un cliente de la agenda.</p></div><form method="post" action="{% url 'cashier:debt_create' %}">{% csrf_token %}<label>Folio del pedido<input name="order_reference" placeholder="Ej. 0309015" required></label><label>Nota inicial<input name="note" maxlength="250" placeholder="Ej. Solicitó dejarlo a cuenta"></label><button type="submit">Dejar a cuenta</button></form></section>{% endif %}
+
+<section class="card debt-filter-card"><form method="get"><label>Buscar<input name="q" value="{{ search }}" placeholder="Cliente, teléfono o folio"></label><label>Mostrar<select name="scope" onchange="this.form.submit()"><option value="active" {% if selected_scope == 'active' %}selected{% endif %}>Pendientes</option><option value="closed" {% if selected_scope == 'closed' %}selected{% endif %}>Pagados y condonados</option><option value="all" {% if selected_scope == 'all' %}selected{% endif %}>Todos</option></select></label><button type="submit">Buscar</button></form></section>
+
+<section class="debt-summary-grid"><article class="card"><small>Importe original</small><strong>${{ original_total|floatformat:2 }}</strong></article><article class="card"><small>Abonado</small><strong>${{ paid_total|floatformat:2 }}</strong></article><article class="card debt-balance-card"><small>Saldo mostrado</small><strong>${{ balance_total|floatformat:2 }}</strong></article></section>
+
+<section class="card debt-list">
+  <header><span>Cliente</span><span>Pedido</span><span>Importe</span><span>Abonado</span><span>Saldo</span><span>Estado</span></header>
+  {% for debt in debts %}<details class="debt-row status-{{ debt.status }}" id="adeudo-{{ debt.id }}">
+    <summary><span data-column="Cliente"><strong>{{ debt.customer.name }}</strong><small>{{ debt.customer.phone|default:'Sin teléfono' }}</small></span><span data-column="Pedido"><a href="{% url 'orders:order_detail' debt.order_id %}">{{ debt.order.formatted_number }}</a><small>{{ debt.created_at|date:'d/m/Y H:i' }}</small></span><strong data-column="Importe">${{ debt.original_amount|floatformat:2 }}</strong><strong data-column="Abonado">${{ debt.paid_amount|floatformat:2 }}</strong><strong data-column="Saldo">${{ debt.balance|floatformat:2 }}</strong><span data-column="Estado" class="debt-status">{{ debt.get_status_display }}</span></summary>
+    <div class="debt-detail"><div><p><strong>Registró:</strong> {{ debt.created_by.get_full_name|default:debt.created_by.username }}</p>{% if debt.note %}<p><strong>Nota:</strong> {{ debt.note }}</p>{% endif %}<a href="{% url 'orders:customer_edit' debt.customer_id %}">Abrir cliente</a></div>
+      {% if can_manage_debts and debt.status != 'paid' and debt.status != 'forgiven' %}<form method="post" action="{% url 'cashier:debt_payment' debt.id %}" class="debt-payment-form">{% csrf_token %}<h3>Registrar abono</h3><label>Monto<input type="number" name="amount" min="0.01" max="{{ debt.balance|unlocalize }}" step="0.01" required></label><label>Método<select name="payment_method" required><option value="">Selecciona</option>{% for value, label in payment_method_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label><label>Nota<input name="note" maxlength="250"></label><button type="submit">Guardar abono</button></form>{% endif %}
+      {% if can_manage_debts %}<form method="post" action="{% url 'cashier:debt_status' debt.id %}" class="debt-status-form">{% csrf_token %}{% if debt.status == 'forgiven' %}<input type="hidden" name="action" value="reopen"><button type="submit">Reabrir adeudo</button>{% elif debt.status != 'paid' %}<input type="hidden" name="action" value="forgive"><label>Motivo de condonación<input name="note" maxlength="250" required></label><button type="submit" class="danger">Condonar saldo</button>{% endif %}</form>{% endif %}
+      <div class="debt-history"><h3>Historial</h3>{% for movement in debt.movements.all %}<p><strong>{{ movement.get_action_display }}</strong>{% if movement.amount %} · ${{ movement.amount|floatformat:2 }}{% endif %}{% if movement.payment_method %} · {{ movement.get_payment_method_display }}{% endif %}<br><small>{{ movement.created_at|date:'d/m/Y H:i' }} · {{ movement.registered_by.get_full_name|default:movement.registered_by.username }}{% if movement.note %} · {{ movement.note }}{% endif %}</small></p>{% empty %}<p>Sin movimientos posteriores.</p>{% endfor %}</div>
+    </div>
+  </details>{% empty %}<p>No hay adeudos que coincidan con los filtros.</p>{% endfor %}
+</section>
+{% endblock %}

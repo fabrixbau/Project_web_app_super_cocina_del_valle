@@ -1,0 +1,14 @@
+<article class="packaging-product-card catalog-product-card" data-internal-product="{{ product.id }}" data-product-name="{{ product.name }}">
+  <div class="catalog-product-visual">
+    {% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% else %}<span aria-hidden="true">ENVASE</span>{% endif %}
+  </div>
+  <div class="catalog-product-information">
+    <small>{{ product.get_packaging_kind_display }}</small>
+    <strong>{{ product.name }}</strong><span>${{ product.price }}</span>
+    <div class="catalog-quick-controls">
+      <button type="button" class="catalog-quantity-button" data-internal-decrease data-url="{% url 'orders:internal_order_product_decrease' order.id product.id %}" aria-label="Restar {{ product.name }}">−</button>
+      <strong data-internal-quantity>0</strong>
+      <form method="post" action="{% url 'orders:internal_order_product_add' order.id product.id %}" data-internal-add>{% csrf_token %}<button type="submit" class="catalog-quantity-button" aria-label="Agregar {{ product.name }}">+</button></form>
+    </div>
+  </div>
+</article>

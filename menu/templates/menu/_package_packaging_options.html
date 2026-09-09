@@ -1,0 +1,12 @@
+{% if packaging_products %}
+<section class="package-packaging-options" data-package-packaging>
+  <header><strong>Envases para esta comida</strong><small>Selecciona el tipo y la cantidad; se cobrará por separado.</small></header>
+  <div>
+    {% for product in packaging_products %}<article>
+      {% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% endif %}
+      <span><small>{{ product.get_packaging_kind_display }}</small><strong>{{ product.name }}</strong><b>${{ product.price }}</b></span>
+      <div class="package-packaging-counter"><button type="button" data-packaging-change="-1" aria-label="Restar {{ product.name }}">−</button><output>0</output><button type="button" data-packaging-change="1" aria-label="Agregar {{ product.name }}">+</button><input type="hidden" name="packaging_{{ product.id }}" value="0"></div>
+    </article>{% endfor %}
+  </div>
+</section>
+{% endif %}

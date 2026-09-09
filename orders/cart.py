@@ -7,9 +7,11 @@
 # recalculan con opciones vigentes antes de checkout. Borra esta nota.
 
 from decimal import Decimal
+from datetime import time
 import uuid
 
 from django.core.exceptions import ValidationError
+from django.urls import reverse
 from django.utils import timezone
 
 from menu.models import DailyMenu, MealPackage, Product
@@ -18,6 +20,7 @@ from menu.selection import resolve_product_selection
 
 SESSION_KEY = "public_order_cart"
 MODE_SESSION_KEY = "public_order_mode"
+NOTE_SESSION_KEY = "public_order_note"
 
 
 def _cart(session):
@@ -96,17 +99,67 @@ def cart_control_summary(session):
         if item.get("kind") == "product" and not item["configuration"]["is_customized"]:
             product_id = str(item["product_id"])
             standard_quantities[product_id] = standard_quantities.get(product_id, 0) + item["quantity"]
+    items = []
+    for item in cart["items"]:
+        if item["kind"] == "product":
+            detail = " · ".join(filter(None, (*item["configuration"]["snapshot"].get("differences", []), item.get("item_note", ""))))
+            customizable = bool(item["product"].option_groups.all())
+            product_id = item["product_id"]
+        else:
+            detail = " · ".join(filter(None, (
+                item["first_course"].name, item["second_course"].name, item["main_course"].name,
+                item.get("item_note", ""),
+            )))
+            customizable = False
+            product_id = None
+        items.append({
+            "key": item["key"], "kind": item["kind"], "product_id": product_id,
+            "name": item["name"], "quantity": item["quantity"],
+            "subtotal": f"{item['subtotal']:.2f}", "detail": detail,
+            "customizable": customizable,
+            "update_url": reverse("public_portal:cart_update", args=(item["key"],)),
+            "remove_url": reverse("public_portal:cart_remove", args=(item["key"],)),
+            "customize_url": reverse("public_portal:cart_customize", args=(item["key"], product_id)) if product_id else "",
+            "note_url": reverse("public_portal:cart_item_note", args=(item["key"],)),
+        })
     return {
         "count": cart["count"],
         "total_display": f"{cart['total']:.2f}",
         "standard_quantities": standard_quantities,
+        "items": items,
+        "note": session.get(NOTE_SESSION_KEY, ""),
     }
+
+
+def set_cart_note(session, note):
+    session[NOTE_SESSION_KEY] = " ".join((note or "").split())[:1000]
+    session.modified = True
 
 
 def update_item(session, *, key, quantity):
     for item in _cart(session):
         if item["key"] == key:
             item["quantity"] = quantity
+            session.modified = True
+            return True
+    return False
+
+
+def update_product_selection(session, *, key, product, selection):
+    for item in _cart(session):
+        if item.get("key") == key and item.get("kind") == "product" and item.get("product_id") == product.pk:
+            item["option_ids"] = selection["option_ids"]
+            item["customization_comment"] = selection["comment"]
+            item["configuration_signature"] = selection["signature"]
+            session.modified = True
+            return True
+    return False
+
+
+def set_item_note(session, *, key, note):
+    for item in _cart(session):
+        if item.get("key") == key:
+            item["item_note"] = " ".join((note or "").split())[:500]
             session.modified = True
             return True
     return False
@@ -125,6 +178,7 @@ def remove_item(session, *, key):
 def clear(session):
     session.pop(SESSION_KEY, None)
     session.pop(MODE_SESSION_KEY, None)
+    session.pop(NOTE_SESSION_KEY, None)
     session.modified = True
 
 
@@ -156,9 +210,10 @@ def product_is_orderable(product):
             *(item.pk for item in menu.stew_options if item),
         }:
             return False
-    periods = list(product.service_periods.all())
     current_time = timezone.localtime().time()
-    return not periods or any(period.contains(current_time) for period in periods)
+    if current_time < time(12, 31):
+        return product.category.show_on_public_breakfast or product.category.show_on_public_lunch
+    return current_time <= time(18, 0) and product.category.show_on_public_lunch
 
 
 def resolve_cart(session):

@@ -135,14 +135,22 @@ class Order(models.Model):
         validators=[MinValueValidator(0)],
     )
     # NOTA TEMPORAL PARA APRENDIZAJE: estos campos no calculan el cambio; registran
-    # que Caja ya entregó físicamente ese cambio al repartidor. Así distinguimos lo
-    # solicitado por el cliente de la entrega real de dinero. Borra esta nota al leerla.
-    cash_handoff_confirmed = models.BooleanField(default=False)
-    cash_handoff_by = models.ForeignKey(
+    # que el repartidor ya lo devolvió o concilió con Caja al cierre. Así distinguimos
+    # el monto solicitado de su conciliación real. Borra esta nota al leerla.
+    cash_settlement_confirmed = models.BooleanField(default=False)
+    cash_settlement_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="cash_handoffs_confirmed",
+        related_name="cash_settlements_confirmed",
     )
-    cash_handoff_at = models.DateTimeField(null=True, blank=True)
+    cash_settlement_at = models.DateTimeField(null=True, blank=True)
+    # NOTA TEMPORAL PARA APRENDIZAJE: liberar en Caja sólo retira el pedido de su
+    # bandeja. No cambia el estado de preparación o reparto, porque son procesos
+    # independientes. Borra esta nota después de leerla.
+    cashier_released_at = models.DateTimeField(null=True, blank=True)
+    cashier_released_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="cashier_orders_released",
+    )
     total = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
     # NOTA TEMPORAL PARA APRENDIZAJE: la propina de reparto no modifica el consumo.
     # Se guarda aparte para saber cuánto devolver al repartidor cuando el restaurante
@@ -284,3 +292,143 @@ class OrderStatusHistory(models.Model):
 
     def __str__(self):
         return f"{self.order} · {self.get_to_status_display()}"
+
+
+class TerminalCut(models.Model):
+    # NOTA TEMPORAL PARA APRENDIZAJE: el corte agrupa los movimientos reales de una
+    # terminal y un día. Es conciliación, no una segunda fuente de ventas o propinas.
+    # Borra esta nota después de leerla.
+    class Provider(models.TextChoices):
+        CLOVER = "clover", "Clover"
+        MERCADO_PAGO = "mercado_pago", "Mercado Pago"
+        TRANSFER = "transfer", "Transferencias"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Abierto"
+        CLOSED = "closed", "Cerrado"
+
+    operating_date = models.DateField(default=timezone.localdate)
+    provider = models.CharField(max_length=30, choices=Provider.choices)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="terminal_cuts_closed",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-operating_date", "provider")
+        constraints = [models.UniqueConstraint(
+            fields=("operating_date", "provider"), name="unique_terminal_cut_date_provider",
+        )]
+
+    def __str__(self):
+        return f"{self.get_provider_display()} · {self.operating_date:%d/%m/%Y}"
+
+
+class TerminalMovement(models.Model):
+    # NOTA TEMPORAL PARA APRENDIZAJE: consumption_amount no se almacena: siempre se
+    # calcula del total menos propina, evitando datos contradictorios. Borra esta nota.
+    cut = models.ForeignKey(TerminalCut, on_delete=models.CASCADE, related_name="movements")
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    tip_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
+    tip_recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="terminal_movements_received",
+    )
+    terminal_name_reference = models.CharField(max_length=150, blank=True)
+    order = models.ForeignKey(
+        Order, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="terminal_movements",
+    )
+    table_account = models.ForeignKey(
+        "tables.TableAccount", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="terminal_movements",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="terminal_movements_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("created_at", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("order",), condition=models.Q(order__isnull=False),
+                name="unique_terminal_movement_order",
+            ),
+            models.UniqueConstraint(
+                fields=("table_account",), condition=models.Q(table_account__isnull=False),
+                name="unique_terminal_movement_table",
+            ),
+        ]
+
+    @property
+    def consumption_amount(self):
+        return self.total_amount - self.tip_amount
+
+    def __str__(self):
+        return f"{self.cut} · ${self.total_amount}"
+
+
+class CustomerDebt(models.Model):
+    # NOTA TEMPORAL PARA APRENDIZAJE: el estado de cobro vive separado del estado
+    # operativo. Un pedido puede estar Entregado y conservar aquí un saldo pendiente
+    # sin alterar la bitácora de cocina o reparto. Borra esta nota después de leerla.
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pendiente"
+        PARTIAL = "partial", "Pago parcial"
+        PAID = "paid", "Pagado"
+        FORGIVEN = "forgiven", "Condonado"
+
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name="debts")
+    order = models.OneToOneField(Order, on_delete=models.PROTECT, related_name="customer_debt")
+    original_amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
+    status = models.CharField(max_length=15, choices=Status.choices, default=Status.PENDING, db_index=True)
+    note = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="customer_debts_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("status", "-created_at")
+        indexes = [models.Index(fields=("customer", "status"), name="debt_customer_status_idx")]
+
+    @property
+    def balance(self):
+        return max(self.original_amount - self.paid_amount, 0)
+
+    def __str__(self):
+        return f"{self.customer} · {self.order.formatted_number} · ${self.balance}"
+
+
+class CustomerDebtMovement(models.Model):
+    # Cada cambio financiero queda como renglón independiente para conocer quién
+    # registró un abono, condonó o reabrió la cuenta. Borra esta nota al leerla.
+    class Action(models.TextChoices):
+        PAYMENT = "payment", "Abono"
+        FORGIVE = "forgive", "Condonación"
+        REOPEN = "reopen", "Reapertura"
+
+    debt = models.ForeignKey(CustomerDebt, on_delete=models.CASCADE, related_name="movements")
+    action = models.CharField(max_length=15, choices=Action.choices)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
+    payment_method = models.CharField(max_length=20, choices=Order.PaymentMethod.choices, blank=True)
+    note = models.CharField(max_length=250, blank=True)
+    registered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="customer_debt_movements",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+
+    def __str__(self):
+        return f"{self.debt} · {self.get_action_display()}"

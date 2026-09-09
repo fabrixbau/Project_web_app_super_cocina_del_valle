@@ -1,0 +1,18 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: Cada tarjeta sigue siendo un radio HTML real.
+Al tocar la imagen o el nombre se selecciona exactamente un producto para este tiempo,
+pero la interfaz ya no depende de un círculo pequeño. Borra esta nota al leerla. -->
+<section class="package-visual-field" data-package-choice-group>
+  <h3><span>{{ step }}</span>{{ label }}</h3>
+  {% if field.errors %}{{ field.errors }}{% endif %}
+  <div class="package-choice-grid">
+    {% for product in products %}
+      <label class="package-choice-card" data-package-choice data-search-name="{{ product.name|lower }}">
+        <input type="radio" name="{{ field.html_name }}" value="{{ product.pk }}" {% if not allow_pending %}required{% endif %}>
+        <span class="package-choice-image">{% if product.image %}<img src="{{ product.image.url }}" alt="">{% else %}<span>Sin imagen</span>{% endif %}</span>
+        <strong>{{ product.name }}</strong>
+      </label>
+    {% empty %}<p>No hay productos disponibles para este tiempo.</p>{% endfor %}
+  </div>
+  <p class="package-choice-empty" data-package-choice-empty hidden>No hay coincidencias en este tiempo.</p>
+</section>
+{% if step == "3" and not suppress_packaging %}{% include "menu/_package_packaging_options.html" %}{% endif %}

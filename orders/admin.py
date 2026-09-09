@@ -8,7 +8,7 @@
 
 from django.contrib import admin
 
-from .models import Customer, CustomerAddress, DailyOrderCounter, Order, OrderItem, OrderStatusHistory
+from .models import Customer, CustomerAddress, CustomerDebt, CustomerDebtMovement, DailyOrderCounter, Order, OrderItem, OrderStatusHistory, TerminalCut, TerminalMovement
 
 
 class OrderItemInline(admin.StackedInline):
@@ -38,7 +38,8 @@ class OrderAdmin(admin.ModelAdmin):
         "public_token", "daily_number", "operating_date", "source", "total",
         "attention_started_by", "attention_started_at",
         "delivery_assigned_by", "delivery_assigned_at",
-        "cash_handoff_by", "cash_handoff_at",
+        "cash_settlement_by", "cash_settlement_at",
+        "cashier_released_by", "cashier_released_at",
     )
     inlines = (OrderItemInline, OrderStatusHistoryInline)
 
@@ -46,3 +47,7 @@ class OrderAdmin(admin.ModelAdmin):
 admin.site.register(DailyOrderCounter)
 admin.site.register(Customer)
 admin.site.register(CustomerAddress)
+admin.site.register(TerminalCut)
+admin.site.register(TerminalMovement)
+admin.site.register(CustomerDebt)
+admin.site.register(CustomerDebtMovement)
