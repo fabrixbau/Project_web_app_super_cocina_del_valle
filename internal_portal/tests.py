@@ -8,8 +8,12 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, WAITER
+from menu.inventory import adjust_stock, reserve_stock
+from menu.models import Category, DailyProductStock, MealPackage, Product
+from orders.models import Order, OrderItem
 
 
 class InternalPortalAccessTests(TestCase):
@@ -79,3 +83,61 @@ class InternalPortalAccessTests(TestCase):
         for url_name in ("dashboard", "tables", "orders", "deliveries", "reports"):
             response = self.client.get(reverse(f"internal_portal:{url_name}"))
             self.assertEqual(response.status_code, 200)
+
+
+class SalesReportTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser(username="sales_admin", password="test-password")
+        self.client.force_login(self.admin)
+        category = Category.objects.create(name="Comida corrida")
+        self.consomme = Product.objects.create(category=category, name="Consomé", price=20)
+        self.rice = Product.objects.create(category=category, name="Arroz rojo", price=25)
+        self.stew = Product.objects.create(category=category, name="Pollo con mole", price=45)
+        self.package = MealPackage.objects.get(package_type=MealPackage.PackageType.RUNNING)
+
+    def test_report_counts_finalized_packages_and_excludes_drafts(self):
+        completed = Order.objects.create(
+            daily_number=1, operating_date=timezone.localdate(), order_type=Order.OrderType.PICKUP,
+            source=Order.Source.INTERNAL, status=Order.Status.PICKED_UP,
+            customer_name="Mostrador", phone="", total=150,
+        )
+        completed_item = OrderItem.objects.create(
+            order=completed, item_type=OrderItem.ItemType.PACKAGE, package=self.package,
+            package_name_snapshot="Comida corrida", first_course=self.consomme,
+            first_course_name_snapshot="Consomé", second_course=self.rice,
+            second_course_name_snapshot="Arroz rojo", main_course=self.stew,
+            main_course_name_snapshot="Pollo con mole", tortillas=True, beans=False,
+            unit_price=75, quantity=2, subtotal=150,
+        )
+        stock = DailyProductStock.objects.create(
+            date=timezone.localdate(), product=self.consomme,
+            channel=DailyProductStock.Channel.ORDERS, initial_quantity=10,
+        )
+        adjust_stock(stock=stock, quantity=10, actor=self.admin, note="Segunda preparación")
+        adjust_stock(stock=stock, quantity=15, actor=self.admin, note="Tercera preparación")
+        reserve_stock(
+            stock=stock, quantity=2, actor=self.admin,
+            reference_type="order_item", reference_id=completed_item.pk,
+        )
+        draft = Order.objects.create(
+            daily_number=2, operating_date=timezone.localdate(), order_type=Order.OrderType.PICKUP,
+            source=Order.Source.INTERNAL, status=Order.Status.DRAFT,
+            customer_name="Mostrador", phone="", total=45,
+        )
+        OrderItem.objects.create(
+            order=draft, item_type=OrderItem.ItemType.PRODUCT, product=self.stew,
+            product_name_snapshot="Pollo con mole", tortillas=False, beans=False,
+            unit_price=45, quantity=1, subtotal=45,
+        )
+
+        response = self.client.get(reverse("internal_portal:reports"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["running_count"], 2)
+        self.assertEqual(response.context["individual_total"], 0)
+        self.assertEqual(response.context["totals"]["tickets"], 1)
+        self.assertEqual(response.context["main_courses"][0]["name"], "Pollo con mole")
+        self.assertEqual(response.context["main_courses"][0]["total"], 2)
+        self.assertEqual(response.context["inventory_totals"]["prepared"], 35)
+        self.assertEqual(response.context["inventory_totals"]["sold"], 2)
+        self.assertEqual(response.context["inventory_totals"]["remaining"], 33)

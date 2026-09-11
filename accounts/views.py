@@ -18,7 +18,12 @@ from django.views.decorators.http import require_POST
 from .forms import QuickPinSetupForm, QuickSwitchForm
 from .models import Profile
 from .quick_switch import LOCK_KEY, enable_quick_switch, quick_switch_is_trusted
-from .roles import WAITER, user_has_any_role
+from .roles import ADMIN, WAITER, user_has_any_role
+
+
+def _can_use_waiter_pin(user):
+    """El PIN rápido pertenece a meseros, nunca a cuentas administrativas."""
+    return user_has_any_role(user, (WAITER,)) and not user_has_any_role(user, (ADMIN,))
 
 
 def _safe_next(request):
@@ -28,7 +33,7 @@ def _safe_next(request):
 
 @login_required
 def quick_pin_setup(request):
-    if not user_has_any_role(request.user, (WAITER,)):
+    if not _can_use_waiter_pin(request.user):
         messages.error(request, "El cambio rápido está disponible solamente para meseros.")
         return redirect("internal_portal:dashboard")
     form = QuickPinSetupForm(request.POST or None, user=request.user)
@@ -45,6 +50,9 @@ def quick_pin_setup(request):
 
 @login_required
 def quick_switch(request):
+    if not _can_use_waiter_pin(request.user):
+        messages.error(request, "El cambio rápido está disponible solamente para meseros.")
+        return redirect("internal_portal:dashboard")
     if not quick_switch_is_trusted(request.session):
         messages.error(request, "Primero configura tu PIN para habilitar esta tablet.")
         return redirect("accounts:quick_pin_setup")
@@ -92,6 +100,9 @@ def quick_switch(request):
 @require_POST
 @login_required
 def quick_lock(request):
+    if not _can_use_waiter_pin(request.user):
+        messages.error(request, "El bloqueo por PIN está disponible solamente para meseros.")
+        return redirect("internal_portal:dashboard")
     if quick_switch_is_trusted(request.session):
         request.session[LOCK_KEY] = True
         request.session.modified = True

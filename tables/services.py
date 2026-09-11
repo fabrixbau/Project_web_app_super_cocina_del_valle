@@ -21,7 +21,8 @@ from django.utils import timezone
 
 from accounts.roles import WAITER
 
-from menu.models import DailyMenu, MealPackage, Product
+from menu.inventory import release_stock, reserve_stock
+from menu.models import DailyMenu, DailyProductStock, MealPackage, Product, StockMovement
 from menu.packaging import selected_packaging_products
 from menu.selection import resolve_product_selection
 
@@ -90,10 +91,92 @@ def daily_menu_order_product_ids(daily_menu):
     }
 
 
+def _stock_for(*, product=None, item_kind=DailyProductStock.ItemKind.PRODUCT, date, required=False, chicken_piece=""):
+    filters = {
+        "date": date, "channel": DailyProductStock.Channel.TABLE,
+        "stock_type": DailyProductStock.StockType.DAILY,
+        "item_kind": item_kind, "chicken_piece": chicken_piece,
+    }
+    filters["product"] = product if product else None
+    stock = (
+        DailyProductStock.objects.select_for_update()
+        .filter(**filters)
+        .order_by("pk")
+        .first()
+    )
+    if not stock and chicken_piece:
+        stock = (
+            DailyProductStock.objects.select_for_update()
+            .filter(**{**filters, "chicken_piece": ""})
+            .order_by("pk")
+            .first()
+        )
+    if not stock and product and not required:
+        stock = (
+            DailyProductStock.objects.select_for_update()
+            .filter(
+                stock_type=DailyProductStock.StockType.FIXED,
+                product=product,
+                channel=DailyProductStock.Channel.SHARED,
+                is_tracked=True,
+            )
+            .order_by("pk")
+            .first()
+        )
+    if required and not stock:
+        name = product.name if product else dict(DailyProductStock.ItemKind.choices)[item_kind]
+        raise ValidationError(f"{name} no tiene raciones configuradas para mesas.")
+    return stock
+
+
+def _change_item_stock(*, item, quantity, actor, reserve):
+    """Reserve/release all components represented by `quantity` units of one ticket row."""
+    if not quantity:
+        return
+    menu = item.daily_menu
+    stock_date = menu.date if menu else timezone.localdate()
+    requirements = []
+    if item.item_type == TableAccountItem.ItemType.PACKAGE:
+        requirements.extend(product for product in (
+            item.first_course_product, item.second_course_product, item.main_course_product,
+            (item.water_product or (menu.water_product if menu else None)) if item.with_water else None,
+            (item.beans_product or (menu.beans_order if menu else None)) if item.beans else None,
+        ) if product)
+        if item.tortillas:
+            requirements.append(DailyProductStock.ItemKind.TORTILLAS)
+    elif item.product_id:
+        requirements.append(item.product)
+
+    for requirement in requirements:
+        is_product = isinstance(requirement, Product)
+        is_required_daily_product = bool(
+            menu and is_product and requirement.pk in daily_menu_order_product_ids(menu)
+        ) or bool(menu and is_product and requirement.pk == menu.water_product_id)
+        stock = _stock_for(
+            product=requirement if is_product else None,
+            item_kind=DailyProductStock.ItemKind.PRODUCT if is_product else requirement,
+            date=stock_date,
+            required=bool(menu and not is_product) or is_required_daily_product,
+            chicken_piece=(
+                item.chicken_piece
+                if is_product and menu and requirement.pk == menu.chicken_stew_id
+                else ""
+            ),
+        )
+        if not stock:
+            continue
+        operation = reserve_stock if reserve else release_stock
+        operation(
+            stock=stock, quantity=quantity, actor=actor,
+            reference_type="table_item", reference_id=item.pk,
+            note=f"{item.account.table.name}: {item.product_name_snapshot}",
+        )
+
+
 @transaction.atomic
 def add_product_to_table(
     *, account, product, added_by, chicken_piece="", is_package_candidate=False,
-    require_individual=True, raw_option_ids=None, customization_comment="",
+    require_individual=True, raw_option_ids=None, customization_comment="", daily_menu=None,
 ):
     account = TableAccount.objects.select_for_update().get(pk=account.pk)
     if account.status != TableAccount.Status.OPEN:
@@ -113,6 +196,7 @@ def add_product_to_table(
     item = TableAccountItem.objects.select_for_update().filter(
         account=account, product=product, chicken_piece=chicken_piece,
         is_package_candidate=is_package_candidate,
+        daily_menu=daily_menu,
         configuration_signature=selection["signature"],
     ).order_by("-id").first()
     if item:
@@ -130,11 +214,13 @@ def add_product_to_table(
             added_by=added_by,
             chicken_piece=chicken_piece,
             is_package_candidate=is_package_candidate,
+            daily_menu=daily_menu,
             configuration_snapshot=selection["snapshot"],
             configuration_signature=selection["signature"],
             customization_comment=selection["comment"],
             is_customized=selection["is_customized"],
         )
+    _change_item_stock(item=item, quantity=1, actor=added_by, reserve=True)
     record_activity(account=account, actor=added_by, action=TableActivity.Action.CUSTOMIZE if selection["is_customized"] else TableActivity.Action.ADD, description=product.name, quantity_delta=1)
     return item
 
@@ -156,11 +242,11 @@ def add_daily_menu_product_to_table(
     return add_product_to_table(
         account=account, product=product, added_by=added_by, chicken_piece=chicken_piece,
         require_individual=False, raw_option_ids=raw_option_ids,
-        customization_comment=customization_comment,
+        customization_comment=customization_comment, daily_menu=daily_menu,
     )
 
 
-def consume_product_units(*, account, product_ids, chicken_product_id=None, chicken_piece=""):
+def consume_product_units(*, account, product_ids, actor, chicken_product_id=None, chicken_piece=""):
     for product_id in product_ids:
         item_queryset = TableAccountItem.objects.select_for_update().filter(
             account=account, product_id=product_id,
@@ -172,6 +258,7 @@ def consume_product_units(*, account, product_ids, chicken_product_id=None, chic
         item = item_queryset.order_by("-id").first()
         if not item:
             raise ValidationError("Cambió el ticket y ya no encontramos todos los tiempos seleccionados.")
+        _change_item_stock(item=item, quantity=1, actor=actor, reserve=False)
         if item.quantity == 1:
             item.delete()
         else:
@@ -208,6 +295,7 @@ def add_auto_meal_component(
         is_package_candidate=True,
         raw_option_ids=raw_option_ids,
         customization_comment=customization_comment,
+        daily_menu=daily_menu,
     )
     if not completed_selection:
         return None
@@ -258,6 +346,7 @@ def add_auto_meal_component(
     consume_product_units(
         account=account,
         product_ids=(first.pk, second.pk, main.pk),
+        actor=added_by,
         chicken_product_id=daily_menu.chicken_stew_id,
         chicken_piece=chicken_piece,
     )
@@ -324,8 +413,11 @@ def add_package_to_table(
             **signature, product_name_snapshot=package.name,
             package_name_snapshot=package.name,
             water_name_snapshot=daily_menu.water_product.name if cleaned_data["with_water"] else "",
+            water_product=daily_menu.water_product if cleaned_data["with_water"] else None,
+            beans_product=daily_menu.beans_order if cleaned_data.get("beans") else None,
             unit_price=price, quantity=1, subtotal=price, added_by=added_by,
         )
+    _change_item_stock(item=item, quantity=1, actor=added_by, reserve=True)
     record_activity(account=account, actor=added_by, action=TableActivity.Action.PACKAGE, description=package.name, quantity_delta=1)
     # NOTA TEMPORAL PARA APRENDIZAJE: los envases siguen siendo partidas separadas;
     # este bloque sólo garantiza que comida y cargos se guarden juntos o ninguno se
@@ -354,6 +446,7 @@ def update_table_package(*, account, item, package, daily_menu, cleaned_data, ch
         raise ValidationError("La partida no corresponde a este menú diario.")
     if not item.daily_menu_id:
         item.daily_menu = daily_menu
+    _change_item_stock(item=item, quantity=item.quantity, actor=changed_by, reserve=False)
     first = cleaned_data.get("first_course")
     second = cleaned_data.get("second_course")
     main = cleaned_data.get("main_course")
@@ -369,9 +462,11 @@ def update_table_package(*, account, item, package, daily_menu, cleaned_data, ch
     item.chicken_piece = cleaned_data["chicken_piece"]
     item.with_water = cleaned_data["with_water"]
     item.water_name_snapshot = daily_menu.water_product.name if cleaned_data["with_water"] else ""
+    item.water_product = daily_menu.water_product if cleaned_data["with_water"] else None
     item.refill_extra = cleaned_data["refill_extra"]
     item.tortillas = False
     item.beans = False
+    item.beans_product = None
     item.is_complete = cleaned_data["is_complete"]
     item.customization_comment = cleaned_data.get("customization_comment", "")
     item.configuration_signature = cleaned_data.get("configuration_signature", "")
@@ -382,10 +477,11 @@ def update_table_package(*, account, item, package, daily_menu, cleaned_data, ch
     item.save(update_fields=(
         "first_course_product", "first_course_snapshot", "second_course_product",
         "second_course_snapshot", "main_course_product", "main_course_snapshot",
-        "chicken_piece", "with_water", "water_name_snapshot", "refill_extra", "tortillas", "beans",
+        "chicken_piece", "with_water", "water_name_snapshot", "water_product", "refill_extra", "tortillas", "beans", "beans_product",
         "daily_menu", "is_complete", "customization_comment", "configuration_signature",
         "configuration_snapshot", "is_customized", "unit_price", "subtotal",
     ))
+    _change_item_stock(item=item, quantity=item.quantity, actor=changed_by, reserve=True)
     record_activity(account=account, actor=changed_by, action=TableActivity.Action.PACKAGE_EDIT, description=package.name)
     return item
 
@@ -401,6 +497,7 @@ def change_item_in_ticket(*, account, item, action, changed_by):
         item_query = TableAccountItem.objects.filter(
             account=account, product_id=item.product_id, chicken_piece=item.chicken_piece,
             is_package_candidate=item.is_package_candidate,
+            daily_menu_id=item.daily_menu_id,
             configuration_signature=item.configuration_signature,
         )
     items = list(item_query.select_for_update().order_by("-id"))
@@ -409,13 +506,19 @@ def change_item_in_ticket(*, account, item, action, changed_by):
     description = item.product_name_snapshot
     if action == "remove":
         removed_quantity = sum(candidate.quantity for candidate in items)
+        for candidate in items:
+            _change_item_stock(
+                item=candidate, quantity=candidate.quantity, actor=changed_by, reserve=False,
+            )
         TableAccountItem.objects.filter(pk__in=[item.pk for item in items]).delete()
         record_activity(account=account, actor=changed_by, action=TableActivity.Action.REMOVE, description=description, quantity_delta=-removed_quantity)
         return
     item = items[0]
     if action == "increase":
+        _change_item_stock(item=item, quantity=1, actor=changed_by, reserve=True)
         item.quantity += 1
     elif action == "decrease":
+        _change_item_stock(item=item, quantity=1, actor=changed_by, reserve=False)
         if item.quantity > 1:
             item.quantity -= 1
         else:
@@ -485,5 +588,10 @@ def close_table_account(*, account, cleaned_data, closed_by):
         "status", "closed_at", "closed_by", "payment_method", "subtotal_closed",
         "tip_amount", "tip_recipient", "total_paid", "cash_tendered", "change_given",
     ))
+    StockMovement.objects.filter(
+        reference_type="table_item",
+        reference_id__in=[item.pk for item in items],
+        reason=StockMovement.Reason.RESERVATION,
+    ).update(reason=StockMovement.Reason.CONSUMPTION)
     record_activity(account=account, actor=closed_by, action=TableActivity.Action.CLOSE, description=f"{account.get_payment_method_display()} · ${total}", metadata={"tip": str(tip), "responsible_waiter_id": account.assigned_waiter_id})
     return account

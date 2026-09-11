@@ -6,11 +6,14 @@ from . import views
 app_name = "menu"
 urlpatterns = [
     path("", views.configuration, name="configuration"),
+    path("inventario/", views.inventory_control, name="inventory_control"),
+    path("inventario/historial/", views.inventory_history, name="inventory_history"),
     path("categorias/nueva/", views.category_create, name="category_create"),
     path("categorias/orden/", views.category_ordering, name="category_ordering"),
     path("categorias/<int:category_id>/editar/", views.category_edit, name="category_edit"),
     path("categorias/<int:category_id>/eliminar/", views.category_delete, name="category_delete"),
     path("productos/nuevo/", views.product_create, name="product_create"),
+    path("productos/<int:product_id>/imagen-ficha/", views.product_card_image, name="product_card_image"),
     path("ingredientes/", views.ingredient_group_library, name="ingredient_group_library"),
     path("ingredientes/nuevo/", views.shared_group_edit, name="shared_group_create"),
     path("ingredientes/<uuid:shared_key>/editar/", views.shared_group_edit, name="shared_group_edit"),

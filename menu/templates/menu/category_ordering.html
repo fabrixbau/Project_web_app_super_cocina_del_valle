@@ -8,7 +8,7 @@ Las tarjetas apagadas siguen ordenables, pero no se muestran en ese modo. Borra 
 {% block title %}Organizar categorías{% endblock %}
 {% block content %}
   <div class="page-heading">
-    <div><a href="{% url 'menu:configuration' %}">← Administrar menú</a><h1>Organizar categorías</h1><p>Arrastra las tarjetas hasta obtener el orden deseado en cada vista.</p></div>
+    <div><a class="menu-back-link" href="{% url 'menu:configuration' %}">Administrar menú</a><h1>Organizar categorías</h1><p>Arrastra las tarjetas hasta obtener el orden deseado en cada vista.</p></div>
   </div>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
   <form method="post" data-category-order-form>{% csrf_token %}

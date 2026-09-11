@@ -6,8 +6,14 @@ la acción masiva. Borra esta nota después de leerla. -->
 {% block content %}
   <div class="page-heading"><div><a href="{% url 'internal_portal:dashboard' %}">← Panel</a><h1>Notificaciones</h1></div><a class="button-link secondary" href="?show={% if show == 'all' %}unread{% else %}all{% endif %}">{% if show == 'all' %}Ver pendientes{% else %}Ver todas{% endif %}</a></div>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  {% if stock_alerts %}<section class="notification-list stock-alert-list">
+    {% for alert in stock_alerts %}<article class="card notification-card unread stock-alert-card">
+      <div><small>Inventario{% if alert.stock.stock_type == 'daily' %} diario · {{ alert.stock.date|date:'d/m/Y' }}{% else %} fijo{% endif %}</small><h2>Quedan {{ alert.available_quantity }} de {{ alert.stock.item_name }}{% if alert.stock.stock_type == 'daily' %} para {{ alert.stock.get_channel_display }}{% endif %}</h2><p>Aviso configurado al llegar a {{ alert.stock.low_stock_threshold }}.</p></div>
+      <form method="post" action="{% url 'notifications:stock_alert_dismiss' alert.id %}">{% csrf_token %}<button type="submit" class="secondary">Descartar para mí</button></form>
+    </article>{% endfor %}
+  </section>{% endif %}
   <section class="notification-list">{% for notification in notifications %}<article class="card notification-card {% if not notification.is_read %}unread{% endif %}">
     <div><small>{{ notification.created_at|date:'d/m/Y H:i' }}</small><h2>{{ notification.title }}</h2><p>{{ notification.message }}</p>{% if notification.is_read %}<small>Atendida{% if notification.read_by %} por {{ notification.read_by.get_full_name|default:notification.read_by.username }}{% endif %}</small>{% endif %}</div>
     <form method="post" action="{% url 'notifications:notification_open' notification.id %}">{% csrf_token %}<button type="submit">{% if notification.is_read %}Ver pedido{% else %}Atender y abrir{% endif %}</button></form>
-  </article>{% empty %}<section class="card"><p>No hay notificaciones en esta vista.</p></section>{% endfor %}</section>
+  </article>{% empty %}{% if not stock_alerts %}<section class="card"><p>No hay notificaciones en esta vista.</p></section>{% endif %}{% endfor %}</section>
 {% endblock %}

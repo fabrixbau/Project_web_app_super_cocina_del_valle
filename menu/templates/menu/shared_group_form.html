@@ -5,7 +5,7 @@ Este formulario reutiliza el editor visual de ingredientes, pero además decide 
 comparten la familia. Al guardar se actualizan todas sus asociaciones. Borra esta nota. -->
 {% block title %}{% if representative %}Editar grupo{% else %}Nuevo grupo{% endif %}{% endblock %}
 {% block content %}
-  <div class="page-heading"><div><a href="{% url 'menu:ingredient_group_library' %}">← Grupos</a><h1>{% if representative %}Editar {{ representative.name }}{% else %}Nuevo grupo compartido{% endif %}</h1></div></div>
+  <div class="page-heading"><div><a class="menu-back-link" href="{% url 'menu:ingredient_group_library' %}">Grupos</a><h1>{% if representative %}Editar {{ representative.name }}{% else %}Nuevo grupo compartido{% endif %}</h1></div></div>
   {% for error in errors %}<p class="message error">{{ error }}</p>{% endfor %}
   <form method="post" class="card shared-group-form">{% csrf_token %}
     <fieldset><legend>1. Productos asociados</legend><p class="section-help">Marca todos los productos que deben recibir este mismo grupo y sus futuras modificaciones.</p><div class="shared-product-options">{% for product in products %}<label><input type="checkbox" name="products" value="{{ product.id }}" {% if product.id in selected_product_ids %}checked{% endif %}><span><strong>{{ product.name }}</strong><small>{{ product.category.name }}</small></span></label>{% endfor %}</div></fieldset>

@@ -29,3 +29,35 @@ class InternalNotification(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class StockAlert(models.Model):
+    stock = models.ForeignKey(
+        "menu.DailyProductStock", on_delete=models.CASCADE, related_name="alerts",
+    )
+    available_quantity = models.PositiveIntegerField()
+    is_active = models.BooleanField(default=True, db_index=True)
+    triggered_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("available_quantity", "-triggered_at")
+
+    def __str__(self):
+        return f"Existencia baja: {self.stock.item_name} ({self.available_quantity})"
+
+
+class StockAlertDismissal(models.Model):
+    alert = models.ForeignKey(StockAlert, on_delete=models.CASCADE, related_name="dismissals")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="dismissed_stock_alerts",
+    )
+    dismissed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("alert", "user"), name="unique_stock_alert_dismissal",
+            ),
+        ]

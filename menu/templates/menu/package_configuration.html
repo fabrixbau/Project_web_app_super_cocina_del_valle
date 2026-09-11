@@ -1,7 +1,7 @@
 {% extends "base_internal.html" %}
 {% block title %}Configurar paquetes{% endblock %}
 {% block content %}
-  <div class="page-heading"><div><a href="{% url 'menu:configuration' %}">← Administrar menú</a><h1>Paquetes de comida</h1></div></div>
+  <div class="page-heading"><div><a class="menu-back-link" href="{% url 'menu:configuration' %}">Administrar menú</a><h1>Paquetes de comida</h1></div></div>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
   <form method="post">{% csrf_token %}<div class="package-grid">
     {% for package_form in package_forms %}<section class="card package-card">

@@ -1,51 +1,54 @@
 {% extends "base_internal.html" %}
-<!-- NOTA TEMPORAL PARA APRENDIZAJE:
-Cada producto ahora enlaza a Ingredientes. El contador indica cuántos grupos de preparación
-tiene configurados sin mezclar esta tarea con la edición de precio o categoría. Borra la nota. -->
 {% block title %}Administrar menú{% endblock %}
 {% block content %}
-  <div class="page-heading">
-    <a class="button-link secondary" href="{% url 'menu:package_configuration' %}">Configurar paquetes</a>
-    <div><a href="{% url 'internal_portal:dashboard' %}">← Panel</a><h1>Administrar menú</h1></div>
-    <div><a class="button-link secondary" href="{% url 'menu:daily_menu_list' %}">Menús diarios</a> <a class="button-link secondary" href="{% url 'menu:ingredient_group_library' %}">Grupos de ingredientes</a> <a class="button-link secondary" href="{% url 'menu:category_ordering' %}">Ordenar categorías</a> <a class="button-link secondary" href="{% url 'menu:category_create' %}">Nueva categoría</a> <a class="button-link" href="{% url 'menu:product_create' %}">Nuevo producto</a></div>
-  </div>
+  <header class="menu-admin-heading">
+    <div class="menu-admin-title"><a href="{% url 'internal_portal:dashboard' %}">← Panel</a><span>Catálogo</span><h1>Administrar menú</h1><p>Organiza categorías, productos y configuraciones desde un solo lugar.</p></div>
+    <nav class="menu-admin-actions" aria-label="Herramientas del menú">
+      <a href="{% url 'menu:inventory_control' %}"><span>Existencias</span><strong>Ajustar inventario</strong></a>
+      <a href="{% url 'menu:package_configuration' %}"><span>Paquetes</span><strong>Configurar paquetes</strong></a>
+      <a href="{% url 'menu:daily_menu_list' %}"><span>Publicación</span><strong>Menús diarios</strong></a>
+      <a href="{% url 'menu:ingredient_group_library' %}"><span>Preparación</span><strong>Grupos de ingredientes</strong></a>
+      <a href="{% url 'menu:category_ordering' %}"><span>Organización</span><strong>Ordenar categorías</strong></a>
+      <a href="{% url 'menu:category_create' %}"><span>Crear</span><strong>Nueva categoría</strong></a>
+      <a class="is-primary" href="{% url 'menu:product_create' %}"><span>Crear</span><strong>Nuevo producto</strong></a>
+    </nav>
+  </header>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
-  <section class="card">
-    <h2>Filtrar productos</h2>
+  <section class="card menu-admin-filters">
+    <div><span>Filtrar catálogo</span><h2>Encuentra productos rápidamente</h2></div>
     <form method="get" class="filters">
       <label>Buscar <input name="q" value="{{ search }}" placeholder="Nombre o descripción"></label>
-      <label>Categoría
-        <select name="category"><option value="">Todas</option>{% for category in categories %}<option value="{{ category.id }}" {% if selected_category == category.id|stringformat:'s' %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select>
-      </label>
-      <label>Disponibilidad
-        <select name="availability"><option value="">Todas</option><option value="available" {% if availability == 'available' %}selected{% endif %}>Disponible</option><option value="unavailable" {% if availability == 'unavailable' %}selected{% endif %}>No disponible</option></select>
-      </label>
-      <button type="submit">Aplicar</button>
+      <label>Categoría <select name="category"><option value="">Todas</option>{% for category in categories %}<option value="{{ category.id }}" {% if selected_category == category.id|stringformat:'s' %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></label>
+      <label>Disponibilidad <select name="availability"><option value="">Todas</option><option value="available" {% if availability == 'available' %}selected{% endif %}>Disponible</option><option value="unavailable" {% if availability == 'unavailable' %}selected{% endif %}>No disponible</option></select></label>
+      <button type="submit">Aplicar filtros</button>
     </form>
   </section>
-  <section class="card spaced-card">
-    <h2>Categorías</h2>
-    <div class="item-list">
+  <section class="card spaced-card menu-category-panel">
+    <header class="menu-section-heading"><div><span>Estructura del catálogo</span><h2>Categorías</h2><p>Edita el nombre o elimina las categorías que ya no utilices.</p></div><strong>{{ categories|length }} categorías</strong></header>
+    <div class="menu-category-grid">
       {% for category in categories %}
-        <div><strong>{{ category.name }}</strong> ({{ category.product_count }} productos) — <a href="{% url 'menu:category_edit' category.id %}">Editar</a> · <a href="{% url 'menu:category_delete' category.id %}">Eliminar</a></div>
-      {% empty %}<p>Aún no hay categorías.</p>{% endfor %}
+        <article class="menu-category-card"><span class="menu-category-index">{{ forloop.counter|stringformat:"02d" }}</span><div><h3>{{ category.name }}</h3><p>{{ category.product_count }} producto{{ category.product_count|pluralize }}</p></div><div class="menu-category-actions"><a href="{% url 'menu:category_edit' category.id %}">Editar</a><a class="danger-link" href="{% url 'menu:category_delete' category.id %}">Eliminar</a></div></article>
+      {% empty %}<div class="menu-empty-state"><strong>Aún no hay categorías</strong><p>Crea la primera categoría para comenzar a organizar tus productos.</p></div>{% endfor %}
     </div>
   </section>
-  <section class="card spaced-card">
-    <h2>Productos</h2>
-    <div class="product-grid">
-      {% for product in products %}
-        <article class="product-card">
-          {% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% endif %}
-          <small>{{ product.category.name }} · {{ product.get_component_type_display }}{% if product.packaging_kind != 'none' %} · {{ product.get_packaging_kind_display }}{% endif %}</small><h3>{{ product.name }}</h3>
-          <p><strong>${{ product.price }}</strong></p><p>{{ product.description|default:"Sin descripción" }}</p>
-          <p>{% if product.is_available %}Disponible{% else %}No disponible{% endif %}</p>
-          <p>Periodos: {% for period in product.service_periods.all %}{{ period.name }}{% if not forloop.last %}, {% endif %}{% empty %}Todo el día{% endfor %}</p>
-          {% if product.eligible_for_executive_meal %}<p><strong>Elegible para comida ejecutiva</strong></p>{% endif %}
-          <div class="product-admin-actions"><a href="{% url 'menu:product_edit' product.id %}">Editar</a><a href="{% url 'menu:product_edit' product.id %}#product-ingredients">Ingredientes ({{ product.option_group_count }})</a><a href="{% url 'menu:product_delete' product.id %}">Eliminar</a></div>
-          <form method="post" action="{% url 'menu:product_toggle_availability' product.id %}">{% csrf_token %}<button type="submit">Cambiar disponibilidad</button></form>
-        </article>
-      {% empty %}<p>No se encontraron productos.</p>{% endfor %}
+  <section class="spaced-card menu-products-panel">
+    <header class="menu-section-heading"><div><span>Catálogo organizado</span><h2>Productos por categoría</h2><p>Cada grupo conserva el orden configurado para el menú.</p></div></header>
+    {% regroup products by category as product_groups %}
+    <div class="menu-product-groups">
+      {% for group in product_groups %}
+        <section class="menu-product-group">
+          <header><div><span>Categoría</span><h3>{{ group.grouper.name }}</h3></div><strong>{{ group.list|length }} producto{{ group.list|length|pluralize }}</strong></header>
+          <div class="product-grid menu-product-grid">
+            {% for product in group.list %}
+              <article class="product-card menu-admin-product{% if not product.is_available %} is-unavailable{% endif %}">
+                <div class="menu-product-visual">{% if product.image %}<img src="{% url 'menu:product_card_image' product.id %}?v={{ product.updated_at|date:'U' }}" alt="{{ product.name }}">{% else %}<span>Sin imagen</span>{% endif %}<strong>{% if product.is_available %}Disponible{% else %}No disponible{% endif %}</strong></div>
+                <div class="menu-product-copy"><small>{{ product.get_component_type_display }}{% if product.packaging_kind != 'none' %} · {{ product.get_packaging_kind_display }}{% endif %}</small><h3>{{ product.name }}</h3><b>${{ product.price }}</b><p>{{ product.description|default:"Sin descripción" }}</p><p class="menu-product-periods">{% for period in product.service_periods.all %}{{ period.name }}{% if not forloop.last %} · {% endif %}{% empty %}Todo el día{% endfor %}</p>{% if product.eligible_for_executive_meal %}<span class="menu-product-tag">Comida ejecutiva</span>{% endif %}</div>
+                <footer><div class="product-admin-actions"><a href="{% url 'menu:product_edit' product.id %}">Editar</a><a href="{% url 'menu:product_edit' product.id %}#product-ingredients">Ingredientes ({{ product.option_group_count }})</a><a class="danger-link" href="{% url 'menu:product_delete' product.id %}">Eliminar</a></div><form method="post" action="{% url 'menu:product_toggle_availability' product.id %}">{% csrf_token %}<button type="submit">Cambiar disponibilidad</button></form></footer>
+              </article>
+            {% endfor %}
+          </div>
+        </section>
+      {% empty %}<div class="card menu-empty-state"><strong>No se encontraron productos</strong><p>Prueba modificando los filtros o registra un producto nuevo.</p></div>{% endfor %}
     </div>
   </section>
 {% endblock %}

@@ -31,6 +31,7 @@ class PackageCartForm(PackageSelectionForm):
 
 
 class InternalPackageForm(PackageCartForm):
+    bread = forms.BooleanField(label="Lleva bolillo", required=False)
     customization_comment = forms.CharField(
         label="Comentario para cocina", required=False, max_length=150,
         widget=forms.Textarea(attrs={"rows": 2, "placeholder": "Ej. Sin cebolla"}),
@@ -45,6 +46,7 @@ class InternalPackageExtrasForm(forms.Form):
     # los tres tiempos permanecen intactos. Borra esta nota después de leerla.
     with_water = forms.BooleanField(label="Con agua del día", required=False)
     tortillas = forms.BooleanField(label="Lleva tortillas", required=False)
+    bread = forms.BooleanField(label="Lleva bolillo", required=False)
     beans = forms.BooleanField(label="Lleva frijoles", required=False)
     customization_comment = forms.CharField(
         label="Comentario para cocina", required=False, max_length=150,
@@ -53,6 +55,12 @@ class InternalPackageExtrasForm(forms.Form):
 
     def clean_customization_comment(self):
         return " ".join(self.cleaned_data["customization_comment"].split())
+
+    def clean(self):
+        data = super().clean()
+        if data.get("tortillas") and data.get("bread"):
+            raise forms.ValidationError("Selecciona tortillas o bolillo, no ambos.")
+        return data
 
 
 class ProductCartForm(forms.Form):

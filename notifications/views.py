@@ -6,25 +6,30 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from accounts.roles import ADMIN, ORDER_TAKER, role_required
+from accounts.roles import ADMIN, OPERATIONAL_ROLES, ORDER_TAKER, role_required, user_has_any_role
 
-from .models import InternalNotification
+from .models import InternalNotification, StockAlert, StockAlertDismissal
 
 
-@role_required(ADMIN, ORDER_TAKER)
+@role_required(*OPERATIONAL_ROLES)
 def notification_list(request):
     show = request.GET.get("show", "unread")
     notifications = InternalNotification.objects.select_related("order", "read_by")
+    if not user_has_any_role(request.user, (ADMIN, ORDER_TAKER)):
+        notifications = notifications.none()
     if show != "all":
         notifications = notifications.filter(is_read=False)
         show = "unread"
+    stock_alerts = StockAlert.objects.filter(is_active=True).select_related("stock__product")
+    if request.user.is_authenticated:
+        stock_alerts = stock_alerts.exclude(dismissals__user=request.user)
     return render(request, "notifications/notification_list.html", {
-        "notifications": notifications, "show": show,
+        "notifications": notifications, "stock_alerts": stock_alerts, "show": show,
     })
 
 
 @require_POST
-@role_required(ADMIN, ORDER_TAKER)
+@role_required(*OPERATIONAL_ROLES)
 def notification_open(request, notification_id):
     notification = get_object_or_404(InternalNotification, pk=notification_id)
     if not notification.is_read:
@@ -39,3 +44,11 @@ def notification_open(request, notification_id):
             "attention_started_at", "attention_started_by", "updated_at",
         ])
     return redirect("orders:order_detail", order_id=notification.order_id)
+
+
+@require_POST
+@role_required(*OPERATIONAL_ROLES)
+def stock_alert_dismiss(request, alert_id):
+    alert = get_object_or_404(StockAlert, pk=alert_id, is_active=True)
+    StockAlertDismissal.objects.get_or_create(alert=alert, user=request.user)
+    return redirect("notifications:notification_list")

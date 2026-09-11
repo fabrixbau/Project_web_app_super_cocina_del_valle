@@ -4,18 +4,30 @@ La orden de frijoles es opcional, se vende aparte y no cuenta como tiempo del pa
 Borra esta nota después de leerla. -->
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
-  <p><a href="{% url 'menu:daily_menu_list' %}">← Menús diarios</a></p>
-  <section class="card"><h1>{{ title }}</h1>
-    <p>Estado actual: <strong>{{ daily_menu.get_status_display|default:"Borrador" }}</strong></p>
+  <p><a class="menu-back-link" href="{% url 'menu:daily_menu_list' %}">Menús diarios</a></p>
+  <section class="card daily-menu-editor"><header><div><span>Publicación del día</span><h1>{{ title }}</h1></div><strong>{{ daily_menu.get_status_display|default:"Borrador" }}</strong></header>
     <form method="post">{% csrf_token %}{{ form.non_field_errors }}
       <div class="daily-menu-fields">
-        <fieldset><legend>Información general</legend><p>{{ form.date.label_tag }} {{ form.date.errors }} {{ form.date }}</p><p>{{ form.water_product.label_tag }} {{ form.water_product.errors }} {{ form.water_product }}</p></fieldset>
-        <fieldset><legend>Primer tiempo · 2 opciones</legend><p>{{ form.chicken_consomme.label_tag }} {{ form.chicken_consomme.errors }} {{ form.chicken_consomme }}</p><p>{{ form.variable_first_course.label_tag }} {{ form.variable_first_course.errors }} {{ form.variable_first_course }}</p></fieldset>
-        <fieldset><legend>Segundo tiempo · 2 opciones diferentes</legend><p>{{ form.second_course_one.label_tag }} {{ form.second_course_one.errors }} {{ form.second_course_one }}</p><p>{{ form.second_course_two.label_tag }} {{ form.second_course_two.errors }} {{ form.second_course_two }}</p></fieldset>
-        <fieldset><legend>Tercer tiempo · 3 guisados</legend><p>{{ form.chicken_stew.label_tag }} {{ form.chicken_stew.errors }} {{ form.chicken_stew }}</p><p>{{ form.beef_stew.label_tag }} {{ form.beef_stew.errors }} {{ form.beef_stew }}</p><p>{{ form.varied_stew.label_tag }} {{ form.varied_stew.errors }} {{ form.varied_stew }}</p></fieldset>
-        <fieldset><legend>Complementos por orden</legend><p>{{ form.beans_order.label_tag }} {{ form.beans_order.errors }} {{ form.beans_order }}</p><small>Es opcional y aparece únicamente en Comida por orden.</small></fieldset>
+        <fieldset class="daily-menu-general"><legend>Información general</legend><p>{{ form.date.label_tag }} {{ form.date.errors }} {{ form.date }}</p><p>{{ form.water_product.label_tag }} {{ form.water_product.errors }} {{ form.water_product }}</p></fieldset>
+        <fieldset class="daily-menu-course"><legend><b>1</b> Primer tiempo</legend><small>El consomé se propone automáticamente, pero puedes sustituirlo por otra sopa.</small><p>{{ form.chicken_consomme.label_tag }} {{ form.chicken_consomme.errors }} {{ form.chicken_consomme }}</p><p>{{ form.variable_first_course.label_tag }} {{ form.variable_first_course.errors }} {{ form.variable_first_course }}</p></fieldset>
+        <fieldset class="daily-menu-course"><legend><b>2</b> Segundo tiempo</legend><small>Selecciona dos opciones diferentes.</small><p>{{ form.second_course_one.label_tag }} {{ form.second_course_one.errors }} {{ form.second_course_one }}</p><p>{{ form.second_course_two.label_tag }} {{ form.second_course_two.errors }} {{ form.second_course_two }}</p></fieldset>
+        <fieldset class="daily-menu-course"><legend><b>3</b> Tercer tiempo</legend><small>Configura los tres guisados disponibles.</small><p>{{ form.chicken_stew.label_tag }} {{ form.chicken_stew.errors }} {{ form.chicken_stew }}</p><p>{{ form.beef_stew.label_tag }} {{ form.beef_stew.errors }} {{ form.beef_stew }}</p><p>{{ form.varied_stew.label_tag }} {{ form.varied_stew.errors }} {{ form.varied_stew }}</p></fieldset>
+        <fieldset class="daily-menu-complements"><legend>Complementos por orden</legend><p>{{ form.beans_order.label_tag }} {{ form.beans_order.errors }} {{ form.beans_order }}</p><small>Opcional; aparece únicamente en Comida por orden.</small></fieldset>
       </div>
-      <button type="submit">Guardar menú</button>
+      <fieldset class="daily-stock-editor">
+        <legend>4. Distribución de raciones</legend>
+        <p class="daily-stock-help">Indica cuántas raciones se reservan para cada grupo. El aviso inicia en 15, pero puedes personalizarlo por producto y servicio.</p>
+        <div class="daily-stock-table">
+          <div class="daily-stock-heading"><strong>Producto o insumo</strong><strong>Mesas</strong><strong>Pedidos · recoger y domicilio</strong></div>
+          {% for row in form.stock_rows %}
+            <div class="daily-stock-row">
+              <strong>{{ row.label }}</strong>
+              {% for channel in row.channels %}<div class="daily-stock-channel"><span>{{ channel.label }}</span><label>Raciones{{ channel.quantity.errors }}{{ channel.quantity }}</label><label>Avisar en{{ channel.threshold.errors }}{{ channel.threshold }}</label></div>{% endfor %}
+            </div>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <div class="daily-menu-actions"><button type="submit">Guardar menú</button></div>
     </form>
   </section>
 {% endblock %}

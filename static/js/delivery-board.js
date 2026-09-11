@@ -3,8 +3,18 @@ fetch para conservar scroll y contexto. La clase is-selected muestra quién qued
 asignado después de cada respuesta del servidor. Borra esta nota. */
 const deliveryFilters = document.querySelector("[data-delivery-filters]");
 if (deliveryFilters) {
+  const scrollStorageKey = "delivery-board-filter-scroll";
+  const savedScroll = window.sessionStorage.getItem(scrollStorageKey);
+  if (savedScroll !== null) {
+    window.sessionStorage.removeItem(scrollStorageKey);
+    window.requestAnimationFrame(() => window.scrollTo({ top: Number(savedScroll), behavior: "auto" }));
+  }
+  deliveryFilters.addEventListener("submit", () => {
+    window.sessionStorage.setItem(scrollStorageKey, String(window.scrollY));
+  });
   let timer = null;
   deliveryFilters.querySelectorAll("select").forEach((field) => field.addEventListener("change", () => deliveryFilters.requestSubmit()));
+  deliveryFilters.querySelectorAll("input[name='delivery_person']").forEach((field) => field.addEventListener("change", () => deliveryFilters.requestSubmit()));
   deliveryFilters.querySelectorAll("input[name='status']").forEach((field) => field.addEventListener("change", () => deliveryFilters.requestSubmit()));
   deliveryFilters.querySelector("input[name='q']")?.addEventListener("input", () => {
     window.clearTimeout(timer);

@@ -1,32 +1,33 @@
-<!-- NOTA TEMPORAL PARA APRENDIZAJE:
-La barra interna muestra el acceso y contador de notificaciones solo a roles autorizados.
-Ahora también identifica al usuario activo para evitar operar accidentalmente con otra cuenta.
-Los enlaces de módulos se generan con la misma matriz que protege las vistas según el rol.
-La cabecera separa identidad/acciones de la navegación para conservar contraste y orden.
-El bloque `extra_js` permite que pantallas específicas carguen interacción sin afectar las demás.
-Borra esta nota después de comprobarlo. -->
 <!doctype html>
 <html lang="es-MX">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Super Cocina del Valle{% endblock %}</title>
-  <link rel="stylesheet" href="/static/css/app.css?v=59">
+  <link rel="stylesheet" href="/static/css/app.css?v=114">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 </head>
 <body>
   <header class="topbar">
-    <a class="topbar-brand" href="{% url 'internal_portal:dashboard' %}">Super Cocina del Valle</a>
+    <a class="topbar-brand" href="{% url 'internal_portal:dashboard' %}">
+      <span class="topbar-brand-mark" aria-hidden="true">SC</span>
+      <span class="topbar-brand-copy"><strong>Super Cocina</strong><small>del Valle</small></span>
+    </a>
     {% if user.is_authenticated %}
-      <nav class="topbar-navigation" aria-label="Módulos permitidos"><span class="topbar-navigation-label">Ir a</span>{% for section in internal_navigation_sections %}<a href="{{ section.url }}" {% if section.is_active %}class="is-active" aria-current="page"{% endif %}>{{ section.title }}</a>{% endfor %}</nav>
+      <nav class="topbar-navigation" aria-label="Módulos permitidos">{% for section in internal_navigation_sections %}<a href="{{ section.url }}" {% if section.is_active %}class="is-active" aria-current="page"{% endif %}>{{ section.title }}</a>{% endfor %}</nav>
       <div class="topbar-account">
         {% if can_view_notifications %}<a class="notification-link" href="{% url 'notifications:notification_list' %}">Notificaciones{% if unread_notification_count %}<span>{{ unread_notification_count }}</span>{% endif %}</a>{% endif %}
         <div class="session-user active-operator"><small>Operando como</small><strong>{{ user.get_full_name|default:user.username }}</strong></div>
         {% if quick_switch_available %}<details class="quick-switch-dropdown" data-quick-switch-dropdown><summary>Cambiar mesero</summary><form method="post" action="{% url 'accounts:quick_switch' %}">{% csrf_token %}<input type="hidden" name="inline" value="1"><input type="hidden" name="next" value="{{ request.get_full_path }}">{% if quick_switch_single_target %}<input type="hidden" name="waiter_id" value="{{ quick_switch_single_target.id }}"><p class="quick-switch-target"><small>Cambiar a</small><strong>{{ quick_switch_single_target.get_full_name|default:quick_switch_single_target.username }}</strong></p>{% elif quick_switch_waiters %}<label>Mesero<select name="waiter_id" required><option value="" selected disabled>Selecciona un mesero</option>{% for waiter in quick_switch_waiters %}<option value="{{ waiter.id }}">{{ waiter.get_full_name|default:waiter.username }}</option>{% endfor %}</select></label>{% else %}<p>No hay otro mesero con PIN configurado.</p>{% endif %}{% if quick_switch_waiters %}<label>PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{1,10}" minlength="1" maxlength="10" autocomplete="off" data-quick-switch-pin required></label><button type="submit">Cambiar perfil</button>{% endif %}</form></details><form method="post" action="{% url 'accounts:quick_lock' %}" data-quick-lock-form>{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button type="submit">Bloquear tablet</button></form>{% elif current_user_is_waiter %}<a class="quick-switch-link" href="{% url 'accounts:quick_pin_setup' %}?next={{ request.get_full_path|urlencode }}">{% if current_user_has_quick_pin %}Habilitar tablet{% else %}Configurar PIN{% endif %}</a>{% endif %}
-        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Cerrar sesión</button></form>
+        <form class="topbar-logout-form" method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Cerrar sesión</button></form>
       </div>
     {% endif %}
   </header>
-  <main class="container">{% block content %}{% endblock %}</main>
+  <main class="container internal-panel">{% block content %}{% endblock %}</main>
+  <script src="/static/js/custom-select.js?v=3"></script>
+  <script src="/static/js/text-autocapitalize.js?v=2"></script>
   {% if quick_switch_available %}<script src="/static/js/quick-switch-idle.js?v=1"></script><script src="/static/js/quick-switch-dropdown.js?v=1"></script>{% endif %}
   {% block extra_js %}{% endblock %}
 </body>

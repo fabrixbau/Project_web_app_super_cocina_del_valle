@@ -16,7 +16,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, user_has_any_role
-from menu.models import DailyMenu, MealPackage, Product
+from menu.inventory import release_stock, reserve_stock
+from menu.models import DailyMenu, DailyProductStock, MealPackage, Product, StockMovement
 from menu.packaging import selected_packaging_products
 from menu.selection import resolve_product_selection
 from notifications.models import InternalNotification
@@ -34,6 +35,111 @@ ACTION_LABELS = {
     "complete_delivery": "Marcar como entregado",
     "restart_cycle": "Iniciar nuevo ciclo",
 }
+
+
+def _inventory_channel(order_type):
+    return DailyProductStock.Channel.ORDERS
+
+
+def _daily_product_ids(daily_menu):
+    return {product_id for product_id in (
+        daily_menu.water_product_id, daily_menu.chicken_consomme_id,
+        daily_menu.variable_first_course_id, daily_menu.second_course_one_id,
+        daily_menu.second_course_two_id, daily_menu.chicken_stew_id,
+        daily_menu.beef_stew_id, daily_menu.varied_stew_id, daily_menu.beans_order_id,
+    ) if product_id}
+
+
+def _order_item_requirements(item, daily_menu):
+    if item.item_type == OrderItem.ItemType.PRODUCT:
+        return [item.product] if item.product_id else []
+    requirements = [product for product in (
+        item.first_course, item.second_course, item.main_course,
+        (item.water_product or (daily_menu.water_product if daily_menu else None)) if item.with_water else None,
+        (item.beans_product or (daily_menu.beans_order if daily_menu else None)) if item.beans else None,
+    ) if product]
+    if item.tortillas:
+        requirements.append(DailyProductStock.ItemKind.TORTILLAS)
+    if item.bread:
+        requirements.append(DailyProductStock.ItemKind.BREAD)
+    return requirements
+
+
+def _change_order_item_stock(*, item, quantity, actor, reserve, channel=None):
+    if not quantity:
+        return
+    order = item.order
+    daily_menu = item.daily_menu or DailyMenu.objects.filter(date=order.operating_date).first()
+    daily_ids = _daily_product_ids(daily_menu) if daily_menu else set()
+    selected_channel = channel or _inventory_channel(order.order_type)
+    for requirement in _order_item_requirements(item, daily_menu):
+        is_product = isinstance(requirement, Product)
+        required = bool(daily_menu and ((is_product and requirement.pk in daily_ids) or not is_product))
+        filters = {
+            "date": order.operating_date, "channel": selected_channel,
+            "stock_type": DailyProductStock.StockType.DAILY,
+            "item_kind": DailyProductStock.ItemKind.PRODUCT if is_product else requirement,
+            "product": requirement if is_product else None,
+        }
+        if is_product and daily_menu and requirement.pk == daily_menu.chicken_stew_id:
+            filters["chicken_piece"] = item.chicken_piece
+        else:
+            filters["chicken_piece"] = ""
+        stock = (
+            DailyProductStock.objects.select_for_update()
+            .filter(**filters)
+            .order_by("pk")
+            .first()
+        )
+        if not stock and filters["chicken_piece"]:
+            # Menús publicados antes del conteo por pieza conservan temporalmente
+            # una bolsa general hasta que se capture su reparto entre pierna y muslo.
+            legacy_filters = {**filters, "chicken_piece": ""}
+            stock = (
+                DailyProductStock.objects.select_for_update()
+                .filter(**legacy_filters)
+                .order_by("pk")
+                .first()
+            )
+        if not stock and is_product and not required:
+            stock = (
+                DailyProductStock.objects.select_for_update()
+                .filter(
+                    stock_type=DailyProductStock.StockType.FIXED,
+                    product=requirement,
+                    channel=DailyProductStock.Channel.SHARED,
+                    is_tracked=True,
+                )
+                .order_by("pk")
+                .first()
+            )
+        if required and not stock:
+            name = requirement.name if is_product else dict(DailyProductStock.ItemKind.choices)[requirement]
+            raise ValidationError(
+                f"{name} no tiene raciones configuradas para {dict(DailyProductStock.Channel.choices)[selected_channel].lower()}."
+            )
+        if not stock:
+            continue
+        operation = reserve_stock if reserve else release_stock
+        operation(
+            stock=stock, quantity=quantity, actor=actor,
+            reference_type="order_item", reference_id=item.pk,
+            note=f"Pedido {order.formatted_number}: {item.product_name_snapshot or item.package_name_snapshot}",
+        )
+
+
+def _move_order_stock_channel(*, order, old_type, actor):
+    old_channel = _inventory_channel(old_type)
+    new_channel = _inventory_channel(order.order_type)
+    if old_channel == new_channel:
+        return
+    for item in order.items.select_for_update().all():
+        _change_order_item_stock(
+            item=item, quantity=item.quantity, actor=actor, reserve=False, channel=old_channel,
+        )
+        _change_order_item_stock(
+            item=item, quantity=item.quantity, actor=actor, reserve=True, channel=new_channel,
+        )
 
 
 @transaction.atomic
@@ -311,7 +417,10 @@ def save_internal_order(*, form_data, actor, order=None):
         )
     else:
         order = Order.objects.select_for_update().get(pk=order.pk)
+    old_type = order.order_type
     order.order_type = form_data["order_type"]
+    if order.pk and old_type != order.order_type:
+        _move_order_stock_channel(order=order, old_type=old_type, actor=actor)
     order.customer_name = " ".join(form_data["customer_name"].split())
     order.phone = form_data.get("phone", "").strip()
     order.requested_for = form_data.get("requested_for")
@@ -332,10 +441,13 @@ def save_internal_order(*, form_data, actor, order=None):
 
 
 @transaction.atomic
-def autosave_internal_order_customer(*, order, form_data):
+def autosave_internal_order_customer(*, order, form_data, actor=None):
     """Persiste el panel del cliente sin exigir que el pedido ya esté completo."""
     order = Order.objects.select_for_update().get(pk=order.pk)
+    old_type = order.order_type
     order.order_type = form_data["order_type"]
+    if old_type != order.order_type:
+        _move_order_stock_channel(order=order, old_type=old_type, actor=actor)
     order.customer_name = " ".join(form_data.get("customer_name", "").split())
     order.phone = form_data.get("phone", "").strip()
     order.requested_date = form_data.get("requested_date")
@@ -431,7 +543,7 @@ def recalculate_order_total(order):
 @transaction.atomic
 def add_internal_order_product(
     *, order, product, actor, raw_option_ids=None, comment="", require_individual=True,
-    is_package_candidate=False, chicken_piece="",
+    is_package_candidate=False, chicken_piece="", daily_menu=None,
 ):
     order = Order.objects.select_for_update().get(pk=order.pk)
     if order.status in {Order.Status.PICKED_UP, Order.Status.DELIVERED, Order.Status.CANCELED}:
@@ -439,11 +551,17 @@ def add_internal_order_product(
     product = Product.objects.select_for_update().prefetch_related("option_groups__options").get(pk=product.pk)
     if not product.is_available or (require_individual and not product.is_sold_individually):
         raise ValidationError("El producto ya no está disponible por orden.")
+    if daily_menu is None and not require_individual:
+        candidate_menu = DailyMenu.objects.filter(
+            date=order.operating_date, status=DailyMenu.Status.PUBLISHED,
+        ).first()
+        if candidate_menu and product.pk in _daily_product_ids(candidate_menu):
+            daily_menu = candidate_menu
     selection = resolve_product_selection(product, raw_option_ids, comment)
     item = OrderItem.objects.select_for_update().filter(
         order=order, item_type=OrderItem.ItemType.PRODUCT, product=product,
         configuration_signature=selection["signature"], is_package_candidate=is_package_candidate,
-        chicken_piece=chicken_piece,
+        chicken_piece=chicken_piece, daily_menu=daily_menu,
     ).first()
     if item:
         item.quantity += 1
@@ -458,12 +576,14 @@ def add_internal_order_product(
             configuration_signature=selection["signature"],
             customization_comment=selection["comment"], is_customized=selection["is_customized"],
             is_package_candidate=is_package_candidate, chicken_piece=chicken_piece,
+            daily_menu=daily_menu,
         )
+    _change_order_item_stock(item=item, quantity=1, actor=actor, reserve=True)
     recalculate_order_total(order)
     return item
 
 
-def _consume_internal_candidate(*, order, product_id, chicken_product_id=None, chicken_piece=""):
+def _consume_internal_candidate(*, order, product_id, actor, chicken_product_id=None, chicken_piece=""):
     queryset = OrderItem.objects.select_for_update().filter(
         order=order, product_id=product_id, item_type=OrderItem.ItemType.PRODUCT,
         is_package_candidate=True,
@@ -473,6 +593,7 @@ def _consume_internal_candidate(*, order, product_id, chicken_product_id=None, c
     item = queryset.order_by("-id").first()
     if not item:
         raise ValidationError("Cambió el ticket y no encontramos todos los tiempos seleccionados.")
+    _change_order_item_stock(item=item, quantity=1, actor=actor, reserve=False)
     if item.quantity == 1:
         item.delete()
     else:
@@ -484,7 +605,7 @@ def _consume_internal_candidate(*, order, product_id, chicken_product_id=None, c
 @transaction.atomic
 def add_internal_auto_meal_component(
     *, order, product, daily_menu, completed_selection, actor, chicken_piece="",
-    raw_option_ids=None, comment="", with_water=False, tortillas=False, beans=False,
+    raw_option_ids=None, comment="", with_water=False, tortillas=False, bread=False, beans=False,
     package_comment="",
 ):
     """Guarda un tiempo pendiente y lo convierte en paquete al completar los tres espacios."""
@@ -509,6 +630,7 @@ def add_internal_auto_meal_component(
         order=order, product=product, actor=actor, require_individual=False,
         is_package_candidate=True, chicken_piece=clicked_piece,
         raw_option_ids=raw_option_ids, comment=comment,
+        daily_menu=daily_menu,
     )
     if not completed_selection:
         return None
@@ -541,35 +663,39 @@ def add_internal_auto_meal_component(
     for product_id in (first.pk, second.pk, main.pk):
         _consume_internal_candidate(
             order=order, product_id=product_id,
+            actor=actor,
             chicken_product_id=daily_menu.chicken_stew_id, chicken_piece=final_piece,
         )
     cleaned_data = {
         "first_course": first, "second_course": second, "main_course": main,
         "chicken_piece": final_piece, "with_water": with_water,
-        "tortillas": "yes" if tortillas else "no", "beans": "yes" if beans else "no",
+        "tortillas": "yes" if tortillas else "no", "bread": bread, "beans": "yes" if beans else "no",
         "quantity": 1, "customization_comment": final_comment,
     }
     return add_internal_order_package(
         order=order, package=package, daily_menu=daily_menu, cleaned_data=cleaned_data,
-        merge_identical=False,
+        merge_identical=False, actor=actor,
     )
 
 
 @transaction.atomic
-def change_internal_order_item(*, order, item, action):
+def change_internal_order_item(*, order, item, action, actor=None):
     order = Order.objects.select_for_update().get(pk=order.pk)
     if order.status in {Order.Status.PICKED_UP, Order.Status.DELIVERED, Order.Status.CANCELED}:
         raise ValidationError("Este pedido ya no admite modificaciones.")
     item = OrderItem.objects.select_for_update().get(pk=item.pk, order=order)
     if action == "increase":
+        _change_order_item_stock(item=item, quantity=1, actor=actor, reserve=True)
         item.quantity += 1
         item.subtotal = item.unit_price * item.quantity
         item.save(update_fields=("quantity", "subtotal"))
     elif action == "decrease" and item.quantity > 1:
+        _change_order_item_stock(item=item, quantity=1, actor=actor, reserve=False)
         item.quantity -= 1
         item.subtotal = item.unit_price * item.quantity
         item.save(update_fields=("quantity", "subtotal"))
     elif action in {"decrease", "remove"}:
+        _change_order_item_stock(item=item, quantity=item.quantity, actor=actor, reserve=False)
         item.delete()
     else:
         raise ValidationError("La acción solicitada no es válida.")
@@ -579,7 +705,7 @@ def change_internal_order_item(*, order, item, action):
 @transaction.atomic
 def add_internal_order_package(
     *, order, package, daily_menu, cleaned_data, merge_identical=True,
-    packaging_quantities=None,
+    packaging_quantities=None, actor=None,
 ):
     order = Order.objects.select_for_update().get(pk=order.pk)
     if order.status in {Order.Status.PICKED_UP, Order.Status.DELIVERED, Order.Status.CANCELED}:
@@ -591,12 +717,13 @@ def add_internal_order_package(
     unit_price = package.price_with_water if cleaned_data["with_water"] else package.price_without_water
     signature = "|".join(map(str, (
         first.pk, second.pk, main.pk, cleaned_data["chicken_piece"],
-        int(cleaned_data["with_water"]), cleaned_data["tortillas"], cleaned_data["beans"], comment.casefold(),
+        int(cleaned_data["with_water"]), cleaned_data["tortillas"], int(cleaned_data.get("bread", False)), cleaned_data["beans"], comment.casefold(),
     )))
     item = None
     if merge_identical:
         item = OrderItem.objects.select_for_update().filter(
             order=order, item_type=OrderItem.ItemType.PACKAGE, package=package,
+            daily_menu=daily_menu,
             configuration_signature=signature,
         ).first()
     quantity = cleaned_data["quantity"]
@@ -607,17 +734,21 @@ def add_internal_order_package(
     else:
         item = OrderItem.objects.create(
             order=order, item_type=OrderItem.ItemType.PACKAGE, package=package,
+            daily_menu=daily_menu,
             package_name_snapshot=package.name, first_course=first,
             first_course_name_snapshot=first.name, second_course=second,
             second_course_name_snapshot=second.name, main_course=main,
             main_course_name_snapshot=main.name, chicken_piece=cleaned_data["chicken_piece"],
             with_water=cleaned_data["with_water"],
             water_name_snapshot=daily_menu.water_product.name if cleaned_data["with_water"] else "",
-            tortillas=cleaned_data["tortillas"] == "yes", beans=cleaned_data["beans"] == "yes",
+            water_product=daily_menu.water_product if cleaned_data["with_water"] else None,
+            tortillas=cleaned_data["tortillas"] == "yes", bread=cleaned_data.get("bread", False), beans=cleaned_data["beans"] == "yes",
+            beans_product=daily_menu.beans_order if cleaned_data["beans"] == "yes" else None,
             unit_price=unit_price, quantity=quantity, subtotal=unit_price * quantity,
             configuration_signature=signature, customization_comment=comment,
             configuration_snapshot={"comment": comment}, is_customized=bool(comment),
         )
+    _change_order_item_stock(item=item, quantity=quantity, actor=actor, reserve=True)
     recalculate_order_total(order)
     for packaging_product, quantity in selected_packaging_products(packaging_quantities or {}):
         for _ in range(quantity):
@@ -649,7 +780,7 @@ def update_internal_order_item_note(*, order, item, note):
 
 
 @transaction.atomic
-def update_internal_package_extras(*, order, item, cleaned_data):
+def update_internal_package_extras(*, order, item, cleaned_data, actor=None):
     order = Order.objects.select_for_update().get(pk=order.pk)
     # NOTA TEMPORAL PARA APRENDIZAJE: PostgreSQL no permite FOR UPDATE sobre el lado
     # nullable de un OUTER JOIN. Bloqueamos la partida sola y leemos el paquete después.
@@ -659,34 +790,40 @@ def update_internal_package_extras(*, order, item, cleaned_data):
     if not item.package_id:
         raise ValidationError("El paquete ya no tiene una configuración vigente.")
     package = MealPackage.objects.get(pk=item.package_id)
+    _change_order_item_stock(item=item, quantity=item.quantity, actor=actor, reserve=False)
+    daily_menu = item.daily_menu or DailyMenu.objects.filter(date=order.operating_date).first()
     item.with_water = cleaned_data["with_water"]
     item.water_name_snapshot = (
         DailyMenu.objects.filter(date=order.operating_date).values_list("water_product__name", flat=True).first() or "Agua del día"
         if item.with_water else ""
     )
+    item.water_product = daily_menu.water_product if daily_menu and item.with_water else None
     item.tortillas = cleaned_data["tortillas"]
+    item.bread = cleaned_data["bread"]
     item.beans = cleaned_data["beans"]
+    item.beans_product = daily_menu.beans_order if daily_menu and item.beans else None
     item.customization_comment = cleaned_data["customization_comment"]
     item.is_customized = bool(item.customization_comment)
     item.configuration_snapshot = {"comment": item.customization_comment}
     item.configuration_signature = "|".join(map(str, (
         item.first_course_id, item.second_course_id, item.main_course_id,
-        item.chicken_piece, int(item.with_water), int(item.tortillas), int(item.beans),
+        item.chicken_piece, int(item.with_water), int(item.tortillas), int(item.bread), int(item.beans),
         item.customization_comment.casefold(), item.pk,
     )))
     item.unit_price = package.price_with_water if item.with_water else package.price_without_water
     item.subtotal = item.unit_price * item.quantity
     item.save(update_fields=(
-        "with_water", "water_name_snapshot", "tortillas", "beans",
+        "with_water", "water_name_snapshot", "water_product", "tortillas", "bread", "beans", "beans_product",
         "customization_comment", "is_customized", "configuration_snapshot",
         "configuration_signature", "unit_price", "subtotal",
     ))
+    _change_order_item_stock(item=item, quantity=item.quantity, actor=actor, reserve=True)
     recalculate_order_total(order)
     return item
 
 
 @transaction.atomic
-def add_water_to_internal_package(*, order, water_product):
+def add_water_to_internal_package(*, order, water_product, actor=None):
     order = Order.objects.select_for_update().get(pk=order.pk)
     daily_menu = DailyMenu.objects.filter(
         date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED,
@@ -699,14 +836,17 @@ def add_water_to_internal_package(*, order, water_product):
     ).order_by("id").first()
     if not item or not item.package:
         return None
+    _change_order_item_stock(item=item, quantity=item.quantity, actor=actor, reserve=False)
     item.with_water = True
     item.water_name_snapshot = water_product.name
+    item.water_product = water_product
     item.unit_price = item.package.price_with_water
     item.subtotal = item.unit_price * item.quantity
     item.configuration_signature = f"{item.configuration_signature}|agua:{item.pk}"
     item.save(update_fields=(
-        "with_water", "water_name_snapshot", "unit_price", "subtotal", "configuration_signature",
+        "with_water", "water_name_snapshot", "water_product", "unit_price", "subtotal", "configuration_signature",
     ))
+    _change_order_item_stock(item=item, quantity=item.quantity, actor=actor, reserve=True)
     recalculate_order_total(order)
     return item
 
@@ -767,8 +907,14 @@ def create_public_cart_order(*, cart_data, cleaned_data):
     for item in cart_data["items"]:
         if item["kind"] == "product":
             product = item["product"]
-            OrderItem.objects.create(
+            item_daily_menu = DailyMenu.objects.filter(
+                date=order.operating_date, status=DailyMenu.Status.PUBLISHED,
+            ).first()
+            if item_daily_menu and product.pk not in _daily_product_ids(item_daily_menu):
+                item_daily_menu = None
+            order_item = OrderItem.objects.create(
                 order=order, item_type=OrderItem.ItemType.PRODUCT, product=product,
+                daily_menu=item_daily_menu,
                 product_name_snapshot=product.name, unit_price=item["unit_price"],
                 configuration_snapshot=item["configuration"]["snapshot"],
                 configuration_signature=item["configuration"]["signature"],
@@ -778,18 +924,24 @@ def create_public_cart_order(*, cart_data, cleaned_data):
                 tortillas=False, beans=False,
             )
         else:
-            OrderItem.objects.create(
+            order_item = OrderItem.objects.create(
                 order=order, item_type=OrderItem.ItemType.PACKAGE, package=item["package"],
+                daily_menu=item["daily_menu"],
                 package_name_snapshot=item["package"].name,
                 first_course=item["first_course"], first_course_name_snapshot=item["first_course"].name,
                 second_course=item["second_course"], second_course_name_snapshot=item["second_course"].name,
                 main_course=item["main_course"], main_course_name_snapshot=item["main_course"].name,
                 chicken_piece=item["chicken_piece"], with_water=item["with_water"],
                 water_name_snapshot=item["daily_menu"].water_product.name if item["with_water"] else "",
+                water_product=item["daily_menu"].water_product if item["with_water"] else None,
                 tortillas=item["tortillas"], beans=item["beans"], unit_price=item["unit_price"],
+                beans_product=item["daily_menu"].beans_order if item["beans"] else None,
                 quantity=item["quantity"], subtotal=item["subtotal"],
                 customization_comment=item.get("item_note", ""), is_customized=bool(item.get("item_note")),
             )
+        _change_order_item_stock(
+            item=order_item, quantity=order_item.quantity, actor=None, reserve=True,
+        )
     InternalNotification.objects.create(
         notification_type=InternalNotification.NotificationType.NEW_PUBLIC_ORDER,
         order=order,
@@ -837,8 +989,9 @@ def create_public_package_order(*, package, daily_menu, cleaned_data):
     first_course = cleaned_data["first_course"]
     second_course = cleaned_data["second_course"]
     main_course = cleaned_data["main_course"]
-    OrderItem.objects.create(
+    item = OrderItem.objects.create(
         order=order,
+        daily_menu=daily_menu,
         package=package,
         package_name_snapshot=package.name,
         first_course=first_course,
@@ -850,11 +1003,28 @@ def create_public_package_order(*, package, daily_menu, cleaned_data):
         chicken_piece=cleaned_data["chicken_piece"],
         with_water=cleaned_data["with_water"],
         water_name_snapshot=daily_menu.water_product.name if cleaned_data["with_water"] else "",
+        water_product=daily_menu.water_product if cleaned_data["with_water"] else None,
         tortillas=cleaned_data["tortillas"] == "yes",
         beans=cleaned_data["beans"] == "yes",
+        beans_product=daily_menu.beans_order if cleaned_data["beans"] == "yes" else None,
         unit_price=total,
         subtotal=total,
     )
+    _change_order_item_stock(item=item, quantity=1, actor=None, reserve=True)
+    return order
+
+
+@transaction.atomic
+def change_internal_order_type(*, order, order_type, actor):
+    if order_type not in Order.OrderType.values:
+        raise ValidationError("Selecciona una modalidad válida.")
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    old_type = order.order_type
+    if old_type == order_type:
+        return order
+    order.order_type = order_type
+    order.save(update_fields=("order_type", "updated_at"))
+    _move_order_stock_channel(order=order, old_type=old_type, actor=actor)
     return order
 
 
@@ -866,6 +1036,8 @@ def transition_order(*, order, action, actor=None):
     # Reiniciar para Telefonista ni Entregado para Repartidor. Borra esta nota.
     if action == "restart_cycle" and not user_has_any_role(actor, (ADMIN,)):
         raise ValidationError("Sólo un administrador puede reiniciar el ciclo del pedido.")
+    if action == "cancel" and not user_has_any_role(actor, (ADMIN,)):
+        raise ValidationError("Sólo un administrador puede cancelar pedidos.")
     transitions = {
         (Order.Status.PENDING_CONFIRMATION, "cancel"): Order.Status.CANCELED,
         (Order.Status.CONFIRMED, "start_preparing"): Order.Status.PREPARING,
@@ -877,11 +1049,16 @@ def transition_order(*, order, action, actor=None):
         (Order.Status.PICKED_UP, "restart_cycle"): Order.Status.PENDING_CONFIRMATION,
         (Order.Status.DELIVERED, "restart_cycle"): Order.Status.PENDING_CONFIRMATION,
     }
-    target_status = (
-        scheduled_initial_status(order)
-        if order.status == Order.Status.PENDING_CONFIRMATION and action == "confirm"
-        else transitions.get((order.status, action))
-    )
+    if action == "cancel" and order.status not in {
+        Order.Status.CANCELED, Order.Status.PICKED_UP, Order.Status.DELIVERED,
+    }:
+        target_status = Order.Status.CANCELED
+    else:
+        target_status = (
+            scheduled_initial_status(order)
+            if order.status == Order.Status.PENDING_CONFIRMATION and action == "confirm"
+            else transitions.get((order.status, action))
+        )
     if not target_status:
         raise ValidationError("Ese cambio no está permitido desde el estado actual.")
     if action == "complete_pickup" and order.order_type != Order.OrderType.PICKUP:
@@ -916,6 +1093,11 @@ def transition_order(*, order, action, actor=None):
         order.attention_started_at = timezone.now()
         order.attention_started_by = actor
     previous_status = order.status
+    if action == "cancel":
+        for item in order.items.select_for_update().all():
+            _change_order_item_stock(
+                item=item, quantity=item.quantity, actor=actor, reserve=False,
+            )
     order.status = target_status
     update_fields = ["status", "updated_at"]
     if action == "restart_cycle":
@@ -928,6 +1110,12 @@ def transition_order(*, order, action, actor=None):
     if "attention_started_at" in order.__dict__ and order.attention_started_at:
         update_fields.extend(["attention_started_at", "attention_started_by"])
     order.save(update_fields=update_fields)
+    if target_status in {Order.Status.PICKED_UP, Order.Status.DELIVERED}:
+        StockMovement.objects.filter(
+            reference_type="order_item",
+            reference_id__in=order.items.values_list("pk", flat=True),
+            reason=StockMovement.Reason.RESERVATION,
+        ).update(reason=StockMovement.Reason.CONSUMPTION)
     OrderStatusHistory.objects.create(
         order=order, from_status=previous_status, to_status=target_status, changed_by=actor
     )

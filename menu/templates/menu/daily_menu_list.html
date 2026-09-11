@@ -2,21 +2,33 @@
 {% block title %}Menús diarios{% endblock %}
 {% block content %}
   <div class="page-heading">
-    <div><a href="{% url 'menu:configuration' %}">← Administrar menú</a><h1>Menús diarios</h1></div>
+    <div><a class="menu-back-link" href="{% url 'menu:configuration' %}">Administrar menú</a><h1>Menús diarios</h1></div>
     <a class="button-link" href="{% url 'menu:daily_menu_create' %}">Nuevo menú diario</a>
   </div>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
-  <div class="item-list">
+  <nav class="daily-month-pagination" aria-label="Navegación mensual">
+    <a href="?month={{ previous_month|date:'Y-m' }}" aria-label="Ver mes anterior">←</a>
+    <strong>{{ selected_month|date:"F Y" }}</strong>
+    <a href="?month={{ next_month|date:'Y-m' }}" aria-label="Ver mes siguiente">→</a>
+  </nav>
+  <div class="daily-menu-list-grid">
     {% for daily_menu in daily_menus %}
-      <article class="card daily-menu-row">
-        <div><h2>{{ daily_menu.date }}</h2><p>Estado: <strong>{{ daily_menu.get_status_display }}</strong></p><p>Agua: {{ daily_menu.water_product.name|default:"Sin definir" }}</p></div>
-        <div class="action-group">
-          <a href="{% url 'menu:daily_menu_edit' daily_menu.id %}">Editar</a>
-          {% if daily_menu.status != 'published' %}<form method="post" action="{% url 'menu:daily_menu_status' daily_menu.id %}">{% csrf_token %}<input type="hidden" name="action" value="publish"><button type="submit">Publicar</button></form>{% endif %}
-          {% if daily_menu.status == 'published' %}<form method="post" action="{% url 'menu:daily_menu_status' daily_menu.id %}">{% csrf_token %}<input type="hidden" name="action" value="close"><button class="danger" type="submit">Cerrar</button></form>{% endif %}
-          {% if daily_menu.status == 'closed' %}<form method="post" action="{% url 'menu:daily_menu_status' daily_menu.id %}">{% csrf_token %}<input type="hidden" name="action" value="draft"><button type="submit">Volver a borrador</button></form>{% endif %}
+      <article class="card daily-menu-summary-card">
+        <header><div><small>{{ daily_menu.date|date:"l" }}</small><h2>{{ daily_menu.date|date:"j \d\e F" }}</h2></div><span class="status-{{ daily_menu.status }}">{{ daily_menu.get_status_display }}</span></header>
+        <div class="daily-menu-summary-groups">
+          <section><strong>Agua del día</strong><p>{{ daily_menu.water_product.name|default:"Sin definir" }}</p></section>
+          <section><strong>Primer tiempo</strong><p>{{ daily_menu.chicken_consomme.name|default:"Sin definir" }}</p><p>{{ daily_menu.variable_first_course.name|default:"Sin definir" }}</p></section>
+          <section><strong>Segundo tiempo</strong><p>{{ daily_menu.second_course_one.name|default:"Sin definir" }}</p><p>{{ daily_menu.second_course_two.name|default:"Sin definir" }}</p></section>
+          <section><strong>Tercer tiempo</strong><p>{{ daily_menu.chicken_stew.name|default:"Sin definir" }}</p><p>{{ daily_menu.beef_stew.name|default:"Sin definir" }}</p><p>{{ daily_menu.varied_stew.name|default:"Sin definir" }}</p></section>
+          {% if daily_menu.beans_order %}<section><strong>Complemento</strong><p>{{ daily_menu.beans_order.name }}</p></section>{% endif %}
         </div>
+        <footer class="action-group">
+          <a href="{% url 'menu:daily_menu_edit' daily_menu.id %}">Editar</a>
+          {% if daily_menu.status != 'published' %}<form method="post" action="{% url 'menu:daily_menu_status' daily_menu.id %}">{% csrf_token %}<input type="hidden" name="month" value="{{ selected_month|date:'Y-m' }}"><input type="hidden" name="action" value="publish"><button type="submit">Publicar</button></form>{% endif %}
+          {% if daily_menu.status == 'published' %}<form method="post" action="{% url 'menu:daily_menu_status' daily_menu.id %}">{% csrf_token %}<input type="hidden" name="month" value="{{ selected_month|date:'Y-m' }}"><input type="hidden" name="action" value="close"><button class="danger" type="submit">Cerrar</button></form>{% endif %}
+          {% if daily_menu.status == 'closed' %}<form method="post" action="{% url 'menu:daily_menu_status' daily_menu.id %}">{% csrf_token %}<input type="hidden" name="month" value="{{ selected_month|date:'Y-m' }}"><input type="hidden" name="action" value="draft"><button type="submit">Volver a borrador</button></form>{% endif %}
+        </footer>
       </article>
-    {% empty %}<section class="card"><p>Aún no hay menús diarios.</p></section>{% endfor %}
+    {% empty %}<section class="card daily-menu-empty"><strong>No hay menús en {{ selected_month|date:"F Y" }}</strong><p>Puedes crear el primero para este mes o navegar a otro periodo.</p></section>{% endfor %}
   </div>
 {% endblock %}

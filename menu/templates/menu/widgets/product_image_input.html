@@ -1,0 +1,21 @@
+<div class="product-image-control" data-product-image-control>
+  {% if widget.is_initial %}
+    <div class="product-current-image">
+      <img src="{{ widget.value.url }}" alt="Imagen actual del producto" data-product-image-preview>
+      <div><small>Imagen actual</small><strong>Conservar o reemplazar fotografía</strong><a href="{{ widget.value.url }}" target="_blank" rel="noopener">Ver tamaño completo</a></div>
+    </div>
+    {% if not widget.required %}
+      <label class="product-image-remove" for="{{ widget.checkbox_id }}"><input type="checkbox" name="{{ widget.checkbox_name }}" id="{{ widget.checkbox_id }}"><span><strong>Eliminar imagen actual</strong><small>La fotografía se eliminará cuando guardes el producto.</small></span></label>
+    {% endif %}
+  {% else %}
+    <div class="product-image-placeholder" data-product-image-placeholder><span>IMG</span><div><strong>Agrega una fotografía</strong><small>Ayuda a identificar el producto rápidamente.</small></div></div>
+  {% endif %}
+  <label class="product-image-upload"><span>{% if widget.is_initial %}Seleccionar una imagen nueva{% else %}Seleccionar imagen{% endif %}</span><input type="{{ widget.type }}" name="{{ widget.name }}"{% include "django/forms/widgets/attrs.html" %}></label>
+  <div class="product-image-framing" data-product-image-framing hidden>
+    <strong>Ajusta el encuadre de la ficha</strong>
+    <small>Arrastra la fotografía para elegir qué parte se mostrará.</small>
+    <div class="product-image-crop-window" data-product-image-crop-window></div>
+    <label>Acercamiento <input type="range" min="1" max="3" step="0.05" value="1" data-product-image-zoom></label>
+    <button type="button" class="secondary-action" data-product-image-reset>Restablecer encuadre</button>
+  </div>
+</div>

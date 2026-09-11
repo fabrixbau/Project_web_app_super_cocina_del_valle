@@ -4,7 +4,7 @@ estándar y Personalizar abre el selector. Las configuraciones modificadas nunca
 el contador central. Borra esta nota cuando termines de revisar el componente. -->
 <article class="catalog-product-card" data-catalog-product="{{ product.id }}" data-product-name="{{ product.name }}">
   <div class="catalog-product-visual">
-    {% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% endif %}
+    {% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}" style="--product-image-x:{{ product.image_position_x }}%;--product-image-y:{{ product.image_position_y }}%;--product-image-zoom:{{ product.image_zoom }}">{% endif %}
   </div>
   <div class="catalog-product-information"><strong>{{ product.name }}</strong><span>${{ product.price }}</span>
     <div class="catalog-quick-controls">

@@ -5,10 +5,26 @@ una sola fila los datos y acciones que Caja necesita para despachar: identificar
 cliente, asignar repartidor, registrar pago y confirmar cambio. Borra esta nota. -->
 {% block title %}Caja{% endblock %}
 {% block content %}
-<div class="page-heading"><div><h1>Caja</h1><p>Prepara el cobro y el cambio de cada salida con pocos toques.</p></div><div class="page-heading-actions"><a class="button-link" href="{% url 'cashier:debt_board' %}">Cuentas por cobrar</a><a class="button-link" href="{% url 'cashier:terminal_board' %}">Corte de terminales</a><a class="button-link" href="{% url 'cashier:change_board' %}">Cambios pendientes</a><a class="button-link" href="{% url 'cashier:tip_report' %}">Reporte de propinas</a><a href="{% url 'internal_portal:dashboard' %}">Volver al panel</a></div></div>
+<header class="cashier-page-header">
+  <div class="cashier-title-row">
+    <div>
+      <span class="cashier-eyebrow">Centro de cobro</span>
+      <h1>Caja</h1>
+      <p>Prepara el cobro y el cambio de cada salida con pocos toques.</p>
+    </div>
+    <a class="cashier-back-link" href="{% url 'internal_portal:dashboard' %}"><span aria-hidden="true">←</span> Volver al panel</a>
+  </div>
+  <nav class="cashier-tools" aria-label="Herramientas de Caja">
+    <span>Herramientas</span>
+    <a href="{% url 'cashier:debt_board' %}">Cuentas por cobrar</a>
+    <a href="{% url 'cashier:terminal_board' %}">Corte de terminales</a>
+    <a href="{% url 'cashier:change_board' %}">Cambios pendientes</a>
+    <a href="{% url 'cashier:tip_report' %}">Reporte de propinas</a>
+  </nav>
+</header>
 <p class="message" data-cashier-feedback hidden></p>
 <aside class="cashier-undo" data-cashier-undo hidden><span>Pedido liberado de Caja.</span><button type="button" data-cashier-undo-action>Seguir orden</button></aside>
-<details class="card cashier-unpaid-quick"><summary>Registrar un pedido que no pagó</summary><form method="post" action="{% url 'cashier:debt_create' %}">{% csrf_token %}<label>Folio<input name="order_reference" placeholder="Ej. 0309015" required></label><label>Nota<input name="note" maxlength="250" placeholder="Ej. Cliente solicitó dejarlo a cuenta"></label><button type="submit">Dejar a cuenta</button></form><small>El pedido debe estar entregado y asociado a un cliente de la agenda.</small></details>
+<details class="card cashier-unpaid-quick"><summary><span>Registrar un pedido que no pagó</span><small>Crear cuenta por cobrar</small></summary><form method="post" action="{% url 'cashier:debt_create' %}">{% csrf_token %}<label>Folio<input name="order_reference" placeholder="Ej. 0309015" required></label><label>Nota<input name="note" maxlength="250" placeholder="Ej. Cliente solicitó dejarlo a cuenta"></label><button type="submit">Dejar a cuenta</button></form><small>El pedido debe estar entregado y asociado a un cliente de la agenda.</small></details>
 
 <section class="card cashier-filter-card">
   <form method="get" class="cashier-filters" data-cashier-filters>
@@ -24,7 +40,7 @@ pedidos nuevos. La cabecera, filtros y posición de scroll permanecen intactos.
 Borra esta nota después de leerla. -->
 <div data-cashier-live-region>
 {% if selected_type != 'pickup' %}
-<section class="cashier-section"><div class="cashier-section-heading"><div><h2>Entregas a domicilio</h2><p>Prioridad de Caja: repartidor, cobro y cambio.</p></div><strong>{{ delivery_orders|length }} pedidos</strong></div>
+<section class="cashier-section"><div class="cashier-section-heading"><div><h2>Entregas a domicilio</h2><p>Prioridad de Caja: repartidor, cobro y cambio.</p></div><strong class="cashier-count">{{ delivery_orders|length }} pedidos</strong></div>
   <div class="cashier-list">
   {% for order in delivery_orders %}
     <article class="cashier-order type-delivery{% if order.is_advance_order %} is-scheduled-order{% endif %}" data-cashier-order data-cashier-order-url="{% url 'orders:internal_order_edit' order.id %}" tabindex="0" role="link" aria-label="Abrir pedido {{ order.formatted_number }}">
@@ -34,13 +50,13 @@ Borra esta nota después de leerla. -->
       <div class="cashier-assignment"><strong>Repartidor</strong><div class="cashier-person-buttons">{% for person in repartidores %}<form method="post" action="{% url 'deliveries:delivery_assign' order.id %}" data-cashier-assign>{% csrf_token %}<input type="hidden" name="delivery_person" value="{{ person.id }}"><button type="submit" data-person-id="{{ person.id }}" {% if person.id == order.delivery_person_id %}class="is-selected"{% endif %}>{{ person.get_full_name|default:person.username }}</button></form>{% empty %}<small>No hay repartidores activos.</small>{% endfor %}</div></div>
       {% include "orders/includes/cashier_payment.html" with order=order %}
     </article>
-  {% empty %}<p class="card">No hay entregas activas que coincidan.</p>{% endfor %}
+  {% empty %}<p class="card cashier-empty-state">No hay entregas activas que coincidan.</p>{% endfor %}
   </div>
 </section>
 {% endif %}
 
 {% if selected_type != 'delivery' %}
-<section class="cashier-section cashier-pickups"><div class="cashier-section-heading"><div><h2>Recoger en la fonda</h2><p>Consulta y define su forma de pago cuando corresponda.</p></div><strong>{{ pickup_orders|length }} pedidos</strong></div>
+<section class="cashier-section cashier-pickups"><div class="cashier-section-heading"><div><h2>Recoger en la fonda</h2><p>Consulta y define su forma de pago cuando corresponda.</p></div><strong class="cashier-count">{{ pickup_orders|length }} pedidos</strong></div>
   <div class="cashier-list">
   {% for order in pickup_orders %}
     <article class="cashier-order type-pickup{% if order.is_advance_order %} is-scheduled-order{% endif %}" data-cashier-order data-cashier-order-url="{% url 'orders:internal_order_edit' order.id %}" tabindex="0" role="link" aria-label="Abrir pedido {{ order.formatted_number }}">
@@ -50,7 +66,7 @@ Borra esta nota después de leerla. -->
       <div class="cashier-assignment"><strong>Atención</strong><small>No requiere repartidor ni entrega de cambio.</small></div>
       {% include "orders/includes/cashier_payment.html" with order=order pickup=True %}
     </article>
-  {% empty %}<p class="card">No hay pedidos de mostrador activos que coincidan.</p>{% endfor %}
+  {% empty %}<p class="card cashier-empty-state">No hay pedidos de mostrador activos que coincidan.</p>{% endfor %}
   </div>
 </section>
 {% endif %}

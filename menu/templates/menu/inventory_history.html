@@ -1,0 +1,46 @@
+{% extends "base_internal.html" %}
+{% block title %}Historial de inventario{% endblock %}
+{% block content %}
+  <div class="page-heading inventory-history-heading">
+    <div><a class="menu-back-link" href="{% url 'menu:inventory_control' %}">Control de inventario</a><span>Bitácora</span><h1>Historial de inventario</h1><p>Consulta qué cambió, cuándo ocurrió y quién realizó cada movimiento.</p></div>
+  </div>
+
+  <section class="card inventory-history-filters">
+    <form method="get">
+      <label>Buscar<input type="search" name="q" value="{{ search }}" placeholder="Producto, nota o usuario"></label>
+      <label>Desde<input type="date" name="from" value="{{ date_from|date:'Y-m-d' }}"></label>
+      <label>Hasta<input type="date" name="to" value="{{ date_to|date:'Y-m-d' }}"></label>
+      <label>Inventario<select name="stock_type"><option value="">Todos</option>{% for value, label in stock_types %}<option value="{{ value }}"{% if selected_stock_type == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+      <label>Grupo<select name="channel"><option value="">Todos</option>{% for value, label in channels %}<option value="{{ value }}"{% if selected_channel == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+      <label>Movimiento<select name="reason"><option value="">Todos</option>{% for value, label in reasons %}<option value="{{ value }}"{% if selected_reason == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+      <div class="inventory-filter-actions"><button type="submit">Aplicar filtros</button><a href="{% url 'menu:inventory_history' %}">Limpiar</a></div>
+    </form>
+  </section>
+
+  <section class="inventory-history-summary" aria-label="Resumen del periodo">
+    <article><small>Movimientos</small><strong>{{ movement_count }}</strong></article>
+    <article class="is-entry"><small>Entradas y devoluciones</small><strong>+{{ entry_total }}</strong></article>
+    <article class="is-exit"><small>Salidas y apartados</small><strong>−{{ exit_total }}</strong></article>
+  </section>
+
+  <section class="card inventory-history-card">
+    <div class="inventory-history-table">
+      <div class="inventory-history-row inventory-history-table-heading"><span>Fecha</span><span>Producto o insumo</span><span>Inventario</span><span>Motivo</span><span>Cantidad</span><span>Responsable</span></div>
+      {% for movement in page %}
+        <article class="inventory-history-row">
+          <time datetime="{{ movement.created_at|date:'c' }}"><strong>{{ movement.created_at|date:'d/m/Y' }}</strong><small>{{ movement.created_at|date:'H:i' }}</small></time>
+          <div><strong>{{ movement.stock.item_name }}</strong>{% if movement.note %}<small>{{ movement.note }}</small>{% endif %}</div>
+          <div><strong>{{ movement.stock.get_stock_type_display }}</strong><small>{% if movement.stock.channel == 'shared' %}Menú fijo{% else %}{{ movement.stock.get_channel_display }}{% endif %}</small></div>
+          <div><strong>{{ movement.get_reason_display }}</strong>{% if movement.reference_id %}<small>{{ movement.reference_type|default:'Referencia' }} #{{ movement.reference_id }}</small>{% endif %}</div>
+          <strong class="inventory-movement-quantity {% if movement.quantity > 0 %}is-entry{% else %}is-exit{% endif %}">{% if movement.quantity > 0 %}+{% endif %}{{ movement.quantity }}</strong>
+          <div><strong>{% if movement.actor %}{{ movement.actor.get_full_name|default:movement.actor.username }}{% else %}Sistema{% endif %}</strong></div>
+        </article>
+      {% empty %}<div class="inventory-history-empty"><strong>No hay movimientos con estos filtros.</strong><p>Prueba otro periodo o limpia los filtros.</p></div>{% endfor %}
+    </div>
+    {% if page.paginator.num_pages > 1 %}<nav class="inventory-history-pagination" aria-label="Páginas del historial">
+      {% if page.has_previous %}<a href="?{% if query_string %}{{ query_string }}&amp;{% endif %}page={{ page.previous_page_number }}">Anterior</a>{% endif %}
+      <span>Página {{ page.number }} de {{ page.paginator.num_pages }}</span>
+      {% if page.has_next %}<a href="?{% if query_string %}{{ query_string }}&amp;{% endif %}page={{ page.next_page_number }}">Siguiente</a>{% endif %}
+    </nav>{% endif %}
+  </section>
+{% endblock %}

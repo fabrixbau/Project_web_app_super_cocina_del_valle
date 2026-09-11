@@ -1,0 +1,33 @@
+{% extends "base_internal.html" %}
+{% block title %}Control de inventario{% endblock %}
+{% block content %}
+  <div class="page-heading inventory-heading">
+    <div><a class="menu-back-link" href="{% url 'menu:configuration' %}">Administrar menú</a><span>Existencias</span><h1>Control de inventario</h1><p>Edita directamente cuánto queda disponible. El sistema conservará cada cambio en la bitácora.</p></div>
+    <div class="inventory-heading-actions"><a class="secondary-action" href="{% url 'menu:inventory_history' %}">Ver historial</a><form method="get" class="inventory-date-filter"><label>Menú del día<input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}"></label><button type="submit">Consultar</button></form></div>
+  </div>
+  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  <section class="card inventory-current-card">
+    <header><div><span>Menú diario</span><h2>{{ selected_date|date:'d \d\e F \d\e Y' }}</h2><p>Mesas tiene su propio conteo; recoger y domicilio comparten Pedidos.</p></div><strong>{{ daily_groups|length }} elementos</strong></header>
+    <form method="post" class="inventory-inline-form">{% csrf_token %}<input type="hidden" name="action" value="save_daily"><input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+      <div class="inventory-card-grid">
+        {% for group in daily_groups %}<article class="inventory-product-card is-{{ group.status }}">
+          <header><div class="inventory-product-identity"><div class="inventory-product-thumb">{% if group.product and group.product.image %}<img src="{% url 'menu:product_card_image' group.product.id %}" alt="">{% else %}<span aria-hidden="true">{% if group.label == 'Tortillas' %}T{% elif group.label == 'Bolillo' %}B{% else %}SC{% endif %}</span>{% endif %}</div><div><small>Producto o insumo</small><h3>{{ group.label }}</h3></div></div><span>{% if group.status == 'empty' %}Agotado{% elif group.status == 'low' %}Stock bajo{% else %}Disponible{% endif %}</span></header>
+          <div class="inventory-product-channels">
+            {% if group.table %}<section class="inventory-channel-card is-{{ group.table.status }}"><h4>Mesas</h4><label class="inventory-available-field"><span>Disponible</span><input type="number" name="stock_{{ group.table.stock.id }}" value="{{ group.table.available }}" min="0" step="1" inputmode="numeric"></label><label class="inventory-threshold-field"><span>Avisar cuando queden</span><input type="number" name="threshold_{{ group.table.stock.id }}" value="{{ group.table.stock.low_stock_threshold }}" min="0" step="1" inputmode="numeric"></label><strong class="inventory-committed">{{ group.table.committed }} comprometida{{ group.table.committed|pluralize:"s" }}</strong></section>{% endif %}
+            {% if group.orders %}<section class="inventory-channel-card is-{{ group.orders.status }}"><h4>Pedidos</h4><label class="inventory-available-field"><span>Disponible</span><input type="number" name="stock_{{ group.orders.stock.id }}" value="{{ group.orders.available }}" min="0" step="1" inputmode="numeric"></label><label class="inventory-threshold-field"><span>Avisar cuando queden</span><input type="number" name="threshold_{{ group.orders.stock.id }}" value="{{ group.orders.stock.low_stock_threshold }}" min="0" step="1" inputmode="numeric"></label><strong class="inventory-committed">{{ group.orders.committed }} comprometida{{ group.orders.committed|pluralize:"s" }}</strong></section>{% endif %}
+          </div>
+        </article>{% empty %}<p class="inventory-empty">No hay existencias configuradas para esta fecha.</p>{% endfor %}
+      </div>
+      {% if stock_rows %}<footer><button type="submit">Guardar cantidades del día</button></footer>{% endif %}
+    </form>
+  </section>
+  <section class="card fixed-stock-panel">
+    <header><div><span>Menú fijo</span><h2>Productos bajo vigilancia</h2><p>Solo los productos agregados aquí tendrán conteo permanente y alertas.</p></div></header>
+    <form method="post" class="fixed-stock-add">{% csrf_token %}<input type="hidden" name="action" value="add_fixed">{{ fixed_form.non_field_errors }}{% for field in fixed_form %}<label>{{ field.label }}{{ field.errors }}{{ field }}</label>{% endfor %}<button type="submit">Agregar al control</button></form>
+    <form method="post" class="fixed-stock-list">{% csrf_token %}<input type="hidden" name="action" value="save_fixed">
+      {% for row in fixed_rows %}<article class="fixed-stock-row{% if row.stock.is_low_stock %} is-low{% endif %}"><div><small>{{ row.stock.product.category.name }}</small><strong>{{ row.stock.item_name }}</strong><small>{{ row.committed }} comprometidas</small></div><label>Disponible<input type="number" name="fixed_stock_{{ row.stock.id }}" value="{{ row.available }}" min="0" step="1"></label><label>Avisar en<input type="number" name="fixed_threshold_{{ row.stock.id }}" value="{{ row.stock.low_stock_threshold }}" min="0" step="1"></label><button type="submit" form="remove-fixed-{{ row.stock.id }}" class="danger">Quitar seguimiento</button></article>{% empty %}<p class="inventory-empty">No hay productos fijos bajo seguimiento.</p>{% endfor %}
+      {% if fixed_rows %}<footer><button type="submit">Guardar inventario fijo</button></footer>{% endif %}
+    </form>
+    {% for row in fixed_rows %}<form id="remove-fixed-{{ row.stock.id }}" method="post" hidden>{% csrf_token %}<input type="hidden" name="action" value="remove_fixed"><input type="hidden" name="stock_id" value="{{ row.stock.id }}"></form>{% endfor %}
+  </section>
+{% endblock %}

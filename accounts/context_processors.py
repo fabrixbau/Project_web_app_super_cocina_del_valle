@@ -1,11 +1,16 @@
 from django.contrib.auth import get_user_model
 
 from .quick_switch import quick_switch_is_trusted
-from .roles import WAITER, user_has_any_role
+from .roles import ADMIN, WAITER, user_has_any_role
 
 
 def quick_switch_context(request):
-    is_waiter = bool(request.user.is_authenticated and user_has_any_role(request.user, (WAITER,)))
+    is_admin = bool(request.user.is_authenticated and user_has_any_role(request.user, (ADMIN,)))
+    is_waiter = bool(
+        request.user.is_authenticated
+        and user_has_any_role(request.user, (WAITER,))
+        and not is_admin
+    )
     available = bool(
         is_waiter
         and quick_switch_is_trusted(request.session)

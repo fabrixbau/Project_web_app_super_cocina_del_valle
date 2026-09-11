@@ -22,10 +22,76 @@ const candidateQuantitiesNode = document.querySelector("#table-candidate-quantit
 const catalogSearch = document.querySelector("[data-catalog-search]");
 const catalogSearchResults = document.querySelector("[data-catalog-search-results]");
 const catalogSearchEmpty = document.querySelector("[data-catalog-search-empty]");
+const breakfastNavigation = document.querySelector(".table-breakfast-command");
+const customerAutosaveForm = document.querySelector("[data-table-customer-autosave]");
+const categoryCarousel = document.querySelector("[data-category-carousel]");
+
+catalogSearch?.addEventListener("focus", () => breakfastNavigation?.classList.add("search-focused"));
+catalogSearch?.addEventListener("blur", () => {
+  if (!catalogSearch.value.trim()) breakfastNavigation?.classList.remove("search-focused");
+});
 let pendingChickenForm = null;
 const currency = new Intl.NumberFormat("es-MX", {
   style: "currency", currency: "MXN", currencyDisplay: "narrowSymbol",
 });
+
+if (customerAutosaveForm) {
+  const input = customerAutosaveForm.querySelector("input[name='customer_name']");
+  const state = customerAutosaveForm.querySelector("[data-table-customer-save-state]");
+  const heading = document.querySelector("[data-table-customer-heading]");
+  let savedValue = input.value.trim();
+  let saveTimer = null;
+  let statusTimer = null;
+  let requestSequence = 0;
+
+  const showSaveState = (message, className, hideAfter = 0) => {
+    window.clearTimeout(statusTimer);
+    state.hidden = false;
+    state.textContent = message;
+    state.className = className;
+    if (hideAfter) statusTimer = window.setTimeout(() => { state.hidden = true; }, hideAfter);
+  };
+
+  const saveCustomerName = async () => {
+    const currentValue = input.value.trim();
+    if (currentValue === savedValue) return;
+    const sequence = ++requestSequence;
+    showSaveState("Guardando…", "is-saving");
+    try {
+      const response = await fetch(customerAutosaveForm.action, {
+        method: "POST",
+        body: new FormData(customerAutosaveForm),
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || "No se pudo guardar el nombre.");
+      if (sequence !== requestSequence) return;
+      savedValue = data.customer_name;
+      input.value = data.customer_name;
+      heading.textContent = data.customer_name ? ` · ${data.customer_name}` : "";
+      showSaveState("Guardado", "is-saved", 1200);
+    } catch (error) {
+      if (sequence !== requestSequence) return;
+      showSaveState(error.message, "is-error");
+    }
+  };
+
+  input.addEventListener("input", () => {
+    window.clearTimeout(saveTimer);
+    requestSequence += 1;
+    showSaveState("Pendiente de guardar", "is-pending");
+    saveTimer = window.setTimeout(saveCustomerName, 650);
+  });
+  input.addEventListener("blur", () => {
+    window.clearTimeout(saveTimer);
+    saveCustomerName();
+  });
+  customerAutosaveForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    window.clearTimeout(saveTimer);
+    saveCustomerName();
+  });
+}
 
 function selectCategory(button) {
     categoryButtons.forEach((candidate) => candidate.classList.remove("is-selected"));
@@ -46,6 +112,127 @@ categoryButtons.forEach((button) => {
 });
 const initiallySelectedCategory = document.querySelector("[data-category-target].is-selected");
 if (initiallySelectedCategory) selectCategory(initiallySelectedCategory);
+
+if (categoryCarousel) {
+  const viewport = categoryCarousel.querySelector("[data-category-carousel-viewport]");
+  const track = categoryCarousel.querySelector(".category-buttons");
+  const previous = categoryCarousel.querySelector("[data-category-carousel-prev]");
+  const next = categoryCarousel.querySelector("[data-category-carousel-next]");
+  const dots = categoryCarousel.querySelector("[data-category-carousel-dots]");
+  let pageOffsets = [0];
+  let currentPage = 0;
+  let dragStartX = 0;
+  let dragStartScroll = 0;
+  let isDragging = false;
+  let didDrag = false;
+  let settleTimer = null;
+
+  const revealCarouselItems = () => {
+    categoryButtons.forEach((button) => button.classList.remove("is-partial-carousel-item"));
+  };
+
+  const hidePartialCarouselItems = () => {
+    const viewportBounds = viewport.getBoundingClientRect();
+    categoryButtons.forEach((button) => {
+      const bounds = button.getBoundingClientRect();
+      const intersects = bounds.right > viewportBounds.left && bounds.left < viewportBounds.right;
+      const fullyVisible = bounds.left >= viewportBounds.left - 1 && bounds.right <= viewportBounds.right + 1;
+      button.classList.toggle("is-partial-carousel-item", intersects && !fullyVisible);
+    });
+  };
+
+  const renderCarousel = () => {
+    currentPage = Math.max(0, Math.min(currentPage, pageOffsets.length - 1));
+    dots.replaceChildren(...pageOffsets.map((offset, index) => {
+      const dot = document.createElement("button");
+      dot.type = "button";
+      dot.className = index === currentPage ? "is-current" : "";
+      dot.setAttribute("aria-label", `Ir a la página ${index + 1} de categorías`);
+      dot.setAttribute("aria-current", index === currentPage ? "true" : "false");
+      dot.addEventListener("click", () => goToPage(index));
+      return dot;
+    }));
+    previous.disabled = currentPage === 0;
+    next.disabled = currentPage === pageOffsets.length - 1;
+    categoryCarousel.classList.toggle("has-multiple-pages", pageOffsets.length > 1);
+  };
+
+  const goToPage = (page, behavior = "smooth") => {
+    currentPage = Math.max(0, Math.min(page, pageOffsets.length - 1));
+    window.clearTimeout(settleTimer);
+    revealCarouselItems();
+    viewport.scrollTo({ left: pageOffsets[currentPage], behavior });
+    renderCarousel();
+    settleTimer = window.setTimeout(hidePartialCarouselItems, behavior === "smooth" ? 260 : 0);
+  };
+
+  const measureCarousel = () => {
+    const buttons = [...track.querySelectorAll("[data-category-target]")];
+    buttons.forEach((button) => { button.style.marginRight = ""; });
+    pageOffsets = [0];
+    if (buttons.length && viewport.clientWidth) {
+      let pageStart = buttons[0].offsetLeft;
+      buttons.forEach((button) => {
+        const buttonEnd = button.offsetLeft + button.offsetWidth;
+        if (button.offsetLeft > pageStart && buttonEnd - pageStart > viewport.clientWidth) {
+          pageOffsets.push(button.offsetLeft);
+          pageStart = button.offsetLeft;
+        }
+      });
+    }
+    goToPage(Math.min(currentPage, pageOffsets.length - 1), "auto");
+  };
+
+  const finishDrag = (event) => {
+    if (!isDragging) return;
+    isDragging = false;
+    categoryCarousel.classList.remove("is-dragging");
+    if (viewport.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
+    if (!didDrag) return;
+    const closestPage = pageOffsets.reduce((best, offset, index) => (
+      Math.abs(offset - viewport.scrollLeft) < Math.abs(pageOffsets[best] - viewport.scrollLeft) ? index : best
+    ), 0);
+    goToPage(closestPage);
+    window.setTimeout(() => { didDrag = false; }, 0);
+  };
+
+  previous.addEventListener("click", () => goToPage(currentPage - 1));
+  next.addEventListener("click", () => goToPage(currentPage + 1));
+  viewport.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    isDragging = true;
+    didDrag = false;
+    dragStartX = event.clientX;
+    dragStartScroll = viewport.scrollLeft;
+    window.clearTimeout(settleTimer);
+    revealCarouselItems();
+  });
+  viewport.addEventListener("pointermove", (event) => {
+    if (!isDragging) return;
+    const distance = event.clientX - dragStartX;
+    if (Math.abs(distance) > 5 && !didDrag) {
+      didDrag = true;
+      categoryCarousel.classList.add("is-dragging");
+      viewport.setPointerCapture(event.pointerId);
+    }
+    if (!didDrag) return;
+    viewport.scrollLeft = dragStartScroll - distance;
+  });
+  viewport.addEventListener("pointerup", finishDrag);
+  viewport.addEventListener("pointercancel", finishDrag);
+  viewport.addEventListener("pointerleave", (event) => {
+    if (isDragging && !didDrag) finishDrag(event);
+  });
+  categoryCarousel.addEventListener("click", (event) => {
+    if (!didDrag) return;
+    event.preventDefault();
+    event.stopPropagation();
+    didDrag = false;
+  }, true);
+  new ResizeObserver(measureCarousel).observe(viewport);
+  window.addEventListener("load", measureCarousel, { once: true });
+  window.requestAnimationFrame(measureCarousel);
+}
 
 function normalizedSearchText(value) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es-MX").trim();

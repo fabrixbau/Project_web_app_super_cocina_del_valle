@@ -6,7 +6,7 @@ sus relaciones. Borra esta nota al terminar. -->
 {% block content %}
   <section class="card form-card"><h1>Eliminar {{ object_type }}</h1>
     {% if blocked %}
-      <p>No puedes eliminar <strong>{{ object }}</strong> porque contiene productos.</p><a href="{% url 'menu:configuration' %}">Volver</a>
+      <p>No puedes eliminar <strong>{{ object }}</strong> porque contiene productos.</p><a class="menu-back-link" href="{% url 'menu:configuration' %}">Administrar menú</a>
     {% else %}
       <p>¿Confirmas que deseas eliminar <strong>{{ object }}</strong>?</p>
       <form method="post">{% csrf_token %}<button class="danger" type="submit">Sí, eliminar</button></form>

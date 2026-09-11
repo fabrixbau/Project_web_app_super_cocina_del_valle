@@ -1,16 +1,27 @@
 {% extends "base_internal.html" %}
 {% block title %}Panel interno{% endblock %}
 {% block content %}
-  <h1>Panel interno</h1>
-  <p>Sesión iniciada como {{ user.get_full_name|default:user.username }}.</p>
-  <p>Roles: {% for role in role_names %}{{ role }}{% if not forloop.last %}, {% endif %}{% empty %}{% if user.is_superuser %}Superusuario{% else %}Sin rol operativo asignado{% endif %}{% endfor %}</p>
-  <section class="grid">
-    {% for section in allowed_sections %}
-      <article class="card">
-        <h2>{{ section.title }}</h2>
-        <p>{{ section.description }}</p>
-        <a href="{{ section.url }}">Abrir sección</a>
-      </article>
-    {% endfor %}
+  <section class="dashboard-section" aria-labelledby="dashboard-modules-title">
+    <header class="dashboard-section-heading">
+      <div>
+        <h2 id="dashboard-modules-title">Módulos disponibles</h2>
+      </div>
+      <span class="dashboard-module-count">
+        {% for role in role_names %}{{ role }}{% if not forloop.last %}, {% endif %}{% empty %}{% if user.is_superuser %}Superusuario{% else %}Sin rol operativo{% endif %}{% endfor %}
+        · {{ allowed_sections|length }} secciones
+      </span>
+    </header>
+
+    <div class="dashboard-grid">
+      {% for section in allowed_sections %}
+        <a class="dashboard-card" href="{{ section.url }}">
+          <div class="dashboard-card-copy">
+            <h3>{{ section.title }}</h3>
+            <p>{{ section.description }}</p>
+          </div>
+          <span class="dashboard-card-action">Abrir módulo <b aria-hidden="true">→</b></span>
+        </a>
+      {% endfor %}
+    </div>
   </section>
 {% endblock %}

@@ -489,6 +489,7 @@
         editExtras.dataset.url = item.edit_extras_url;
         editExtras.dataset.water = String(Boolean(item.with_water));
         editExtras.dataset.tortillas = String(Boolean(item.tortillas));
+        editExtras.dataset.bread = String(Boolean(item.bread));
         editExtras.dataset.beans = String(Boolean(item.beans));
         editExtras.dataset.comment = item.comment || "";
         controls.append(editExtras);
@@ -566,6 +567,120 @@
   const initialCategory = capture.querySelector("[data-internal-category-target].is-selected");
   if (initialCategory) document.querySelector(`#${initialCategory.dataset.internalCategoryTarget}`).hidden = false;
   search?.addEventListener("input", refreshSearch);
+  search?.addEventListener("focus", () => search.closest(".internal-menu-workspace")?.classList.add("search-focused"));
+  search?.addEventListener("blur", () => {
+    if (!search.value.trim()) search.closest(".internal-menu-workspace")?.classList.remove("search-focused");
+  });
+
+  const categoryCarousel = capture.querySelector("[data-internal-category-carousel]");
+  if (categoryCarousel) {
+    const viewport = categoryCarousel.querySelector("[data-carousel-viewport]");
+    const track = categoryCarousel.querySelector(".category-buttons");
+    const previous = categoryCarousel.querySelector("[data-carousel-prev]");
+    const next = categoryCarousel.querySelector("[data-carousel-next]");
+    const dots = categoryCarousel.querySelector("[data-carousel-dots]");
+    let offsets = [0];
+    let page = 0;
+    let pointerDown = false;
+    let dragged = false;
+    let startX = 0;
+    let startScroll = 0;
+
+    const render = () => {
+      page = Math.max(0, Math.min(page, offsets.length - 1));
+      dots.replaceChildren(...offsets.map((offset, index) => {
+        const dot = document.createElement("button");
+        dot.type = "button";
+        dot.classList.toggle("is-current", index === page);
+        dot.setAttribute("aria-label", `Ir a la página ${index + 1} de categorías`);
+        dot.addEventListener("click", () => go(index));
+        return dot;
+      }));
+      previous.disabled = page === 0;
+      next.disabled = page === offsets.length - 1;
+      categoryCarousel.classList.toggle("has-multiple-pages", offsets.length > 1);
+    };
+    const go = (target, behavior = "smooth") => {
+      page = Math.max(0, Math.min(target, offsets.length - 1));
+      viewport.scrollTo({left: offsets[page], behavior});
+      render();
+    };
+    const measure = () => {
+      const buttons = [...track.querySelectorAll("[data-internal-category-target]")];
+      offsets = [0];
+      let pageStart = buttons[0]?.offsetLeft || 0;
+      buttons.forEach((button) => {
+        if (button.offsetLeft > pageStart && button.offsetLeft + button.offsetWidth - pageStart > viewport.clientWidth) {
+          offsets.push(button.offsetLeft);
+          pageStart = button.offsetLeft;
+        }
+      });
+      go(Math.min(page, offsets.length - 1), "auto");
+    };
+    const finish = (event) => {
+      if (!pointerDown) return;
+      pointerDown = false;
+      categoryCarousel.classList.remove("is-dragging");
+      if (viewport.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
+      if (!dragged) return;
+      page = offsets.reduce((best, offset, index) => Math.abs(offset - viewport.scrollLeft) < Math.abs(offsets[best] - viewport.scrollLeft) ? index : best, 0);
+      go(page);
+      window.setTimeout(() => { dragged = false; }, 0);
+    };
+    previous.addEventListener("click", () => go(page - 1));
+    next.addEventListener("click", () => go(page + 1));
+    viewport.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      pointerDown = true;
+      dragged = false;
+      startX = event.clientX;
+      startScroll = viewport.scrollLeft;
+    });
+    viewport.addEventListener("pointermove", (event) => {
+      if (!pointerDown) return;
+      const distance = event.clientX - startX;
+      if (Math.abs(distance) > 6 && !dragged) {
+        dragged = true;
+        categoryCarousel.classList.add("is-dragging");
+        viewport.setPointerCapture(event.pointerId);
+      }
+      if (dragged) viewport.scrollLeft = startScroll - distance;
+    });
+    viewport.addEventListener("pointerup", finish);
+    viewport.addEventListener("pointercancel", finish);
+    categoryCarousel.addEventListener("click", (event) => {
+      if (!dragged) return;
+      event.preventDefault();
+      event.stopPropagation();
+      dragged = false;
+    }, true);
+    new ResizeObserver(measure).observe(viewport);
+    window.requestAnimationFrame(measure);
+  }
+
+  document.querySelectorAll("[data-auto-package-options]").forEach((options) => {
+    options.querySelectorAll("[data-auto-toggle]").forEach((button) => button.addEventListener("click", () => {
+      const field = options.querySelector(`[data-auto-option='${button.dataset.autoToggle}']`);
+      field.checked = !field.checked;
+      button.classList.toggle("is-selected", field.checked);
+      button.textContent = field.checked
+        ? (button.dataset.autoToggle === "with_water" ? "Con agua" : "Con frijoles")
+        : (button.dataset.autoToggle === "with_water" ? "Sin agua" : "Sin frijoles");
+    }));
+    options.querySelectorAll("[data-auto-accompaniment]").forEach((button) => button.addEventListener("click", () => {
+      const choice = button.dataset.autoAccompaniment;
+      options.querySelector("[data-auto-option='tortillas']").checked = choice === "tortillas";
+      options.querySelector("[data-auto-option='bread']").checked = choice === "bread";
+      options.querySelectorAll("[data-auto-accompaniment]").forEach((candidate) => candidate.classList.toggle("is-selected", candidate === button));
+    }));
+    const commentButton = options.querySelector("[data-auto-comment-toggle]");
+    const commentInput = options.querySelector("[data-auto-package-comment]");
+    commentButton?.remove();
+    if (commentInput) {
+      commentInput.hidden = false;
+      commentInput.placeholder = "Ej. Empacar por separado, sin cebolla o servir primero la sopa";
+    }
+  });
 
   document.querySelectorAll("[data-internal-package-open]").forEach((button) => button.addEventListener("click", () => {
     document.querySelector(`#${button.dataset.internalPackageOpen}`)?.showModal();
@@ -606,15 +721,65 @@
     refreshChickenField();
   });
 
+  // Presenta tortillas y bolillo como una sola eleccion, conservando los campos
+  // que el servidor utiliza para guardar cada extra.
+  document.querySelectorAll("form[data-internal-package]").forEach((form) => {
+    const extraGroups = form.querySelectorAll(".package-quick-extras .package-toggle-field");
+    const accompaniment = extraGroups[1];
+    const beans = extraGroups[2];
+    const tortillaYes = accompaniment?.querySelector("input[value='yes']");
+    const tortillaNo = accompaniment?.querySelector("input[value='no']");
+    const choices = accompaniment?.querySelector(".package-yes-no");
+    if (choices && tortillaYes && tortillaNo) {
+      accompaniment.querySelector("strong").textContent = "Acompañamiento";
+      tortillaYes.closest("label").querySelector("span").textContent = "Tortillas";
+      tortillaNo.closest("label").querySelector("span").textContent = "Ninguno";
+      choices.prepend(tortillaNo.closest("label"));
+      const breadLabel = document.createElement("label");
+      const breadInput = document.createElement("input");
+      breadInput.type = "checkbox";
+      breadInput.name = tortillaYes.name.replace(/tortillas$/, "bread");
+      breadLabel.append(breadInput, Object.assign(document.createElement("span"), {textContent: "Bolillo"}));
+      choices.append(breadLabel);
+      choices.classList.add("package-accompaniment-options");
+      tortillaNo.checked = true;
+      breadInput.addEventListener("change", () => {
+        if (breadInput.checked) tortillaNo.checked = true;
+      });
+      [tortillaYes, tortillaNo].forEach((input) => input.addEventListener("change", () => { breadInput.checked = false; }));
+      form.addEventListener("reset", () => window.setTimeout(() => { tortillaNo.checked = true; breadInput.checked = false; }, 0));
+    }
+    if (beans) {
+      beans.querySelector("strong").textContent = "Frijoles";
+      const yes = beans.querySelector("input[value='yes']");
+      const no = beans.querySelector("input[value='no']");
+      if (yes && no) {
+        yes.closest("label").querySelector("span").textContent = "Con frijoles";
+        no.closest("label").querySelector("span").textContent = "Sin frijoles";
+        beans.querySelector(".package-yes-no").prepend(no.closest("label"));
+        const beansNo = beans.querySelector("input[value='no']");
+        beansNo.checked = true;
+        form.addEventListener("reset", () => window.setTimeout(() => { beansNo.checked = true; }, 0));
+      }
+    }
+  });
+
   const extrasDialog = document.querySelector("[data-package-extras-dialog]");
   const extrasForm = extrasDialog?.querySelector("[data-package-extras-form]");
   document.querySelector("[data-package-extras-close]")?.addEventListener("click", () => extrasDialog.close());
+  extrasForm?.elements.tortillas?.addEventListener("change", () => {
+    if (extrasForm.elements.tortillas.checked) extrasForm.elements.bread.checked = false;
+  });
+  extrasForm?.elements.bread?.addEventListener("change", () => {
+    if (extrasForm.elements.bread.checked) extrasForm.elements.tortillas.checked = false;
+  });
   document.addEventListener("click", (event) => {
     const button = event.target.closest("[data-package-extras-open]");
     if (!button || !extrasForm) return;
     extrasForm.action = button.dataset.url;
     extrasForm.elements.with_water.checked = button.dataset.water === "true";
     extrasForm.elements.tortillas.checked = button.dataset.tortillas === "true";
+    extrasForm.elements.bread.checked = button.dataset.bread === "true";
     extrasForm.elements.beans.checked = button.dataset.beans === "true";
     extrasForm.elements.customization_comment.value = button.dataset.comment || "";
     extrasForm.querySelector("[data-package-extras-error]").hidden = true;
@@ -675,6 +840,11 @@
       renderTicket(data.ticket);
       if (data.auto_package_created && options) {
         options.querySelectorAll("[data-auto-option]").forEach((field) => { field.checked = false; });
+        options.querySelectorAll("[data-auto-toggle]").forEach((button) => {
+          button.classList.remove("is-selected");
+          button.textContent = button.dataset.autoToggle === "with_water" ? "Sin agua" : "Sin frijoles";
+        });
+        options.querySelectorAll("[data-auto-accompaniment]").forEach((button) => button.classList.toggle("is-selected", button.dataset.autoAccompaniment === "none"));
         const comment = options.querySelector("[data-auto-package-comment]");
         if (comment) comment.value = "";
       }

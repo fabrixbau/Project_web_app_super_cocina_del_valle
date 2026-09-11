@@ -36,6 +36,7 @@ document.addEventListener("submit", async (event) => {
   // AJAX de estados operativos. Borra esta nota después de leerla.
   if (!statusForm || statusForm.matches("[data-debt-create-form]")) return;
   event.preventDefault();
+  if (statusForm.matches("[data-cancel-order-form]") && !window.confirm("¿Cancelar este pedido? El inventario comprometido regresará a disponible.")) return;
   const row = statusForm.closest("[data-order-status]");
   const button = statusForm.querySelector("button[type='submit']");
   const rowError = statusForm.querySelector("[data-row-status-error]");

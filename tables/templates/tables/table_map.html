@@ -5,7 +5,7 @@ y Telefonista abren tocando directamente el nombre del mesero; Mesero se autoasi
 solo toca Abrir ticket. El switch guarda el modo de captura en sesión. Borra la nota. -->
 {% block title %}Mesas{% endblock %}
 {% block content %}
-  <div class="page-heading table-map-heading"><div><h1>Mapa de mesas</h1><p>Toca una mesa para abrir o continuar su ticket.</p></div><div class="action-group"><form method="post" action="{% url 'tables:table_capture_mode_switch' %}" class="capture-mode-switch">{% csrf_token %}<input type="hidden" name="capture_mode" value="{{ capture_mode_next }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><span>{{ capture_mode_label }}</span><button type="submit">{{ capture_mode_next_label }}</button></form><a class="button-link secondary" href="{% url 'tables:table_account_history' %}">Historial</a><a href="{% url 'internal_portal:dashboard' %}">Volver al panel</a></div></div>
+  <div class="page-heading table-map-heading"><div><h1>Mapa de mesas</h1><p>Toca una mesa para abrir o continuar su ticket.</p></div><div class="action-group table-map-actions"><form method="post" action="{% url 'tables:table_capture_mode_switch' %}" class="capture-mode-switch">{% csrf_token %}<input type="hidden" name="capture_mode" value="{{ capture_mode_next }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><span>{{ capture_mode_label }}</span><button type="submit">{{ capture_mode_next_label }}</button></form><a class="button-link secondary" href="{% url 'tables:table_account_history' %}">Historial</a></div></div>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
   <section class="table-map">
     {% for table in tables %}

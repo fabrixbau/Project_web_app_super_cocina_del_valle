@@ -20,9 +20,44 @@ adicional del navegador. Borra esta nota al terminar. */
   const cashSection = form.querySelector("[data-cash-section]");
   const cashQuickFields = form.querySelector("[data-cash-fields]");
   const cashError = form.querySelector("[data-cash-error]");
+  const tipHeading = form.querySelector(".tip-selection-section > strong");
   const totalOutput = form.querySelector("[data-payment-total]");
   const changeRow = form.querySelector("[data-payment-change]");
   const changeOutput = changeRow.querySelector("span");
+
+  const paymentIcons = {
+    cash: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"></rect><circle cx="12" cy="12" r="2.5"></circle><path d="M7 9.5h.01M17 14.5h.01"></path></svg>',
+    card: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M8 7h8M8 11h8M9 17h6"></path><path d="M3 9h3M18 9h3"></path></svg>',
+    transfer: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h15"></path><path d="m16 5 3 3-3 3"></path><path d="M20 16H5"></path><path d="m8 13-3 3 3 3"></path></svg>',
+  };
+  const paymentLabels = {cash: "Efectivo", card: "Terminal", transfer: "Transferencia"};
+
+  methodInputs.forEach((input) => {
+    const label = input.closest("label");
+    if (!label || !paymentIcons[input.value]) return;
+    label.classList.add("payment-method-card");
+    label.dataset.method = input.value;
+    const icon = document.createElement("span");
+    icon.className = "payment-method-icon";
+    icon.innerHTML = paymentIcons[input.value];
+    const copy = document.createElement("strong");
+    copy.textContent = paymentLabels[input.value];
+    const check = document.createElement("span");
+    check.className = "payment-method-check";
+    check.textContent = "✓";
+    label.replaceChildren(input, icon, copy, check);
+  });
+
+  const exactButton = document.createElement("button");
+  exactButton.type = "button";
+  exactButton.className = "exact-payment-button";
+  exactButton.setAttribute("aria-pressed", "false");
+  exactButton.addEventListener("click", () => {
+    exactInput.checked = !exactInput.checked;
+    exactInput.dispatchEvent(new Event("change", {bubbles: true}));
+  });
+  exactField.classList.add("exact-payment-field");
+  exactField.append(exactButton);
 
   const selectedMethod = () => methodInputs.find((input) => input.checked)?.value;
   const calculate = () => {
@@ -40,11 +75,13 @@ adicional del navegador. Borra esta nota al terminar. */
   };
   const updatePaymentFields = () => {
     const method = selectedMethod();
+    form.dataset.selectedPaymentMethod = method || "";
     const isCash = method === "cash";
-    cashSection.hidden = Boolean(method) && !isCash;
+    if (tipHeading) tipHeading.textContent = `${isCash ? "3" : "2"}. Propina para el mesero`;
+    cashSection.hidden = !isCash;
     exactField.hidden = !isCash;
     cashField.hidden = !isCash || exactInput.checked;
-    cashQuickFields.hidden = Boolean(method) && !isCash;
+    cashQuickFields.hidden = !isCash;
     exactInput.disabled = !isCash;
     cashInput.disabled = !isCash || exactInput.checked;
     if (!isCash) {
@@ -54,6 +91,9 @@ adicional del navegador. Borra esta nota al terminar. */
     } else if (exactInput.checked) {
       form.querySelectorAll("[data-cash-amount]").forEach((button) => button.classList.remove("is-selected"));
     }
+    exactButton.classList.toggle("is-selected", exactInput.checked);
+    exactButton.setAttribute("aria-pressed", String(exactInput.checked));
+    exactButton.textContent = exactInput.checked ? "✓ Pago exacto" : "Pago exacto";
     calculate();
   };
 

@@ -37,7 +37,8 @@ from django.views.decorators.http import require_POST
 
 from accounts.roles import ADMIN, ORDER_TAKER, SECTION_ROLE_MATRIX, WAITER, role_required, user_has_any_role
 from config.printing import printable_item, selected_printable_items, table_print_context
-from menu.models import Category, DailyMenu, MealPackage, Product
+from menu.inventory import filter_products_by_stock
+from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product
 from menu.packaging import parse_packaging_quantities
 from menu.selection import resolve_product_selection, serialize_product_selector
 
@@ -352,6 +353,23 @@ def table_detail(request, account_id):
         ]
         if category.available_products or category.show_table_packages:
             categories.append(category)
+    daily_menu = DailyMenu.objects.filter(
+        date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED,
+    ).select_related(
+        "water_product", "chicken_consomme", "variable_first_course",
+        "second_course_one", "second_course_two", "chicken_stew", "beef_stew",
+        "varied_stew", "beans_order",
+    ).first()
+    from menu.catalog import limit_cold_drinks_to_daily_water
+
+    categories = limit_cold_drinks_to_daily_water(
+        categories, daily_menu, "available_products", keep_package_categories=True,
+    )
+    for category in categories:
+        category.available_products = filter_products_by_stock(
+            category.available_products, daily_menu=daily_menu,
+            channel=DailyProductStock.Channel.TABLE,
+        )
     # NOTA TEMPORAL PARA APRENDIZAJE: Envases se consulta por su clasificación y no
     # por el nombre de la categoría; así puede cambiarse de categoría sin romper la
     # barra rápida. Los precios continúan perteneciendo al catálogo. Borra esta nota.
@@ -382,13 +400,6 @@ def table_detail(request, account_id):
         })
         lunch_category_navigation.sort(key=lambda item: (item["position"], item["name"]))
     ticket = ticket_summary(account)
-    daily_menu = DailyMenu.objects.filter(
-        date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED,
-    ).select_related(
-        "water_product", "chicken_consomme", "variable_first_course",
-        "second_course_one", "second_course_two", "chicken_stew", "beef_stew",
-        "varied_stew", "beans_order",
-    ).first()
     daily_order_products = []
     running_meal_products = []
     executive_meal_products = []
@@ -423,6 +434,14 @@ def table_detail(request, account_id):
                 enforce_service_period=False,
             )
         ]
+        daily_order_products = filter_products_by_stock(
+            daily_order_products, daily_menu=daily_menu,
+            channel=DailyProductStock.Channel.TABLE,
+        )
+        running_meal_products = filter_products_by_stock(
+            running_meal_products, daily_menu=daily_menu,
+            channel=DailyProductStock.Channel.TABLE,
+        )
         grill_candidates = Product.objects.filter(
             component_type=Product.ComponentType.GRILL,
             eligible_for_executive_meal=True,
@@ -441,6 +460,10 @@ def table_detail(request, account_id):
                 product, require_individual=False, enforce_service_period=False,
             )
         ]
+        executive_meal_products = filter_products_by_stock(
+            executive_meal_products, daily_menu=daily_menu,
+            channel=DailyProductStock.Channel.TABLE,
+        )
     package_options = []
     if daily_menu:
         # NOTA TEMPORAL PARA APRENDIZAJE: igual que Pedidos, Mesas conserva el
@@ -453,9 +476,9 @@ def table_detail(request, account_id):
             package_options.append({
                 "package": package,
                 "form": package_form,
-                "first_products": list(package_form.fields["first_course"].queryset),
-                "second_products": list(package_form.fields["second_course"].queryset),
-                "main_products": list(package_form.fields["main_course"].queryset),
+                "first_products": filter_products_by_stock(list(package_form.fields["first_course"].queryset), daily_menu=daily_menu, channel=DailyProductStock.Channel.TABLE),
+                "second_products": filter_products_by_stock(list(package_form.fields["second_course"].queryset), daily_menu=daily_menu, channel=DailyProductStock.Channel.TABLE),
+                "main_products": filter_products_by_stock(list(package_form.fields["main_course"].queryset), daily_menu=daily_menu, channel=DailyProductStock.Channel.TABLE),
             })
     package_edit_options = []
     package_items = account.items.filter(
@@ -784,16 +807,23 @@ def table_reassign(request, account_id):
 def table_customer_name_update(request, account_id):
     account = get_object_or_404(TableAccount, pk=account_id)
     if account.status != TableAccount.Status.OPEN:
+        if wants_json(request):
+            return JsonResponse({"ok": False, "error": "El nombre solamente puede modificarse mientras la cuenta está abierta."}, status=400)
         messages.error(request, "El nombre solamente puede modificarse mientras la cuenta está abierta.")
         return redirect("tables:table_detail", account_id=account.pk)
     customer_name = " ".join(request.POST.get("customer_name", "").split())
     if len(customer_name) > 100:
+        if wants_json(request):
+            return JsonResponse({"ok": False, "error": "El nombre del cliente no puede superar 100 caracteres."}, status=400)
         messages.error(request, "El nombre del cliente no puede superar 100 caracteres.")
     else:
         previous_name = account.customer_name
-        account.customer_name = customer_name
-        account.save(update_fields=("customer_name",))
-        record_activity(account=account, actor=request.user, action=TableActivity.Action.CUSTOMER, description=f"{previous_name or 'Sin nombre'} → {customer_name or 'Sin nombre'}")
+        if customer_name != previous_name:
+            account.customer_name = customer_name
+            account.save(update_fields=("customer_name",))
+            record_activity(account=account, actor=request.user, action=TableActivity.Action.CUSTOMER, description=f"{previous_name or 'Sin nombre'} → {customer_name or 'Sin nombre'}")
+        if wants_json(request):
+            return JsonResponse({"ok": True, "customer_name": customer_name})
         messages.success(request, "El nombre del cliente fue actualizado." if customer_name else "La cuenta quedó sin nombre de cliente.")
     return redirect("tables:table_detail", account_id=account.pk)
 

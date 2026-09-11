@@ -4,7 +4,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 
 from .quick_switch import LOCK_KEY, TRUST_KEY, enable_quick_switch, quick_switch_is_trusted
-from .roles import WAITER
+from .roles import ADMIN, WAITER
 
 
 class QuickSwitchLockMiddleware:
@@ -21,6 +21,8 @@ class QuickSwitchLockMiddleware:
             request.user.is_authenticated
             and TRUST_KEY not in request.session
             and request.user.groups.filter(name=WAITER).exists()
+            and not request.user.is_superuser
+            and not request.user.groups.filter(name=ADMIN).exists()
             and hasattr(request.user, "profile")
             and request.user.profile.has_quick_pin
         ):

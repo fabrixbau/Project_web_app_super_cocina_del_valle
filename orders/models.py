@@ -19,7 +19,7 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
 
-from menu.models import MealPackage, Product
+from menu.models import DailyMenu, MealPackage, Product
 
 
 class DailyOrderCounter(models.Model):
@@ -236,6 +236,10 @@ class OrderItem(models.Model):
         THIGH = "thigh", "Muslo"
 
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
+    daily_menu = models.ForeignKey(
+        DailyMenu, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="order_items",
+    )
     item_type = models.CharField(max_length=20, choices=ItemType.choices, default=ItemType.PACKAGE)
     is_package_candidate = models.BooleanField(default=False)
     package = models.ForeignKey(
@@ -265,8 +269,17 @@ class OrderItem(models.Model):
     chicken_piece = models.CharField(max_length=20, choices=ChickenPiece.choices, blank=True)
     with_water = models.BooleanField(default=False)
     water_name_snapshot = models.CharField(max_length=150, blank=True)
+    water_product = models.ForeignKey(
+        Product, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="order_items_as_water",
+    )
     tortillas = models.BooleanField()
+    bread = models.BooleanField(default=False)
     beans = models.BooleanField()
+    beans_product = models.ForeignKey(
+        Product, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="order_items_as_beans",
+    )
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
     quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)])
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])

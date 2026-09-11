@@ -9,13 +9,17 @@
 # payload JSON validado por Django; los IDs existentes se conservan. Borra esta nota.
 
 import json
-from datetime import time
+from io import BytesIO
+from calendar import monthrange
+from datetime import date, time, timedelta
 
+from PIL import Image, ImageOps
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Count, Prefetch, Q
-from django.http import Http404
+from django.db.models import Count, Max, Prefetch, Q, Sum
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -28,24 +32,27 @@ from .customization import (
     sync_product_customization,
 )
 from .group_library import shared_group_families, sync_shared_group
+from .inventory import adjust_stock, daily_menu_stock_errors, filter_products_by_stock
 
 from .forms import (
     CategoryForm, DailyMenuForm, MealPackageForm, ProductForm, ProductOptionForm,
-    ProductOptionGroupCopyForm, ProductOptionGroupForm,
+    FixedStockForm, ProductOptionGroupCopyForm, ProductOptionGroupForm,
 )
 from .models import (
-    Category, DailyMenu, MealPackage, Product, ProductOption, ProductOptionGroup,
-    ServicePeriod,
+    Category, DailyMenu, DailyProductStock, MealPackage, Product, ProductOption,
+    ProductOptionGroup, ServicePeriod, StockMovement,
 )
 from .selection import serialize_product_selector
 
 
 @role_required(*SECTION_ROLE_MATRIX["menu"])
 def configuration(request):
-    categories = Category.objects.annotate(product_count=Count("products"))
+    categories = Category.objects.annotate(product_count=Count("products")).order_by("sort_order", "name")
     products = Product.objects.select_related("category").prefetch_related(
         "service_periods",
-    ).annotate(option_group_count=Count("option_groups", distinct=True))
+    ).annotate(option_group_count=Count("option_groups", distinct=True)).order_by(
+        "category__sort_order", "category__name", "sort_order", "name",
+    )
     search = request.GET.get("q", "").strip()
     category_id = request.GET.get("category", "").strip()
     availability = request.GET.get("availability", "").strip()
@@ -66,6 +73,267 @@ def configuration(request):
         "selected_category": category_id,
         "availability": availability,
     })
+
+
+@role_required(*SECTION_ROLE_MATRIX["menu"])
+def inventory_control(request):
+    raw_date = request.POST.get("date") or request.GET.get("date") or timezone.localdate().isoformat()
+    try:
+        selected_date = date.fromisoformat(raw_date)
+    except ValueError:
+        selected_date = timezone.localdate()
+    stocks = DailyProductStock.objects.filter(
+        stock_type=DailyProductStock.StockType.DAILY, date=selected_date,
+    ).select_related(
+        "product", "daily_menu",
+    ).order_by("item_kind", "product__name", "chicken_piece", "channel")
+    fixed_stocks = DailyProductStock.objects.filter(
+        stock_type=DailyProductStock.StockType.FIXED, is_tracked=True,
+    ).select_related("product").order_by("product__category__name", "product__name")
+    fixed_form = FixedStockForm(prefix="fixed")
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "save_daily":
+            try:
+                with transaction.atomic():
+                    stock_ids = list(stocks.values_list("pk", flat=True))
+                    locked_stocks = DailyProductStock.objects.select_for_update().filter(
+                        pk__in=stock_ids,
+                    ).order_by("pk")
+                    for stock in locked_stocks:
+                        raw_quantity = request.POST.get(f"stock_{stock.pk}", "")
+                        raw_threshold = request.POST.get(f"threshold_{stock.pk}", "")
+                        if not raw_quantity.isdigit() or not raw_threshold.isdigit():
+                            raise ValidationError(f"Captura una cantidad válida para {stock.item_name}.")
+                        stock.low_stock_threshold = int(raw_threshold)
+                        stock.save(update_fields=("low_stock_threshold",))
+                        desired = int(raw_quantity)
+                        difference = desired - stock.available_quantity
+                        if difference:
+                            adjust_stock(
+                                stock=stock, quantity=difference, actor=request.user,
+                                note="Reconteo manual desde el control de inventario diario",
+                            )
+                        else:
+                            from notifications.services import sync_stock_alert
+                            sync_stock_alert(stock)
+            except ValidationError as error:
+                messages.error(request, error.message)
+            else:
+                messages.success(request, "Las existencias del menú diario fueron actualizadas.")
+                return redirect(f"{reverse('menu:inventory_control')}?date={selected_date.isoformat()}")
+        elif action == "add_fixed":
+            fixed_form = FixedStockForm(request.POST, prefix="fixed")
+            if fixed_form.is_valid():
+                product = fixed_form.cleaned_data["product"]
+                stock, _created = DailyProductStock.objects.get_or_create(
+                    stock_type=DailyProductStock.StockType.FIXED,
+                    product=product,
+                    defaults={
+                        "date": None, "channel": DailyProductStock.Channel.SHARED,
+                        "initial_quantity": fixed_form.cleaned_data["quantity"],
+                        "low_stock_threshold": fixed_form.cleaned_data["low_stock_threshold"],
+                    },
+                )
+                if not _created:
+                    difference = fixed_form.cleaned_data["quantity"] - stock.available_quantity
+                    stock.is_tracked = True
+                    stock.low_stock_threshold = fixed_form.cleaned_data["low_stock_threshold"]
+                    stock.save(update_fields=("is_tracked", "low_stock_threshold"))
+                    if difference:
+                        adjust_stock(
+                            stock=stock, quantity=difference, actor=request.user,
+                            note="Reactivación o reconteo del producto fijo",
+                        )
+                from notifications.services import sync_stock_alert
+                sync_stock_alert(stock)
+                messages.success(request, f"{product.name} quedó bajo control de inventario.")
+                return redirect(reverse("menu:inventory_control"))
+        elif action == "save_fixed":
+            try:
+                with transaction.atomic():
+                    stock_ids = list(fixed_stocks.values_list("pk", flat=True))
+                    locked_stocks = DailyProductStock.objects.select_for_update().filter(
+                        pk__in=stock_ids,
+                    ).order_by("pk")
+                    for stock in locked_stocks:
+                        raw_quantity = request.POST.get(f"fixed_stock_{stock.pk}", "")
+                        raw_threshold = request.POST.get(f"fixed_threshold_{stock.pk}", "")
+                        if not raw_quantity.isdigit() or not raw_threshold.isdigit():
+                            raise ValidationError(f"Captura cantidades válidas para {stock.item_name}.")
+                        stock.low_stock_threshold = int(raw_threshold)
+                        stock.save(update_fields=("low_stock_threshold",))
+                        difference = int(raw_quantity) - stock.available_quantity
+                        if difference:
+                            adjust_stock(
+                                stock=stock, quantity=difference, actor=request.user,
+                                note="Reconteo manual del inventario fijo",
+                            )
+                        else:
+                            from notifications.services import sync_stock_alert
+                            sync_stock_alert(stock)
+            except ValidationError as error:
+                messages.error(request, error.message)
+            else:
+                messages.success(request, "El inventario fijo fue actualizado.")
+                return redirect(reverse("menu:inventory_control"))
+        elif action == "remove_fixed":
+            stock = get_object_or_404(
+                DailyProductStock, pk=request.POST.get("stock_id"),
+                stock_type=DailyProductStock.StockType.FIXED,
+            )
+            stock.is_tracked = False
+            stock.save(update_fields=("is_tracked",))
+            from notifications.services import sync_stock_alert
+            sync_stock_alert(stock)
+            messages.success(request, f"{stock.item_name} dejó de tener seguimiento de stock.")
+            return redirect(reverse("menu:inventory_control"))
+
+    daily_group_map = {}
+    for stock in stocks:
+        key = (stock.item_kind, stock.product_id, stock.chicken_piece)
+        group = daily_group_map.setdefault(key, {
+            "label": stock.item_name, "product": stock.product,
+            "table": None, "orders": None,
+        })
+        committed = -(stock.movements.filter(
+            reason=StockMovement.Reason.RESERVATION,
+        ).aggregate(total=Sum("quantity"))["total"] or 0)
+        group[stock.channel] = {
+            "stock": stock, "available": stock.available_quantity,
+            "committed": committed,
+            "status": (
+                "empty" if stock.available_quantity == 0
+                else "low" if stock.is_low_stock
+                else "ok"
+            ),
+        }
+    daily_groups = list(daily_group_map.values())
+    for group in daily_groups:
+        statuses = {
+            row["status"] for row in (group["table"], group["orders"]) if row
+        }
+        group["status"] = (
+            "empty" if "empty" in statuses else "low" if "low" in statuses else "ok"
+        )
+    fixed_rows = [{
+        "stock": stock, "available": stock.available_quantity,
+        "committed": -(stock.movements.filter(
+            reason=StockMovement.Reason.RESERVATION,
+        ).aggregate(total=Sum("quantity"))["total"] or 0),
+    } for stock in fixed_stocks]
+    return render(request, "menu/inventory_control.html", {
+        "selected_date": selected_date, "stock_rows": list(stocks), "daily_groups": daily_groups,
+        "fixed_rows": fixed_rows, "fixed_form": fixed_form,
+    })
+
+
+@role_required(*SECTION_ROLE_MATRIX["menu"])
+def inventory_history(request):
+    movements = StockMovement.objects.select_related(
+        "stock", "stock__product", "stock__product__category", "actor",
+    ).order_by("-created_at", "-pk")
+
+    raw_from = request.GET.get("from", "").strip()
+    raw_to = request.GET.get("to", "").strip()
+    stock_type = request.GET.get("stock_type", "").strip()
+    channel = request.GET.get("channel", "").strip()
+    reason = request.GET.get("reason", "").strip()
+    search = request.GET.get("q", "").strip()
+
+    try:
+        date_from = date.fromisoformat(raw_from) if raw_from else None
+    except ValueError:
+        date_from = None
+    try:
+        date_to = date.fromisoformat(raw_to) if raw_to else None
+    except ValueError:
+        date_to = None
+
+    if date_from:
+        movements = movements.filter(created_at__date__gte=date_from)
+    if date_to:
+        movements = movements.filter(created_at__date__lte=date_to)
+    if stock_type in DailyProductStock.StockType.values:
+        movements = movements.filter(stock__stock_type=stock_type)
+    if channel in DailyProductStock.Channel.values:
+        movements = movements.filter(stock__channel=channel)
+    if reason in StockMovement.Reason.values:
+        movements = movements.filter(reason=reason)
+    if search:
+        movements = movements.filter(
+            Q(stock__product__name__icontains=search)
+            | Q(note__icontains=search)
+            | Q(actor__username__icontains=search)
+        )
+
+    totals = movements.aggregate(
+        entries=Sum("quantity", filter=Q(quantity__gt=0)),
+        exits=Sum("quantity", filter=Q(quantity__lt=0)),
+    )
+    paginator = Paginator(movements, 30)
+    page = paginator.get_page(request.GET.get("page"))
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
+
+    return render(request, "menu/inventory_history.html", {
+        "page": page,
+        "movement_count": paginator.count,
+        "entry_total": totals["entries"] or 0,
+        "exit_total": abs(totals["exits"] or 0),
+        "date_from": date_from,
+        "date_to": date_to,
+        "selected_stock_type": stock_type,
+        "selected_channel": channel,
+        "selected_reason": reason,
+        "search": search,
+        "stock_types": DailyProductStock.StockType.choices,
+        "channels": (
+            (DailyProductStock.Channel.TABLE, "Mesas"),
+            (DailyProductStock.Channel.ORDERS, "Pedidos"),
+            (DailyProductStock.Channel.SHARED, "Menú fijo"),
+        ),
+        "reasons": StockMovement.Reason.choices,
+        "query_string": query_params.urlencode(),
+    })
+
+
+@role_required(*SECTION_ROLE_MATRIX["menu"])
+def product_card_image(request, product_id):
+    """Return the exact saved 4:3 crop for the administration card."""
+    product = get_object_or_404(Product, pk=product_id)
+    if not product.image:
+        raise Http404
+    with product.image.open("rb") as source:
+        image = ImageOps.exif_transpose(Image.open(source)).convert("RGB")
+        width, height = image.size
+        ratio = 4 / 3
+        zoom = max(1.0, min(3.0, float(product.image_zoom)))
+        position_x = product.image_position_x / 100
+        position_y = product.image_position_y / 100
+        if width / height > ratio:
+            base_height = height
+            base_width = base_height * ratio
+            base_left = (width - base_width) * position_x
+            base_top = 0
+        else:
+            base_width = width
+            base_height = base_width / ratio
+            base_left = 0
+            base_top = (height - base_height) * position_y
+        crop_width = base_width / zoom
+        crop_height = base_height / zoom
+        left = base_left + base_width * position_x * (1 - 1 / zoom)
+        top = base_top + base_height * position_y * (1 - 1 / zoom)
+        left = max(0, min(width - crop_width, left))
+        top = max(0, min(height - crop_height, top))
+        image = image.crop((round(left), round(top), round(left + crop_width), round(top + crop_height)))
+        image.thumbnail((900, 675), Image.Resampling.LANCZOS)
+        output = BytesIO()
+        image.save(output, format="WEBP", quality=88, method=4)
+    response = HttpResponse(output.getvalue(), content_type="image/webp")
+    response["Cache-Control"] = "private, max-age=300"
+    return response
 
 
 @role_required(*SECTION_ROLE_MATRIX["menu"])
@@ -153,6 +421,7 @@ def category_create(request):
         return redirect("menu:configuration")
     return render(request, "menu/form.html", {
         "form": form, "title": "Nueva categoría", "show_category_order_link": True,
+        "is_category_form": True,
     })
 
 
@@ -166,7 +435,7 @@ def category_edit(request, category_id):
         return redirect("menu:configuration")
     return render(request, "menu/form.html", {
         "form": form, "title": f"Editar categoría: {category.name}",
-        "show_category_order_link": True,
+        "show_category_order_link": True, "is_category_form": True,
     })
 
 
@@ -199,8 +468,18 @@ def product_create(request):
         return redirect("menu:configuration")
     if request.method == "POST":
         messages.error(request, "No se pudo crear el producto. Revisa los campos marcados.")
+    category_next_orders = {
+        str(category["id"]): (
+            category["maximum_order"] + 1
+            if category["maximum_order"] is not None else 0
+        )
+        for category in Category.objects.annotate(
+            maximum_order=Max("products__sort_order"),
+        ).values("id", "maximum_order")
+    }
     return render(request, "menu/form.html", {
         "form": form, "title": "Nuevo producto", "is_product_form": True,
+        "is_product_create": True, "category_next_orders": category_next_orders,
         "customization_data": customization_data,
         "customization_library": customization_group_library(),
     })
@@ -223,6 +502,7 @@ def product_edit(request, product_id):
         messages.error(request, "No se pudo actualizar el producto. Revisa los campos marcados.")
     return render(request, "menu/form.html", {
         "form": form, "title": f"Editar producto: {product.name}", "is_product_form": True,
+        "is_product_create": False,
         "customization_data": customization_data,
         "customization_library": customization_group_library(exclude_product=product),
     })
@@ -449,8 +729,28 @@ def product_delete(request, product_id):
 
 @role_required(*SECTION_ROLE_MATRIX["menu"])
 def daily_menu_list(request):
-    daily_menus = DailyMenu.objects.select_related("water_product")
-    return render(request, "menu/daily_menu_list.html", {"daily_menus": daily_menus})
+    requested_month = request.GET.get("month", "")
+    try:
+        selected_month = date.fromisoformat(f"{requested_month}-01") if requested_month else timezone.localdate().replace(day=1)
+    except ValueError:
+        selected_month = timezone.localdate().replace(day=1)
+    last_day = monthrange(selected_month.year, selected_month.month)[1]
+    month_end = selected_month.replace(day=last_day)
+    previous_month = (selected_month.replace(day=1) - timedelta(days=1)).replace(day=1)
+    next_month = (month_end + timedelta(days=1)).replace(day=1)
+    daily_menus = DailyMenu.objects.filter(
+        date__range=(selected_month, month_end),
+    ).select_related(
+        "water_product", "chicken_consomme", "variable_first_course",
+        "second_course_one", "second_course_two", "chicken_stew", "beef_stew",
+        "varied_stew", "beans_order",
+    )
+    return render(request, "menu/daily_menu_list.html", {
+        "daily_menus": daily_menus,
+        "selected_month": selected_month,
+        "previous_month": previous_month,
+        "next_month": next_month,
+    })
 
 
 @role_required(*SECTION_ROLE_MATRIX["menu"])
@@ -459,9 +759,15 @@ def daily_menu_form(request, daily_menu_id=None):
     form = DailyMenuForm(request.POST or None, instance=daily_menu)
 
     if request.method == "POST" and form.is_valid():
-        form.save()
-        messages.success(request, "El menú diario fue guardado.")
-        return redirect("menu:daily_menu_list")
+        try:
+            with transaction.atomic():
+                form.save()
+                form.save_stocks()
+        except ValidationError as error:
+            form.add_error(None, error)
+        else:
+            messages.success(request, "El menú diario y sus raciones fueron guardados.")
+            return redirect("menu:daily_menu_list")
 
     return render(request, "menu/daily_menu_form.html", {
         "form": form,
@@ -488,6 +794,11 @@ def daily_menu_status(request, daily_menu_id):
             messages.error(request, "Las dos opciones del segundo tiempo deben ser diferentes.")
         elif any(not product.is_available for product in selected_products):
             messages.error(request, "Todos los productos seleccionados deben estar disponibles.")
+        elif missing_stock := daily_menu_stock_errors(daily_menu):
+            messages.error(
+                request,
+                "Completa la distribución de raciones antes de publicar: " + ", ".join(missing_stock) + ".",
+            )
         else:
             daily_menu.status = DailyMenu.Status.PUBLISHED
             daily_menu.published_at = timezone.now()
@@ -503,7 +814,12 @@ def daily_menu_status(request, daily_menu_id):
         daily_menu.save(update_fields=["status", "published_at", "updated_at"])
         messages.success(request, "El menú volvió a borrador.")
 
-    return redirect("menu:daily_menu_list")
+    month = request.POST.get("month", "")
+    try:
+        date.fromisoformat(f"{month}-01")
+    except ValueError:
+        return redirect("menu:daily_menu_list")
+    return redirect(f"{reverse('menu:daily_menu_list')}?month={month}")
 
 
 @role_required(*SECTION_ROLE_MATRIX["menu"])
@@ -586,6 +902,19 @@ def public_menu(request):
         )
         .first()
     )
+    from .catalog import limit_cold_drinks_to_daily_water
+
+    visible_categories = limit_cold_drinks_to_daily_water(
+        visible_categories, daily_menu, "available_products",
+    )
+    advance_lunch_categories = limit_cold_drinks_to_daily_water(
+        advance_lunch_categories, daily_menu, "available_products",
+    )
+    for category in [*visible_categories, *advance_lunch_categories]:
+        category.available_products = filter_products_by_stock(
+            category.available_products, daily_menu=daily_menu,
+            channel=DailyProductStock.Channel.ORDERS,
+        )
     daily_groups = []
     if daily_menu:
         group_products = (
@@ -594,7 +923,10 @@ def public_menu(request):
             ("Guisados", (daily_menu.chicken_stew, daily_menu.beef_stew, daily_menu.varied_stew)),
         )
         for title, products in group_products:
-            visible_products = [product for product in products if product and product.is_available]
+            visible_products = filter_products_by_stock(
+                [product for product in products if product and product.is_available],
+                daily_menu=daily_menu, channel=DailyProductStock.Channel.ORDERS,
+            )
             if visible_products:
                 daily_groups.append({"title": title, "products": visible_products})
 

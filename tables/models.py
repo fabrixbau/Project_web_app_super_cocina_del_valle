@@ -184,8 +184,16 @@ class TableAccountItem(models.Model):
     chicken_piece = models.CharField(max_length=20, blank=True)
     with_water = models.BooleanField(default=False)
     water_name_snapshot = models.CharField(max_length=150, blank=True)
+    water_product = models.ForeignKey(
+        "menu.Product", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="table_items_as_water",
+    )
     tortillas = models.BooleanField(default=False)
     beans = models.BooleanField(default=False)
+    beans_product = models.ForeignKey(
+        "menu.Product", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="table_items_as_beans",
+    )
     refill_extra = models.BooleanField(default=False)
     is_complete = models.BooleanField(default=True)
     product_name_snapshot = models.CharField(max_length=150)

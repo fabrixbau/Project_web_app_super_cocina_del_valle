@@ -8,23 +8,24 @@ permite que Django valide y guarde todo junto con el producto. Borra esta nota a
 {% load static %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
-  <p><a href="{% url 'menu:configuration' %}">← Volver al menú</a></p>
+  <p><a class="menu-back-link" href="{% url 'menu:configuration' %}">Administrar menú</a></p>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
-  <section class="card form-card"><h1>{{ title }}</h1>
-    {% if show_category_order_link %}<p class="form-help-callout">El orden ya no se edita con números. <a href="{% url 'menu:category_ordering' %}">Abrir organizador visual de categorías</a>.</p>{% endif %}
-    <form method="post" enctype="multipart/form-data" {% if is_product_form %}class="product-editor-form"{% endif %}>{% csrf_token %}
+  <section class="card form-card{% if is_category_form %} category-editor-card{% endif %}">
+    {% if is_category_form %}<header class="category-editor-heading"><span>Organización del catálogo</span><h1>{{ title }}</h1><p>Define cómo se identifica la categoría y en qué áreas estará disponible.</p></header>{% else %}<h1>{{ title }}</h1>{% endif %}
+    {% if show_category_order_link %}<aside class="category-order-callout"><span>El orden se administra visualmente</span><a href="{% url 'menu:category_ordering' %}">Abrir organizador de categorías <b>→</b></a></aside>{% endif %}
+    <form method="post" enctype="multipart/form-data" {% if is_product_form %}class="product-editor-form" data-product-editor{% if is_product_create %} data-product-create{% endif %}{% elif is_category_form %}class="category-editor-form"{% endif %}>{% csrf_token %}
       {% if is_product_form %}
         {% if form.errors %}<div class="capture-error-summary" tabindex="-1"><strong>No se pudo guardar el producto.</strong><p>Corrige los siguientes campos:</p><ul>{% for field in form %}{% for error in field.errors %}<li><a href="#{{ field.id_for_label }}">{{ field.label }}: {{ error }}</a></li>{% endfor %}{% endfor %}{% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
         <fieldset class="product-form-section">
           <legend>1. Información principal</legend>
           <p class="section-help">Datos que identificarán el producto y determinarán su precio.</p>
           <div class="product-form-grid">
-            <div class="product-form-field">{{ form.category.label_tag }}{{ form.category.errors }}{{ form.category }}{% if form.category.help_text %}<small>{{ form.category.help_text }}</small>{% endif %}</div>
-            <div class="product-form-field">{{ form.name.label_tag }}{{ form.name.errors }}{{ form.name }}</div>
-            <div class="product-form-field">{{ form.price.label_tag }}{{ form.price.errors }}{{ form.price }}</div>
-            <div class="product-form-field">{{ form.sort_order.label_tag }}{{ form.sort_order.errors }}{{ form.sort_order }}{% if form.sort_order.help_text %}<small>{{ form.sort_order.help_text }}</small>{% endif %}</div>
-            <div class="product-form-field product-form-wide">{{ form.description.label_tag }}{{ form.description.errors }}{{ form.description }}</div>
-            <div class="product-form-field product-form-wide">{{ form.image.label_tag }}{{ form.image.errors }}{{ form.image }}</div>
+            <div class="product-form-field product-main-category">{{ form.category.label_tag }}{{ form.category.errors }}{{ form.category }}{% if form.category.help_text %}<small>{{ form.category.help_text }}</small>{% endif %}</div>
+            <div class="product-form-field product-main-name">{{ form.name.label_tag }}{{ form.name.errors }}{{ form.name }}</div>
+            <div class="product-form-field product-main-price">{{ form.price.label_tag }}{{ form.price.errors }}{{ form.price }}</div>
+            <div class="product-form-field product-main-order">{{ form.sort_order.label_tag }}{{ form.sort_order.errors }}{{ form.sort_order }}{% if form.sort_order.help_text %}<small>{{ form.sort_order.help_text }}</small>{% endif %}</div>
+            <div class="product-form-field product-main-description">{{ form.description.label_tag }}{{ form.description.errors }}{{ form.description }}</div>
+            <div class="product-form-field product-main-image">{{ form.image.label_tag }}{{ form.image.errors }}{{ form.image }}{{ form.image_position_x }}{{ form.image_position_y }}{{ form.image_zoom }}</div>
           </div>
         </fieldset>
         <fieldset class="product-form-section">
@@ -61,12 +62,26 @@ permite que Django valide y guarde todo junto con el producto. Borra esta nota a
           <input type="hidden" name="customization_data" data-customization-payload>
           {{ customization_data|json_script:"product-customization-data" }}
           {{ customization_library|json_script:"product-customization-library" }}
+          {% if is_product_create %}{{ category_next_orders|json_script:"category-next-product-orders" }}{% endif %}
         </fieldset>
         <div class="product-form-actions"><a class="button-link secondary" href="{% url 'menu:configuration' %}">Cancelar</a><button type="submit">Guardar producto</button></div>
+      {% elif is_category_form %}
+        {% if form.errors %}<div class="capture-error-summary"><strong>No se pudo guardar la categoría.</strong><p>Revisa los campos marcados.</p></div>{% endif %}
+        <section class="category-primary-fields">
+          <div class="category-field"><span>Nombre de la categoría</span>{{ form.name.errors }}{{ form.name }}<small>Será el título que verán clientes y personal.</small></div>
+        </section>
+        <fieldset class="category-visibility-section"><legend>Visibilidad de la categoría</legend><p>Activa únicamente los espacios donde debe aparecer.</p><div class="category-visibility-grid">
+          <label>{{ form.show_on_public_breakfast }}<span><strong>Clientes · desayunos</strong><small>Visible en pedidos del menú de desayuno.</small></span></label>
+          <label>{{ form.show_on_public_lunch }}<span><strong>Clientes · comida</strong><small>Visible en pedidos del menú de comida.</small></span></label>
+          <label>{{ form.show_on_table_breakfast }}<span><strong>Mesas · desayunos</strong><small>Disponible al capturar desayunos en mesa.</small></span></label>
+          <label>{{ form.show_on_table_lunch }}<span><strong>Mesas · comida</strong><small>Disponible al capturar comida en mesa.</small></span></label>
+        </div></fieldset>
+        <label class="category-package-rule">{{ form.show_table_packages }}<span><strong>Abrir paquetes desde esta categoría</strong><small>{{ form.show_table_packages.help_text }}</small></span></label>
+        <div class="product-form-actions"><a class="button-link secondary" href="{% url 'menu:configuration' %}">Cancelar</a><button type="submit">Guardar categoría</button></div>
       {% else %}
         {{ form.as_p }}<button type="submit">Guardar</button>
       {% endif %}
     </form>
   </section>
 {% endblock %}
-{% block extra_js %}{% if is_product_form %}<script src="{% static 'js/product-customization-editor.js' %}?v=3"></script>{% endif %}{% endblock %}
+{% block extra_js %}{% if is_product_form %}<script src="{% static 'js/product-form.js' %}?v=2"></script><script src="{% static 'js/product-customization-editor.js' %}?v=3"></script>{% endif %}{% endblock %}

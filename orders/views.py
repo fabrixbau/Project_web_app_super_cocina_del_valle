@@ -22,7 +22,8 @@ from django.views.decorators.http import require_POST
 
 from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, WAITER, SECTION_ROLE_MATRIX, role_required, user_has_any_role
 from config.printing import order_print_context, printable_item, selected_printable_items
-from menu.models import Category, DailyMenu, MealPackage, Product
+from menu.inventory import filter_products_by_stock
+from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product
 from menu.packaging import parse_packaging_quantities
 from menu.selection import resolve_product_selection, serialize_product_selector
 from tables.models import TableAccount
@@ -30,7 +31,7 @@ from tables.models import TableAccount
 from .cart import add_package, add_product, cart_control_summary, clear, decrease_product, get_order_mode, product_is_orderable, remove_item, resolve_cart, set_cart_note, set_item_note, set_order_mode, update_item, update_product_selection
 from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm, PublicOrderModeForm
 from .models import Customer, CustomerAddress, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
-from .services import ACTION_LABELS, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, change_internal_order_item, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, start_internal_order, transition_order, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
+from .services import ACTION_LABELS, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, start_internal_order, transition_order, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
 
 
 INTERNAL_MENU_MODE_KEY = "internal_order_menu_mode"
@@ -58,6 +59,10 @@ def _locked_order_response(request, order):
 def _order_actions_for_user(order, user):
     actions = list(available_order_actions(order))
     if user_has_any_role(user, (ADMIN,)):
+        if order.status not in {
+            Order.Status.CANCELED, Order.Status.PICKED_UP, Order.Status.DELIVERED,
+        } and "cancel" not in actions:
+            actions.append("cancel")
         return actions
     if not user_has_any_role(user, (ORDER_TAKER,)):
         return []
@@ -151,6 +156,8 @@ def internal_order_ticket(order):
             ]
             if item.tortillas:
                 description_parts.append("Con tortillas")
+            if item.bread:
+                description_parts.append("Con bolillo")
             if item.beans:
                 description_parts.append("Con frijoles")
         items.append({
@@ -161,7 +168,7 @@ def internal_order_ticket(order):
             "is_package_candidate": item.is_package_candidate,
             "description": "" if item.is_package_candidate else " · ".join(filter(None, description_parts)),
             "is_package": item.item_type == OrderItem.ItemType.PACKAGE,
-            "with_water": item.with_water, "tortillas": item.tortillas,
+            "with_water": item.with_water, "tortillas": item.tortillas, "bread": item.bread,
             "beans": item.beans, "comment": item.customization_comment,
             "edit_extras_url": reverse("orders:internal_order_package_extras", args=(order.pk, item.pk)) if item.item_type == OrderItem.ItemType.PACKAGE else "",
             "edit_note_url": reverse("orders:internal_order_item_note", args=(order.pk, item.pk)),
@@ -458,6 +465,10 @@ def order_list(request):
         actions = [action for action in _order_actions_for_user(order, request.user) if action != "cancel"]
         order.quick_action = actions[0] if actions else ""
         order.quick_action_label = ACTION_LABELS.get(order.quick_action, "")
+        order.can_cancel = (
+            user_has_any_role(request.user, (ADMIN,))
+            and order.status not in {Order.Status.CANCELED, Order.Status.PICKED_UP, Order.Status.DELIVERED}
+        )
     return render(request, "orders/order_list.html", {
         "orders": orders,
         "status_choices": Order.Status.choices,
@@ -713,6 +724,16 @@ def internal_order_edit(request, order_id):
         "water_product", "chicken_consomme", "variable_first_course", "second_course_one",
         "second_course_two", "chicken_stew", "beef_stew", "varied_stew", "beans_order",
     ).first()
+    from menu.catalog import limit_cold_drinks_to_daily_water
+
+    categories = limit_cold_drinks_to_daily_water(
+        categories, daily_menu, "capture_products",
+    )
+    for category in categories:
+        category.capture_products = filter_products_by_stock(
+            category.capture_products, daily_menu=daily_menu,
+            channel=DailyProductStock.Channel.ORDERS,
+        )
     running_meal_products = []
     executive_meal_products = []
     daily_order_products = []
@@ -754,9 +775,9 @@ def internal_order_edit(request, order_id):
             )
             package_options.append({
                 "package": package, "form": package_form,
-                "first_products": list(package_form.fields["first_course"].queryset),
-                "second_products": list(package_form.fields["second_course"].queryset),
-                "main_products": list(package_form.fields["main_course"].queryset),
+                "first_products": filter_products_by_stock(list(package_form.fields["first_course"].queryset), daily_menu=daily_menu, channel=DailyProductStock.Channel.ORDERS),
+                "second_products": filter_products_by_stock(list(package_form.fields["second_course"].queryset), daily_menu=daily_menu, channel=DailyProductStock.Channel.ORDERS),
+                "main_products": filter_products_by_stock(list(package_form.fields["main_course"].queryset), daily_menu=daily_menu, channel=DailyProductStock.Channel.ORDERS),
             })
     current_customer_debts = []
     if order.agenda_customer_id:
@@ -802,7 +823,13 @@ def internal_order_type_switch(request, order_id):
         return _locked_order_response(request, order)
     order_type = request.POST.get("order_type")
     if order_type in Order.OrderType.values:
-        order.order_type = order_type
+        try:
+            order = change_internal_order_type(
+                order=order, order_type=order_type, actor=request.user,
+            )
+        except ValidationError as error:
+            messages.error(request, error.message)
+            return redirect("orders:internal_order_edit", order_id=order.pk)
         opened_at = timezone.localtime(order.created_at)
         order.requested_date = order.requested_date or opened_at.date()
         order.requested_time = order.requested_time or opened_at.time().replace(second=0, microsecond=0)
@@ -823,7 +850,24 @@ def internal_order_customer_autosave(request, order_id):
     form = InternalOrderAutosaveForm(request.POST)
     if not form.is_valid():
         return JsonResponse({"ok": False, "errors": form.errors.get_json_data()}, status=400)
-    order = autosave_internal_order_customer(order=order, form_data=form.cleaned_data)
+    try:
+        order = autosave_internal_order_customer(
+            order=order, form_data=form.cleaned_data, actor=request.user,
+        )
+        running_meal_products = filter_products_by_stock(
+            running_meal_products, daily_menu=daily_menu,
+            channel=DailyProductStock.Channel.ORDERS,
+        )
+        daily_order_products = filter_products_by_stock(
+            daily_order_products, daily_menu=daily_menu,
+            channel=DailyProductStock.Channel.ORDERS,
+        )
+        executive_meal_products = filter_products_by_stock(
+            executive_meal_products, daily_menu=daily_menu,
+            channel=DailyProductStock.Channel.ORDERS,
+        )
+    except ValidationError as error:
+        return JsonResponse({"ok": False, "error": error.message}, status=400)
     phone_key = "".join(character for character in order.phone if character.isdigit())
     duplicate = Customer.objects.filter(phone_key=phone_key).exclude(pk=order.agenda_customer_id).first() if phone_key else None
     return JsonResponse({
@@ -856,7 +900,9 @@ def internal_order_package_extras(request, order_id, item_id):
     if not form.is_valid():
         return JsonResponse({"ok": False, "error": "Revisa los extras del paquete."}, status=400)
     try:
-        update_internal_package_extras(order=order, item=item, cleaned_data=form.cleaned_data)
+        update_internal_package_extras(
+            order=order, item=item, cleaned_data=form.cleaned_data, actor=request.user,
+        )
     except ValidationError as error:
         return JsonResponse({"ok": False, "error": error.message}, status=400)
     order.refresh_from_db()
@@ -885,7 +931,12 @@ def internal_order_product_add(request, order_id, product_id):
     if _order_locked_for_edit(order, request.user):
         return _locked_order_response(request, order)
     product = get_object_or_404(Product, pk=product_id)
-    upgraded_package = add_water_to_internal_package(order=order, water_product=product)
+    try:
+        upgraded_package = add_water_to_internal_package(
+            order=order, water_product=product, actor=request.user,
+        )
+    except ValidationError as error:
+        return JsonResponse({"ok": False, "error": error.message}, status=400)
     if upgraded_package:
         order.refresh_from_db()
         return JsonResponse({
@@ -927,6 +978,7 @@ def internal_order_daily_product_add(request, order_id, product_id):
     try:
         add_internal_order_product(
             order=order, product=product, actor=request.user, require_individual=False,
+            daily_menu=daily_menu,
             raw_option_ids=(request.POST.getlist("option_ids") if request.POST.get("customization_selected") == "1" else None),
             comment=(request.POST.get("customization_comment", "") if request.POST.get("customization_selected") == "1" else ""),
         )
@@ -944,7 +996,9 @@ def internal_order_item_change(request, order_id, item_id):
         return _locked_order_response(request, order)
     item = get_object_or_404(OrderItem, pk=item_id, order=order)
     try:
-        change_internal_order_item(order=order, item=item, action=request.POST.get("action"))
+        change_internal_order_item(
+            order=order, item=item, action=request.POST.get("action"), actor=request.user,
+        )
     except ValidationError as error:
         return JsonResponse({"ok": False, "error": error.message}, status=400)
     clear_internal_auto_meals(request, order.pk)
@@ -1007,6 +1061,7 @@ def internal_order_auto_meal_add(request, order_id, product_id):
             comment=(request.POST.get("customization_comment", "") if request.POST.get("customization_selected") == "1" else ""),
             with_water=request.POST.get("with_water") == "1",
             tortillas=request.POST.get("tortillas") == "1",
+            bread=request.POST.get("bread") == "1",
             beans=request.POST.get("beans") == "1",
             package_comment=" ".join(request.POST.get("package_comment", "").split()),
         )
@@ -1032,7 +1087,9 @@ def internal_order_auto_meal_decrease(request, order_id, product_id):
     ).order_by("-id").first()
     if item:
         try:
-            change_internal_order_item(order=order, item=item, action="decrease")
+            change_internal_order_item(
+                order=order, item=item, action="decrease", actor=request.user,
+            )
         except ValidationError as error:
             return JsonResponse({"ok": False, "error": error.message}, status=400)
         clear_internal_auto_meals(request, order.pk)
@@ -1053,7 +1110,9 @@ def internal_order_product_decrease(request, order_id, product_id):
     ).first()
     if item:
         try:
-            change_internal_order_item(order=order, item=item, action="decrease")
+            change_internal_order_item(
+                order=order, item=item, action="decrease", actor=request.user,
+            )
         except ValidationError as error:
             return JsonResponse({"ok": False, "error": error.message}, status=400)
     order.refresh_from_db()
@@ -1077,6 +1136,7 @@ def internal_order_package_add(request, order_id, package_id):
             order=order, package=package, daily_menu=daily_menu,
             cleaned_data=form.cleaned_data,
             packaging_quantities=parse_packaging_quantities(request.POST),
+            actor=request.user,
         )
     except ValidationError as error:
         return JsonResponse({"ok": False, "error": error.message}, status=400)
@@ -1113,6 +1173,12 @@ def order_detail(request, order_id):
 def order_resolve(request, order_id):
     order = get_object_or_404(Order, pk=order_id)
     action = request.POST.get("action")
+    if action == "cancel" and not user_has_any_role(request.user, (ADMIN,)):
+        message = "Sólo un administrador puede cancelar pedidos."
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse({"ok": False, "error": message}, status=403)
+        messages.error(request, message)
+        return redirect("orders:order_detail", order_id=order.pk)
     if action not in _order_actions_for_user(order, request.user):
         message = "Sólo un administrador puede reiniciar o modificar el ciclo de este pedido."
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
@@ -1562,6 +1628,10 @@ def cashier_board(request):
         actions = [action for action in _order_actions_for_user(order, request.user) if action != "cancel"]
         order.quick_action = actions[0] if actions else ""
         order.quick_action_label = ACTION_LABELS.get(order.quick_action, "")
+        order.can_cancel = (
+            user_has_any_role(request.user, (ADMIN,))
+            and order.status not in {Order.Status.CANCELED, Order.Status.PICKED_UP, Order.Status.DELIVERED}
+        )
     repartidores = get_user_model().objects.filter(
         is_active=True, groups__name=DELIVERY,
     ).distinct().order_by("first_name", "username")

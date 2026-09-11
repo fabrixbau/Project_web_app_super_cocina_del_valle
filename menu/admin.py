@@ -1,8 +1,8 @@
 from django.contrib import admin
 
 from .models import (
-    Category, DailyMenu, MealPackage, Product, ProductOption, ProductOptionGroup,
-    ServicePeriod,
+    Category, DailyMenu, DailyProductStock, MealPackage, Product, ProductOption,
+    ProductOptionGroup, ServicePeriod, StockMovement,
 )
 
 
@@ -49,3 +49,38 @@ class MealPackageAdmin(admin.ModelAdmin):
         "name", "package_type", "price_without_water", "price_with_water",
         "table_refill_price", "is_active",
     )
+
+
+@admin.register(DailyProductStock)
+class DailyProductStockAdmin(admin.ModelAdmin):
+    list_display = (
+        "stock_type", "date", "product", "chicken_piece", "channel", "initial_quantity",
+        "available_quantity", "low_stock_threshold",
+    )
+    list_filter = ("stock_type", "date", "channel", "chicken_piece", "is_tracked")
+    search_fields = ("product__name",)
+    autocomplete_fields = ("product",)
+    raw_id_fields = ("daily_menu",)
+
+
+@admin.register(StockMovement)
+class StockMovementAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at", "stock", "quantity", "reason", "reference_type",
+        "reference_id", "actor",
+    )
+    list_filter = ("reason", "stock__channel", "stock__date")
+    search_fields = ("stock__product__name", "note", "reference_type")
+    readonly_fields = (
+        "stock", "quantity", "reason", "reference_type", "reference_id",
+        "note", "actor", "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

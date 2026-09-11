@@ -3,7 +3,7 @@ El contador representa solamente la preparación estándar. Personalizar usa otr
 por eso cada receta modificada queda como partida independiente en el carrito. Borra esta nota. -->
 <article class="product-card catalog-product-card" data-public-product="{{ product.id }}">
   <div class="catalog-product-visual"{% if product.is_sold_individually %} data-public-image-add role="button" tabindex="0" aria-label="Agregar {{ product.name }}"{% endif %}>
-    {% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}">{% endif %}
+    {% if product.image %}<img src="{{ product.image.url }}" alt="{{ product.name }}" style="--product-image-x:{{ product.image_position_x }}%;--product-image-y:{{ product.image_position_y }}%;--product-image-zoom:{{ product.image_zoom }}">{% endif %}
   </div>
   <div class="catalog-product-information"><h3>{{ product.name }}</h3>{% if product.description %}<p>{{ product.description }}</p>{% endif %}<strong>${{ product.price }}</strong>
     {% if product.is_sold_individually %}<div class="catalog-quick-controls">

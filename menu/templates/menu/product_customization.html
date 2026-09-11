@@ -6,7 +6,7 @@ Pegar grupo crea una copia independiente. Borra esta nota después de leerla. --
 {% block title %}Ingredientes · {{ product.name }}{% endblock %}
 {% block content %}
   <div class="page-heading customization-heading">
-    <div><a href="{% url 'menu:configuration' %}">← Administrar menú</a><h1>{{ product.name }}</h1><p>{{ product.category.name }} · Precio base ${{ product.price }}</p></div>
+    <div><a class="menu-back-link" href="{% url 'menu:configuration' %}">Administrar menú</a><h1>{{ product.name }}</h1><p>{{ product.category.name }} · Precio base ${{ product.price }}</p></div>
     <div class="action-group"><a class="button-link secondary" href="{% url 'menu:option_group_copy' product.id %}">Pegar grupo existente</a><a class="button-link" href="{% url 'menu:option_group_create' product.id %}">Nuevo grupo</a></div>
   </div>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}

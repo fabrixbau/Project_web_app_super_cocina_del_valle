@@ -11,8 +11,10 @@
 from django import forms
 
 from .models import (
-    Category, DailyMenu, MealPackage, Product, ProductOption, ProductOptionGroup,
+    Category, DailyMenu, DailyProductStock, MealPackage, Product, ProductOption,
+    ProductOptionGroup,
 )
+from .widgets import ProductImageInput
 
 
 MAX_IMAGE_SIZE = 4 * 1024 * 1024
@@ -28,11 +30,11 @@ class CategoryForm(forms.ModelForm):
     class Meta:
         model = Category
         fields = (
-            "name", "image", "show_on_public_breakfast", "show_on_public_lunch",
+            "name", "show_on_public_breakfast", "show_on_public_lunch",
             "show_on_table_breakfast", "show_on_table_lunch", "show_table_packages",
         )
         labels = {
-            "name": "Nombre", "image": "Imagen",
+            "name": "Nombre",
             "show_on_public_breakfast": "Mostrar a clientes · desayunos",
             "show_on_public_lunch": "Mostrar a clientes · comida",
             "show_on_table_breakfast": "Mostrar en mesas · desayunos",
@@ -47,15 +49,12 @@ class CategoryForm(forms.ModelForm):
             raise forms.ValidationError("Ya existe una categoría con este nombre.")
         return name
 
-    def clean_image(self):
-        return validate_image_size(self.cleaned_data.get("image"))
-
-
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
         fields = (
-            "category", "name", "price", "description", "image", "is_available",
+            "category", "name", "price", "description", "image", "image_position_x",
+            "image_position_y", "image_zoom", "is_available",
             "component_type", "service_periods", "is_sold_individually",
             "eligible_for_executive_meal", "packaging_kind", "sort_order",
         )
@@ -72,11 +71,15 @@ class ProductForm(forms.ModelForm):
         widgets = {
             "price": forms.NumberInput(attrs={"min": "0", "step": "0.50"}),
             "description": forms.Textarea(attrs={"rows": 3}),
+            "image": ProductImageInput(attrs={"accept": "image/*"}),
+            "image_position_x": forms.HiddenInput(),
+            "image_position_y": forms.HiddenInput(),
+            "image_zoom": forms.HiddenInput(),
             "service_periods": forms.CheckboxSelectMultiple(),
         }
         help_texts = {
             "category": "Determina en qué pestaña se encontrará el producto.",
-            "component_type": "Indica si participa en el menú diario, en un paquete o como producto general.",
+            "component_type": "Usa Agua del menú diario para las aguas rotativas. Jugos y bebidas fijas deben conservar Bebida.",
             "service_periods": "Sin selección no se limita por periodo. Mesas ignora el horario, pero el menú público sí lo aplica.",
             "is_available": "Apágalo para retirar temporalmente el producto de la venta.",
             "is_sold_individually": "Actívalo para que aparezca como producto suelto dentro de su categoría.",
@@ -210,7 +213,84 @@ class ProductOptionGroupCopyForm(forms.Form):
         )
 
 
+class StockAdjustmentForm(forms.Form):
+    stock = forms.ModelChoiceField(label="Existencia", queryset=DailyProductStock.objects.none())
+    quantity = forms.IntegerField(
+        label="Cambio de cantidad",
+        help_text="Usa un número positivo para agregar o negativo para descontar.",
+        widget=forms.NumberInput(attrs={"inputmode": "numeric", "step": "1"}),
+    )
+    note = forms.CharField(label="Motivo", max_length=250)
+
+    def __init__(self, *args, stock_queryset=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["stock"].queryset = stock_queryset if stock_queryset is not None else DailyProductStock.objects.none()
+        self.fields["stock"].widget.attrs["data-searchable-select"] = ""
+
+    def clean_quantity(self):
+        quantity = self.cleaned_data["quantity"]
+        if quantity == 0:
+            raise forms.ValidationError("El ajuste no puede ser cero.")
+        return quantity
+
+
+class StockTransferForm(forms.Form):
+    source = forms.ModelChoiceField(label="Desde", queryset=DailyProductStock.objects.none())
+    target = forms.ModelChoiceField(label="Hacia", queryset=DailyProductStock.objects.none())
+    quantity = forms.IntegerField(
+        label="Cantidad", min_value=1,
+        widget=forms.NumberInput(attrs={"inputmode": "numeric", "min": "1", "step": "1"}),
+    )
+    note = forms.CharField(label="Motivo", max_length=250)
+
+    def __init__(self, *args, stock_queryset=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        queryset = stock_queryset if stock_queryset is not None else DailyProductStock.objects.none()
+        self.fields["source"].queryset = queryset
+        self.fields["target"].queryset = queryset
+        self.fields["source"].widget.attrs["data-searchable-select"] = ""
+        self.fields["target"].widget.attrs["data-searchable-select"] = ""
+
+    def clean(self):
+        cleaned = super().clean()
+        source = cleaned.get("source")
+        target = cleaned.get("target")
+        if source and target and source.pk == target.pk:
+            self.add_error("target", "Selecciona otro canal.")
+        return cleaned
+
+
+class FixedStockForm(forms.Form):
+    product = forms.ModelChoiceField(
+        label="Producto del menú fijo",
+        queryset=Product.objects.filter(is_available=True).order_by("category__name", "name"),
+    )
+    quantity = forms.IntegerField(
+        label="Cantidad disponible", min_value=0,
+        widget=forms.NumberInput(attrs={"inputmode": "numeric", "min": "0", "step": "1"}),
+    )
+    low_stock_threshold = forms.IntegerField(
+        label="Avisar cuando queden", min_value=0, initial=10,
+        widget=forms.NumberInput(attrs={"inputmode": "numeric", "min": "0", "step": "1"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["product"].widget.attrs["data-searchable-select"] = ""
+
+
 class DailyMenuForm(forms.ModelForm):
+    STOCK_FIELDS = (
+        "water_product", "chicken_consomme", "variable_first_course",
+        "second_course_one", "second_course_two", "chicken_stew", "beef_stew",
+        "varied_stew", "beans_order",
+    )
+    CHANNELS = (DailyProductStock.Channel.TABLE, DailyProductStock.Channel.ORDERS)
+    SUPPLIES = (
+        (DailyProductStock.ItemKind.TORTILLAS, "Tortillas"),
+        (DailyProductStock.ItemKind.BREAD, "Bolillos"),
+    )
+
     class Meta:
         model = DailyMenu
         fields = (
@@ -221,8 +301,8 @@ class DailyMenuForm(forms.ModelForm):
         labels = {
             "date": "Fecha",
             "water_product": "Agua del día",
-            "chicken_consomme": "Consomé de pollo",
-            "variable_first_course": "Primera opción variable",
+            "chicken_consomme": "Sopa principal",
+            "variable_first_course": "Segunda opción de sopa",
             "second_course_one": "Segundo tiempo · opción 1",
             "second_course_two": "Segundo tiempo · opción 2",
             "chicken_stew": "Guisado de pollo",
@@ -234,9 +314,9 @@ class DailyMenuForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.stock_rows = []
         field_types = {
-            "water_product": Product.ComponentType.BEVERAGE,
-            "chicken_consomme": Product.ComponentType.CHICKEN_CONSOMME,
+            "water_product": Product.ComponentType.DAILY_WATER,
             "variable_first_course": Product.ComponentType.VARIABLE_FIRST_COURSE,
             "second_course_one": Product.ComponentType.SECOND_COURSE,
             "second_course_two": Product.ComponentType.SECOND_COURSE,
@@ -251,12 +331,169 @@ class DailyMenuForm(forms.ModelForm):
                 is_available=True,
             ).order_by("name")
             self.fields[field_name].empty_label = "Sin seleccionar"
+            self.fields[field_name].widget.attrs["data-searchable-select"] = ""
+            self.fields[field_name].widget.attrs["autocomplete"] = "off"
+        self.fields["water_product"].queryset = Product.objects.filter(
+            component_type=Product.ComponentType.DAILY_WATER,
+            category__name__iexact="Bebidas frías",
+            is_available=True,
+        ).order_by("name")
+        soup_types = (
+            Product.ComponentType.CHICKEN_CONSOMME,
+            Product.ComponentType.VARIABLE_FIRST_COURSE,
+        )
+        self.fields["chicken_consomme"].queryset = Product.objects.filter(
+            component_type__in=soup_types, is_available=True,
+        ).order_by("component_type", "name")
+        self.fields["chicken_consomme"].empty_label = "Sin seleccionar"
+        self.fields["chicken_consomme"].widget.attrs["data-searchable-select"] = ""
+        self.fields["chicken_consomme"].widget.attrs["autocomplete"] = "off"
+        if not self.is_bound and not self.instance.pk:
+            default_soup = self.fields["chicken_consomme"].queryset.filter(
+                component_type=Product.ComponentType.CHICKEN_CONSOMME,
+            ).first()
+            if default_soup:
+                self.initial["chicken_consomme"] = default_soup.pk
+
+        channel_labels = dict(DailyProductStock.Channel.choices)
+        existing = {}
+        if self.instance.pk:
+            existing = {
+                (stock.product_id, stock.item_kind, stock.channel, stock.chicken_piece): (
+                    stock.initial_quantity, stock.low_stock_threshold,
+                ) for stock in self.instance.product_stocks.all()
+            }
+        for field_name in self.STOCK_FIELDS:
+            selected_id = self.data.get(field_name) if self.is_bound else getattr(self.instance, f"{field_name}_id", None)
+            pieces = DailyProductStock.ChickenPiece.choices if field_name == "chicken_stew" else (("", ""),)
+            for piece, piece_label in pieces:
+                label = self.fields[field_name].label
+                if piece_label:
+                    label = f"{label} · {piece_label}"
+                row = {"label": label, "selector": self[field_name], "channels": []}
+                for channel in self.CHANNELS:
+                    suffix = f"_{piece}" if piece else ""
+                    name = f"stock_{field_name}{suffix}_{channel}"
+                    threshold_name = f"threshold_{field_name}{suffix}_{channel}"
+                    self.fields[name] = forms.IntegerField(
+                        label=channel_labels[channel], min_value=0, required=False,
+                        widget=forms.NumberInput(attrs={"inputmode": "numeric", "min": "0", "step": "1"}),
+                    )
+                    self.fields[threshold_name] = forms.IntegerField(
+                        label="Avisar cuando queden", min_value=0, required=False, initial=15,
+                        widget=forms.NumberInput(attrs={"inputmode": "numeric", "min": "0", "step": "1"}),
+                    )
+                    if not self.is_bound and selected_id:
+                        values = existing.get(
+                            (int(selected_id), DailyProductStock.ItemKind.PRODUCT, channel, piece), (0, 15),
+                        )
+                        self.initial[name], self.initial[threshold_name] = values
+                    row["channels"].append({
+                        "label": channel_labels[channel], "quantity": self[name],
+                        "threshold": self[threshold_name],
+                    })
+                self.stock_rows.append(row)
+        for item_kind, label in self.SUPPLIES:
+            row = {"label": label, "selector": None, "channels": []}
+            for channel in self.CHANNELS:
+                name = f"stock_{item_kind}_{channel}"
+                threshold_name = f"threshold_{item_kind}_{channel}"
+                values = existing.get((None, item_kind, channel, ""), (0, 15))
+                self.fields[name] = forms.IntegerField(
+                    label=channel_labels[channel], min_value=0, required=True,
+                    widget=forms.NumberInput(attrs={"inputmode": "numeric", "min": "0", "step": "1"}),
+                    initial=values[0],
+                )
+                self.fields[threshold_name] = forms.IntegerField(
+                    label="Avisar cuando queden", min_value=0, required=False, initial=values[1],
+                    widget=forms.NumberInput(attrs={"inputmode": "numeric", "min": "0", "step": "1"}),
+                )
+                row["channels"].append({
+                    "label": channel_labels[channel], "quantity": self[name],
+                    "threshold": self[threshold_name],
+                })
+            self.stock_rows.append(row)
 
     def clean(self):
         cleaned_data = super().clean()
         if cleaned_data.get("second_course_one") == cleaned_data.get("second_course_two") and cleaned_data.get("second_course_one"):
             self.add_error("second_course_two", "Selecciona una opción diferente.")
+        if cleaned_data.get("chicken_consomme") == cleaned_data.get("variable_first_course") and cleaned_data.get("chicken_consomme"):
+            self.add_error("variable_first_course", "Selecciona una sopa diferente.")
+        for field_name in self.STOCK_FIELDS:
+            if not cleaned_data.get(field_name):
+                continue
+            pieces = DailyProductStock.ChickenPiece.values if field_name == "chicken_stew" else ("",)
+            for piece in pieces:
+                suffix = f"_{piece}" if piece else ""
+                values = []
+                for channel in self.CHANNELS:
+                    quantity_name = f"stock_{field_name}{suffix}_{channel}"
+                    quantity = cleaned_data.get(quantity_name)
+                    if quantity is None:
+                        self.add_error(quantity_name, "Indica una cantidad, aunque sea cero.")
+                    else:
+                        values.append(quantity)
+                if values and not any(values):
+                    item_label = dict(DailyProductStock.ChickenPiece.choices).get(piece, "producto").lower()
+                    self.add_error(
+                        f"stock_{field_name}{suffix}_{self.CHANNELS[0]}",
+                        f"Distribuye al menos una ración de {item_label}.",
+                    )
+        for item_kind, label in self.SUPPLIES:
+            values = [cleaned_data.get(f"stock_{item_kind}_{channel}") for channel in self.CHANNELS]
+            if all(value is not None for value in values) and not any(values):
+                self.add_error(f"stock_{item_kind}_{self.CHANNELS[0]}", f"Distribuye al menos una ración de {label.lower()}.")
         return cleaned_data
+
+    def save_stocks(self):
+        """Persist the channel allocation after the DailyMenu instance has been saved."""
+        desired = []
+        for field_name in self.STOCK_FIELDS:
+            product = self.cleaned_data.get(field_name)
+            if not product:
+                continue
+            pieces = DailyProductStock.ChickenPiece.values if field_name == "chicken_stew" else ("",)
+            for piece in pieces:
+                suffix = f"_{piece}" if piece else ""
+                for channel in self.CHANNELS:
+                    desired.append((
+                        DailyProductStock.ItemKind.PRODUCT, product, channel, piece,
+                        self.cleaned_data[f"stock_{field_name}{suffix}_{channel}"],
+                        self.cleaned_data.get(f"threshold_{field_name}{suffix}_{channel}") or 0,
+                    ))
+        for item_kind, _label in self.SUPPLIES:
+            for channel in self.CHANNELS:
+                desired.append((
+                    item_kind, None, channel, "", self.cleaned_data[f"stock_{item_kind}_{channel}"],
+                    self.cleaned_data.get(f"threshold_{item_kind}_{channel}") or 0,
+                ))
+
+        keep_ids = []
+        for item_kind, product, channel, chicken_piece, quantity, threshold in desired:
+            lookup = {
+                "date": self.instance.date, "item_kind": item_kind,
+                "channel": channel, "chicken_piece": chicken_piece,
+            }
+            if product:
+                lookup["product"] = product
+            else:
+                lookup["product__isnull"] = True
+            stock = DailyProductStock.objects.filter(**lookup).first()
+            if stock and stock.movements.exists() and stock.initial_quantity != quantity:
+                raise forms.ValidationError(
+                    f"{stock.item_name} ya tiene movimientos. Cambia su existencia mediante un ajuste de inventario."
+                )
+            if not stock:
+                stock = DailyProductStock(**{key: value for key, value in lookup.items() if key != "product__isnull"})
+            stock.daily_menu = self.instance
+            stock.initial_quantity = quantity
+            stock.low_stock_threshold = threshold
+            stock.save()
+            from notifications.services import sync_stock_alert
+            sync_stock_alert(stock)
+            keep_ids.append(stock.pk)
+        self.instance.product_stocks.filter(movements__isnull=True).exclude(pk__in=keep_ids).delete()
 
 
 class MealPackageForm(forms.ModelForm):

@@ -10,7 +10,8 @@
 from django.core.exceptions import ValidationError
 import uuid
 
-from django.core.validators import MinValueValidator
+from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -78,6 +79,7 @@ class Product(models.Model):
         VARIED_STEW = "varied_stew", "Guisado variado"
         GRILL = "grill", "Producto de plancha"
         BEVERAGE = "beverage", "Bebida"
+        DAILY_WATER = "daily_water", "Agua del menú diario"
         COMPLEMENT = "complement", "Complemento"
 
     category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="products")
@@ -85,6 +87,9 @@ class Product(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
     description = models.TextField(blank=True)
     image = models.ImageField(upload_to="menu/products/", blank=True)
+    image_position_x = models.PositiveSmallIntegerField(default=50, validators=[MaxValueValidator(100)])
+    image_position_y = models.PositiveSmallIntegerField(default=50, validators=[MaxValueValidator(100)])
+    image_zoom = models.DecimalField(max_digits=3, decimal_places=2, default=1, validators=[MinValueValidator(1), MaxValueValidator(3)])
     is_available = models.BooleanField(default=True)
     component_type = models.CharField(
         max_length=30,
@@ -191,7 +196,7 @@ class DailyMenu(models.Model):
         null=True,
         blank=True,
         related_name="daily_menus_as_water",
-        limit_choices_to={"component_type": Product.ComponentType.BEVERAGE},
+        limit_choices_to={"component_type": Product.ComponentType.DAILY_WATER},
     )
     chicken_consomme = models.ForeignKey(
         Product,
@@ -199,7 +204,7 @@ class DailyMenu(models.Model):
         null=True,
         blank=True,
         related_name="daily_menus_as_chicken_consomme",
-        limit_choices_to={"component_type": Product.ComponentType.CHICKEN_CONSOMME},
+        limit_choices_to={"component_type__in": (Product.ComponentType.CHICKEN_CONSOMME, Product.ComponentType.VARIABLE_FIRST_COURSE)},
     )
     variable_first_course = models.ForeignKey(
         Product,
@@ -271,8 +276,7 @@ class DailyMenu(models.Model):
 
     def clean(self):
         field_types = {
-            "water_product": Product.ComponentType.BEVERAGE,
-            "chicken_consomme": Product.ComponentType.CHICKEN_CONSOMME,
+            "water_product": Product.ComponentType.DAILY_WATER,
             "variable_first_course": Product.ComponentType.VARIABLE_FIRST_COURSE,
             "second_course_one": Product.ComponentType.SECOND_COURSE,
             "second_course_two": Product.ComponentType.SECOND_COURSE,
@@ -286,6 +290,13 @@ class DailyMenu(models.Model):
             product = getattr(self, field_name)
             if product and product.component_type != expected_type:
                 errors[field_name] = "El producto no corresponde al tipo requerido para este lugar."
+        if self.chicken_consomme and self.chicken_consomme.component_type not in {
+            Product.ComponentType.CHICKEN_CONSOMME,
+            Product.ComponentType.VARIABLE_FIRST_COURSE,
+        }:
+            errors["chicken_consomme"] = "Selecciona un producto configurado como sopa."
+        if self.chicken_consomme_id and self.chicken_consomme_id == self.variable_first_course_id:
+            errors["variable_first_course"] = "Selecciona una sopa diferente."
         if self.second_course_one_id and self.second_course_one_id == self.second_course_two_id:
             errors["second_course_two"] = "Selecciona un segundo tiempo diferente."
         if errors:
@@ -342,3 +353,146 @@ class MealPackage(models.Model):
             raise ValidationError({
                 "price_with_water": "El precio con agua no puede ser menor que el precio sin agua."
             })
+
+
+class DailyProductStock(models.Model):
+    class StockType(models.TextChoices):
+        DAILY = "daily", "Menú diario"
+        FIXED = "fixed", "Menú fijo"
+
+    class ItemKind(models.TextChoices):
+        PRODUCT = "product", "Producto"
+        TORTILLAS = "tortillas", "Porción de tortillas"
+        BREAD = "bread", "Bolillo"
+
+    class Channel(models.TextChoices):
+        TABLE = "table", "Mesas"
+        ORDERS = "orders", "Pedidos"
+        SHARED = "shared", "Todos los canales"
+
+    class ChickenPiece(models.TextChoices):
+        LEG = "leg", "Pierna"
+        THIGH = "thigh", "Muslo"
+
+    stock_type = models.CharField(
+        max_length=10, choices=StockType.choices, default=StockType.DAILY, db_index=True,
+    )
+    date = models.DateField(default=timezone.localdate, null=True, blank=True, db_index=True)
+    item_kind = models.CharField(
+        max_length=20, choices=ItemKind.choices, default=ItemKind.PRODUCT,
+    )
+    product = models.ForeignKey(
+        Product, on_delete=models.PROTECT, related_name="daily_stocks",
+        null=True, blank=True,
+    )
+    daily_menu = models.ForeignKey(
+        DailyMenu, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="product_stocks",
+    )
+    channel = models.CharField(max_length=20, choices=Channel.choices)
+    chicken_piece = models.CharField(
+        max_length=20, choices=ChickenPiece.choices, blank=True,
+        help_text="Solo se usa para separar pierna y muslo del guisado de pollo.",
+    )
+    initial_quantity = models.PositiveIntegerField(default=0)
+    low_stock_threshold = models.PositiveIntegerField(default=15)
+    is_tracked = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("date", "item_kind", "product__name", "channel")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("date", "product", "channel", "chicken_piece"),
+                condition=models.Q(item_kind="product", stock_type="daily"),
+                name="unique_daily_product_stock_channel",
+            ),
+            models.UniqueConstraint(
+                fields=("date", "item_kind", "channel"),
+                condition=~models.Q(item_kind="product") & models.Q(stock_type="daily"),
+                name="unique_daily_supply_stock_channel",
+            ),
+            models.UniqueConstraint(
+                fields=("product",),
+                condition=models.Q(item_kind="product", stock_type="fixed"),
+                name="unique_fixed_product_stock",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(item_kind="product", product__isnull=False)
+                    | (~models.Q(item_kind="product") & models.Q(product__isnull=True))
+                ),
+                name="daily_stock_product_matches_kind",
+            ),
+        ]
+        verbose_name = "existencia diaria"
+        verbose_name_plural = "existencias diarias"
+
+    def __str__(self):
+        if self.stock_type == self.StockType.FIXED:
+            return f"Menú fijo · {self.item_name}"
+        return f"{self.date:%d/%m/%Y} · {self.item_name} · {self.get_channel_display()}"
+
+    @property
+    def item_name(self):
+        if self.product_id:
+            suffix = f" · {self.get_chicken_piece_display()}" if self.chicken_piece else ""
+            return f"{self.product.name}{suffix}"
+        return self.get_item_kind_display()
+
+    @property
+    def movement_total(self):
+        return self.movements.aggregate(total=models.Sum("quantity"))["total"] or 0
+
+    @property
+    def available_quantity(self):
+        return self.initial_quantity + self.movement_total
+
+    @property
+    def is_low_stock(self):
+        return self.available_quantity <= self.low_stock_threshold
+
+
+class StockMovement(models.Model):
+    class Reason(models.TextChoices):
+        RESERVATION = "reservation", "Apartado para ticket"
+        RELEASE = "release", "Devolución al inventario"
+        CONSUMPTION = "consumption", "Consumo confirmado"
+        ADJUSTMENT = "adjustment", "Ajuste manual"
+        TRANSFER_IN = "transfer_in", "Entrada por transferencia"
+        TRANSFER_OUT = "transfer_out", "Salida por transferencia"
+
+    stock = models.ForeignKey(
+        DailyProductStock, on_delete=models.PROTECT, related_name="movements",
+    )
+    quantity = models.IntegerField(
+        help_text="Usa cantidades negativas para salidas y positivas para devoluciones o entradas.",
+    )
+    reason = models.CharField(max_length=20, choices=Reason.choices)
+    reference_type = models.CharField(
+        max_length=30, blank=True,
+        help_text="Origen del movimiento, por ejemplo order o table_account.",
+    )
+    reference_id = models.PositiveBigIntegerField(null=True, blank=True)
+    note = models.CharField(max_length=250, blank=True)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="stock_movements",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(quantity=0),
+                name="stock_movement_quantity_nonzero",
+            ),
+        ]
+        verbose_name = "movimiento de inventario"
+        verbose_name_plural = "movimientos de inventario"
+
+    def __str__(self):
+        sign = "+" if self.quantity > 0 else ""
+        return f"{self.stock} · {sign}{self.quantity} · {self.get_reason_display()}"
