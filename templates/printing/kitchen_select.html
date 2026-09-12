@@ -20,7 +20,7 @@ solamente decide qué sale en esta impresión de cocina. Borra esta nota al leer
       </label>
     {% empty %}<p>Este ticket todavía no contiene productos.</p>{% endfor %}
   </div>
-  <button type="submit" {% if not selection_items %}disabled{% endif %}>Preparar vista previa de cocina</button>
+  <button type="submit" {% if not selection_items %}disabled{% endif %}>Enviar comanda a la Dell</button>
 </form>
 {% endblock %}
 {% block extra_js %}<script src="{% static 'js/kitchen-print-select.js' %}?v=1"></script>{% endblock %}

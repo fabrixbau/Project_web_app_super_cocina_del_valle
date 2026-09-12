@@ -37,6 +37,7 @@ from django.views.decorators.http import require_POST
 
 from accounts.roles import ADMIN, ORDER_TAKER, SECTION_ROLE_MATRIX, WAITER, role_required, user_has_any_role
 from config.printing import printable_item, selected_printable_items, table_print_context
+from print_station.views import queue_ticket
 from menu.inventory import filter_products_by_stock
 from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product
 from menu.packaging import parse_packaging_quantities
@@ -885,8 +886,13 @@ def table_kitchen_custom_print(request, account_id):
     context = table_print_context(account)
     context["back_url"] = reverse("tables:table_detail", args=(account.pk,))
     if request.method == "POST" and selected is not None and not result:
-        context["items"] = selected
-        return render(request, "printing/kitchen_ticket.html", context)
+        try:
+            job = queue_ticket(source_type="table", source=account, ticket_type="kitchen", items=selected, user=request.user)
+        except ValueError as error:
+            messages.error(request, str(error))
+        else:
+            messages.success(request, f"Comanda enviada a la Dell (trabajo #{job.pk}).")
+        return redirect("tables:table_detail", account_id=account.pk)
     context.update({
         "selection_items": [printable_item(item) for item in queryset],
         "selection_errors": result if request.method == "POST" else [],

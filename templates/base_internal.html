@@ -25,10 +25,11 @@
       </div>
     {% endif %}
   </header>
+  {% if user.is_authenticated %}<form hidden data-print-csrf>{% csrf_token %}</form>{% endif %}
   <main class="container internal-panel">{% block content %}{% endblock %}</main>
   <script src="/static/js/custom-select.js?v=3"></script>
   <script src="/static/js/text-autocapitalize.js?v=2"></script>
-  <script src="/static/js/direct-print.js?v=1"></script>
+  <script src="/static/js/direct-print.js?v=2"></script>
   {% if quick_switch_available %}<script src="/static/js/quick-switch-idle.js?v=1"></script><script src="/static/js/quick-switch-dropdown.js?v=1"></script>{% endif %}
   {% block extra_js %}{% endblock %}
 </body>

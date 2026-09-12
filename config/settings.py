@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "orders.apps.OrdersConfig",
     "notifications.apps.NotificationsConfig",
     "tables.apps.TablesConfig",
+    "print_station.apps.PrintStationConfig",
 ]
 
 MIDDLEWARE = [
@@ -115,4 +116,5 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
 SECURE_HSTS_PRELOAD = SECURE_HSTS_SECONDS > 0
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
+PRINT_AGENT_TOKEN = env("PRINT_AGENT_TOKEN", default="")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

@@ -1,0 +1,4 @@
+requests>=2.32,<3
+Pillow>=12,<13
+playwright>=1.55,<2
+pywin32>=311,<400
