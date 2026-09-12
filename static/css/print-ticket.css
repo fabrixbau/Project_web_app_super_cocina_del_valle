@@ -12,6 +12,10 @@ body { margin: 0; padding: 1.25rem; }
 .kitchen-lines article::after, .customer-focus::after, .payment-lines::after,
 .totals::after, .collection-focus::after { content: ""; position: absolute; right: 0; left: 0; height: 1px; background-image: repeating-linear-gradient(to right, #111 0 1px, transparent 1px 10px); }
 .general-print-note::before, .general-print-note::after { display: none; }
+.payment-ticket .customer-focus::after,
+.payment-ticket .payment-lines::after,
+.payment-ticket .totals::after,
+.payment-ticket .collection-focus::after { height: 2px; background-image: repeating-linear-gradient(to right, #111 0 2px, transparent 2px 8px); }
 .kitchen-lines article { position: relative; padding: 2mm 1mm 2.5mm; }
 .kitchen-lines article::after { bottom: 0; background-image: repeating-linear-gradient(to right, #111 0 4px, transparent 4px 9px); }
 .kitchen-lines article:last-child::after { display: none; }
