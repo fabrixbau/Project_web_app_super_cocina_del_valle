@@ -4,6 +4,8 @@ sin recargar Caja ni mover el scroll. Borra esta nota después de leerla. -->
 <div class="cashier-status-action" data-cashier-status>
   <strong>Estado del pedido</strong>
   <span class="status-badge status-{{ order.status }}" data-cashier-status-label>{{ order.get_status_display }}</span>
+  {# La acción sigue disponible para reutilizarla; Caja puede ocultarla mientras se define el flujo. #}
+  {% if not hide_action %}
   {% if order.quick_action %}
     <form method="post" action="{% url 'orders:order_resolve' order.id %}" data-cashier-status-form>
       {% csrf_token %}
@@ -12,6 +14,7 @@ sin recargar Caja ni mover el scroll. Borra esta nota después de leerla. -->
     </form>
   {% else %}
     <small data-cashier-no-action>Sin acción pendiente</small>
+  {% endif %}
   {% endif %}
   <a class="cashier-status-error" data-cashier-status-error hidden></a>
 </div>

@@ -1,5 +1,5 @@
 {% load static %}
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ticket cobro · {{ reference }}</title><link rel="stylesheet" href="{% static 'css/print-ticket.css' %}?v=4"></head>
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ticket cobro · {{ reference }}</title><link rel="stylesheet" href="{% static 'css/print-ticket.css' %}?v=12"></head>
 <body><main class="thermal-ticket payment-ticket">
   <header class="receipt-header"><p class="business-name">Super Cocina Del Valle</p>{% if folio %}<p># Orden {{ folio }}</p>{% endif %}</header>
   <section class="customer-focus">{% if source_kind == 'table' %}<p class="table-payment-identity">MESA: {{ table_name }}</p>{% if customer_name != 'Cliente de mesa' %}<p class="customer-name">{{ customer_name }}</p>{% endif %}{% else %}<h2>{{ customer_name|upper }}</h2>{% if phone %}<p>Tel. {{ phone }}</p>{% endif %}{% if address %}<p class="address-focus">{{ address }}</p>{% endif %}{% if references %}<p>Ref: {{ references }}</p>{% endif %}{% if requested_for %}<p>Entrega: {{ requested_for|date:'d/m/Y H:i' }}</p>{% endif %}{% endif %}</section>
@@ -8,4 +8,4 @@
   <section class="totals">{% if tip %}<p><span>Consumo</span><strong>${{ subtotal|floatformat:2 }}</strong></p><p><span>Propina</span><strong>${{ tip|floatformat:2 }}</strong></p>{% endif %}<p class="grand-total"><span>TOTAL</span><strong>${{ total|floatformat:2 }}</strong></p></section>
   <section class="collection-focus"><p>Método de pago: <strong>{{ payment_method }}</strong></p>{% if take_terminal %}<strong>LLEVAR TERMINAL</strong>{% endif %}{% if cash_tendered %}<p>Paga con ${{ cash_tendered|floatformat:2 }}</p>{% endif %}{% if change != None %}<p class="change-line">CAMBIO ${{ change|floatformat:2 }}</p>{% endif %}</section>
   <footer class="receipt-footer centered-footer"><p>Atendió: {{ responsible }}</p><p>Impreso: {{ printed_at|date:'d/m/Y H:i' }}</p></footer>
-</main><nav class="print-preview-actions"><a href="{{ back_url }}">Volver</a><button type="button" data-print-ticket>Imprimir ticket completo</button></nav><script src="{% static 'js/print-preview.js' %}?v=1"></script></body></html>
+</main><nav class="print-preview-actions"><a href="{{ back_url }}">Volver</a><button type="button" data-print-ticket>Imprimir ticket completo</button></nav><script src="{% static 'js/print-preview.js' %}?v=3"></script></body></html>

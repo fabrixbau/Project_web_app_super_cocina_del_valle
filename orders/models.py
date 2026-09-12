@@ -207,6 +207,13 @@ class Order(models.Model):
         return None
 
     @property
+    def courier_return_amount(self):
+        """Efectivo total que el repartidor debe reintegrar a Caja."""
+        if self.payment_method != self.PaymentMethod.CASH:
+            return None
+        return self.cash_tendered if self.cash_tendered is not None else self.total
+
+    @property
     def total_with_delivery_tip(self):
         return self.total + self.delivery_tip_amount
 

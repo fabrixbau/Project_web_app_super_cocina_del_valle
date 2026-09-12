@@ -1737,7 +1737,8 @@ def cashier_tip_report(request):
 @role_required(ADMIN)
 def cashier_change_board(request):
     # NOTA TEMPORAL PARA APRENDIZAJE: esta bandeja empieza después de Liberar de Caja.
-    # Sólo incluye efectivo con cambio real; pago exacto no genera una conciliación.
+    # Incluye todo efectivo: con cambio o exacto. Caja concilia el dinero total que
+    # debe regresar el repartidor, no solamente el cambio matemático.
     # Borra esta nota después de leerla.
     today = timezone.localdate()
     start_date = _report_date(request.GET.get("from"), today)
@@ -1761,7 +1762,7 @@ def cashier_change_board(request):
         queryset = queryset.filter(
             order_type=Order.OrderType.DELIVERY,
             payment_method=Order.PaymentMethod.CASH,
-            needs_change=True, cashier_released_at__isnull=False,
+            cashier_released_at__isnull=False,
         )
     else:
         queryset = queryset.filter(status__in=(
@@ -1774,7 +1775,7 @@ def cashier_change_board(request):
             queryset = queryset.filter(
                 order_type=Order.OrderType.DELIVERY,
                 payment_method=Order.PaymentMethod.CASH,
-                needs_change=True, cashier_released_at__isnull=False,
+                cashier_released_at__isnull=False,
             )
         if order_type in Order.OrderType.values:
             queryset = queryset.filter(order_type=order_type)
@@ -1785,6 +1786,10 @@ def cashier_change_board(request):
     )
     if person_id.isdigit():
         queryset = queryset.filter(delivery_person_id=int(person_id))
+    # El resumen debe representar todo el periodo y repartidor seleccionados. El
+    # filtro Pendientes/Devueltos sólo decide qué renglones se ven debajo; si se
+    # aplicara antes de sumar, la tarjeta de la categoría contraria siempre daría 0.
+    summary_orders = list(queryset) if payment_filter == "cash_change" else []
     if payment_filter == "cash_change":
         if settlement == "pending":
             queryset = queryset.filter(cash_settlement_confirmed=False)
@@ -1792,18 +1797,18 @@ def cashier_change_board(request):
             queryset = queryset.filter(cash_settlement_confirmed=True)
     orders = list(queryset)
     person_totals = {}
-    for order in orders:
+    for order in summary_orders:
         key = order.delivery_person_id or 0
         if key not in person_totals:
             person_totals[key] = {"person": order.delivery_person, "pending": Decimal("0"), "settled": Decimal("0")}
         bucket = "settled" if order.cash_settlement_confirmed else "pending"
-        person_totals[key][bucket] += order.change_required or Decimal("0")
+        person_totals[key][bucket] += order.courier_return_amount or Decimal("0")
     repartidores = get_user_model().objects.filter(groups__name=DELIVERY).distinct().order_by("first_name", "username")
     return render(request, "orders/cashier_change_board.html", {
         "orders": orders, "repartidores": repartidores,
         "person_totals": list(person_totals.values()),
-        "pending_total": sum((order.change_required or Decimal("0") for order in orders if not order.cash_settlement_confirmed), Decimal("0")),
-        "settled_total": sum((order.change_required or Decimal("0") for order in orders if order.cash_settlement_confirmed), Decimal("0")),
+        "pending_total": sum((order.courier_return_amount or Decimal("0") for order in summary_orders if not order.cash_settlement_confirmed), Decimal("0")),
+        "settled_total": sum((order.courier_return_amount or Decimal("0") for order in summary_orders if order.cash_settlement_confirmed), Decimal("0")),
         "start_date": start_date, "end_date": end_date,
         "selected_delivery_person": person_id, "selected_settlement": settlement,
         "selected_order_type": order_type, "selected_payment_method": payment_filter,

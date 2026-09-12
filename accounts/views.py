@@ -15,10 +15,35 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .forms import QuickPinSetupForm, QuickSwitchForm
+from .forms import EmployeeLoginForm, QuickPinSetupForm, QuickSwitchForm
 from .models import Profile
 from .quick_switch import LOCK_KEY, enable_quick_switch, quick_switch_is_trusted
 from .roles import ADMIN, WAITER, user_has_any_role
+
+
+def login_view(request):
+    if request.user.is_authenticated:
+        return redirect("internal_portal:dashboard")
+
+    form = EmployeeLoginForm(request.POST or None, request=request)
+    if request.method == "POST" and form.is_valid():
+        login(request, form.get_user(), backend="django.contrib.auth.backends.ModelBackend")
+        return redirect(_safe_next(request) if request.POST.get("next") else "internal_portal:dashboard")
+
+    role_presentations = {
+        "Administrador": ("Administrador", "Acceso completo al sistema", "🛡"),
+        "Telefonista": ("Telefonista", "Captura y gestión de pedidos", "☎"),
+        "Mesero": ("Mesero", "Atención y operación de mesas", "🍽"),
+        "Repartidor": ("Repartidor", "Consulta y entrega de pedidos", "🛵"),
+    }
+    profiles = []
+    users = get_user_model().objects.filter(is_active=True).select_related("profile").prefetch_related("groups").order_by("first_name", "username")
+    for user in users:
+        role_name = "Administrador" if user.is_superuser else next((group.name for group in user.groups.all() if group.name in role_presentations), "Empleado")
+        role, description, icon = role_presentations.get(role_name, (role_name, "Acceso al sistema", "●"))
+        initials = "".join(part[:1] for part in (user.first_name, user.last_name) if part).upper() or user.username[:2].upper()
+        profiles.append({"user": user, "profile": getattr(user, "profile", None), "role": role, "description": description, "icon": icon, "initials": initials})
+    return render(request, "registration/login.html", {"form": form, "login_profiles": profiles, "selected_user_id": request.POST.get("user", ""), "next": request.GET.get("next", "")})
 
 
 def _can_use_waiter_pin(user):

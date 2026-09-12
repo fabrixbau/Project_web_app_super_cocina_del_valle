@@ -1,14 +1,24 @@
-{% extends "base_internal.html" %}
-{% block title %}Iniciar sesión{% endblock %}
+{% extends "auth_base.html" %}
+{% block title %}Iniciar sesión | Super Cocina del Valle{% endblock %}
 {% block content %}
-  <section class="card auth-card">
-    <h1>Acceso de empleados</h1>
-    {% if form.errors %}<p class="error">Usuario o contraseña incorrectos.</p>{% endif %}
-    <form method="post">
-      {% csrf_token %}
-      {{ form.as_p }}
-      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
-      <button type="submit">Iniciar sesión</button>
-    </form>
-  </section>
+  <header class="login-heading"><p class="login-eyebrow">Acceso del equipo</p><h2>¿Quién trabaja hoy?</h2><p>Selecciona tu perfil para continuar.</p></header>
+  {% if form.errors %}<div class="login-error" role="alert">El usuario o la contraseña no son correctos.</div>{% endif %}
+  <form method="post" class="login-form">
+    {% csrf_token %}
+    <div class="login-native-select" aria-hidden="true">{{ form.user }}</div>
+    <div class="login-profile-grid" role="listbox" aria-label="Perfiles disponibles">
+      {% for item in login_profiles %}<button type="button" class="login-profile-card login-role-{{ item.role|slugify }}{% if selected_user_id == item.user.id|stringformat:'s' %} is-selected{% endif %}" data-login-profile="{{ item.user.id }}" role="option">
+        <span class="login-profile-avatar">{% if item.profile.image %}<img src="{{ item.profile.image.url }}" alt="">{% else %}{{ item.initials }}{% endif %}</span>
+        <span class="login-profile-copy"><small>{{ item.icon }} {{ item.role }}</small><strong>{{ item.user.get_full_name|default:item.user.username }}</strong><span>{{ item.description }}</span></span>
+      </button>{% empty %}<p>No hay perfiles activos.</p>{% endfor %}
+    </div>
+    <div class="login-access-panel" data-login-access {% if not selected_user_id %}hidden{% endif %}>
+      <label class="login-field" for="{{ form.password.id_for_label }}"><span>Contraseña de <strong data-selected-profile>este perfil</strong></span><span class="login-control"><span class="login-control-icon login-password-icon" aria-hidden="true"></span>{{ form.password }}</span></label>
+      <button type="submit" class="login-submit">Entrar al sistema <span aria-hidden="true">→</span></button>
+    </div>
+    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+  </form>
+  <a class="login-public-link" href="{% url 'public_portal:home' %}">Ver portal de pedidos públicos</a>
+  <p class="login-support">Super Cocina del Valle · Sistema interno</p>
 {% endblock %}
+{% block extra_js %}<script src="/static/js/login-profiles.js?v=1"></script>{% endblock %}

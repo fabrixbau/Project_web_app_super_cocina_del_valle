@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 
 from accounts.roles import ADMIN
@@ -72,6 +73,38 @@ class OrderInventoryIntegrationTests(TestCase):
         self.order.save(update_fields=("status",))
         with self.assertRaisesMessage(ValidationError, "Sólo un administrador"):
             transition_order(order=self.order, action="cancel", actor=self.actor)
+
+    def test_cash_exact_is_the_amount_the_courier_returns(self):
+        self.order.payment_method = Order.PaymentMethod.CASH
+        self.order.total = 38
+        self.order.cash_tendered = 38
+        self.order.needs_change = False
+        self.assertEqual(self.order.courier_return_amount, 38)
+
+    def test_cash_bill_is_the_amount_the_courier_returns(self):
+        self.order.payment_method = Order.PaymentMethod.CASH
+        self.order.total = 50
+        self.order.cash_tendered = 200
+        self.order.needs_change = True
+        self.assertEqual(self.order.change_required, 150)
+        self.assertEqual(self.order.courier_return_amount, 200)
+
+    def test_change_board_totals_include_settled_cash_while_showing_pending(self):
+        admin_group = Group.objects.get_or_create(name=ADMIN)[0]
+        self.actor.groups.add(admin_group)
+        courier = get_user_model().objects.create_user(username="courier_summary")
+        settled = Order.objects.create(
+            daily_number=993, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.DELIVERED, customer_name="Cliente prueba", total=50,
+            payment_method=Order.PaymentMethod.CASH, cash_tendered=200,
+            needs_change=True, delivery_person=courier,
+            cashier_released_at=timezone.now(), cash_settlement_confirmed=True,
+        )
+        self.client.force_login(self.actor)
+        response = self.client.get(reverse("cashier:change_board"), {"settlement": "pending"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["settled_total"], settled.courier_return_amount)
 
     def test_completed_pickup_marks_reservation_as_consumption(self):
         item = add_internal_order_product(order=self.order, product=self.product, actor=self.actor, require_individual=False)

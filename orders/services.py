@@ -264,8 +264,6 @@ def confirm_cash_settlement(*, order, actor, confirmed=True):
         raise ValidationError("Asigna un repartidor antes de entregar el cambio.")
     if order.payment_method != Order.PaymentMethod.CASH:
         raise ValidationError("Este pedido no está marcado para pago en efectivo.")
-    if not order.needs_change:
-        raise ValidationError("Este pedido no tiene cambio pendiente por conciliar.")
     # NOTA TEMPORAL PARA APRENDIZAJE: confirmar la devolución también culmina la
     # entrega, pero recorremos la máquina de estados para conservar toda la bitácora.
     # Si cualquier transición falla, la transacción revierte también la conciliación.

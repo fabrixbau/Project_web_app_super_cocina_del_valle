@@ -2,7 +2,7 @@
 sin recargar. Si estamos viendo sólo Pendientes o Devueltos, la fila sale de la lista
 al dejar de pertenecer al filtro. Borra esta nota después de leerla. */
 const changeFilters = document.querySelector("[data-change-filters]");
-// NOTA TEMPORAL PARA APRENDIZAJE: "Efectivo con cambio" describe exclusivamente
+// NOTA TEMPORAL PARA APRENDIZAJE: "Efectivo por devolver" describe exclusivamente
 // repartos. Si Caja elige Recoger, pasamos a Todos los medios para que el filtro no
 // produzca una combinación imposible. Borra esta nota después de leerla.
 const changeOrderType = changeFilters?.querySelector("[name='order_type']");
@@ -31,6 +31,6 @@ document.addEventListener("submit", async (event) => {
     const activeFilter = changeFilters.querySelector("[name='settlement']").value;
     if (activeFilter !== "all") row.remove();
     else { row.classList.toggle("is-settled", data.cash_settlement_confirmed); form.querySelector("[name='confirmed']").value = data.cash_settlement_confirmed ? "0" : "1"; button.textContent = data.cash_settlement_confirmed ? "Marcar pendiente" : "Confirmar devolución"; button.disabled = false; }
-    settlementFeedback.textContent = data.cash_settlement_confirmed ? `Cambio devuelto; pedido marcado como ${data.status_label}.` : "El cambio volvió a quedar pendiente."; settlementFeedback.className = "message success"; settlementFeedback.hidden = false;
+    settlementFeedback.textContent = data.cash_settlement_confirmed ? `Efectivo devuelto; pedido marcado como ${data.status_label}.` : "El efectivo volvió a quedar pendiente."; settlementFeedback.className = "message success"; settlementFeedback.hidden = false;
   } catch (error) { errorBox.textContent = error.message; errorBox.hidden = false; button.disabled = false; }
 });

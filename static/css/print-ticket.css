@@ -7,21 +7,19 @@ body { margin: 0; padding: 1.25rem; }
 .business-name { margin-bottom: 1.5mm !important; font-size: 16px; }
 .receipt-header p { font-size: 15px; }
 .ticket-meta { padding: 1mm 0 2mm; font-size: 15px; }
-.general-print-note { position: relative; margin: 1mm 0 2mm; padding: 2mm 1mm; font-size: 17px; font-weight: 800; }
+.general-print-note { margin: 1mm 0 2mm; padding: 1mm 0; font-size: 17px; font-weight: 800; }
 .general-print-note::before, .general-print-note::after,
 .kitchen-lines article::after, .customer-focus::after, .payment-lines::after,
 .totals::after, .collection-focus::after { content: ""; position: absolute; right: 0; left: 0; height: 1px; background-image: repeating-linear-gradient(to right, #111 0 1px, transparent 1px 10px); }
-.general-print-note::before { top: 0; }
-.general-print-note::after { bottom: 0; }
-.general-print-note::before, .general-print-note::after { height: 2px; background-image: repeating-linear-gradient(135deg, #111 0 2px, transparent 2px 7px); }
-.general-print-note { background-image: repeating-linear-gradient(45deg, #111 0 2px, transparent 2px 7px), repeating-linear-gradient(45deg, #111 0 2px, transparent 2px 7px); background-position: left top, right top; background-repeat: repeat-y; background-size: 2px 7px; }
+.general-print-note::before, .general-print-note::after { display: none; }
 .kitchen-lines article { position: relative; padding: 2mm 1mm 2.5mm; }
 .kitchen-lines article::after { bottom: 0; background-image: repeating-linear-gradient(to right, #111 0 4px, transparent 4px 9px); }
 .kitchen-lines article:last-child::after { display: none; }
 .kitchen-item-title h3 { margin: 0; font-size: 25px; line-height: 1.14; overflow-wrap: anywhere; }
 .kitchen-lines article > p { margin: 1mm 0; font-size: 17px; font-weight: 750; }
 .kitchen-lines article > small { display: block; margin-top: 1mm; font-size: 14px; }
-.kitchen-lines .modified-item { margin: 3mm 0 2mm; padding: 3mm 2mm 3mm; background-image: repeating-linear-gradient(135deg, #111 0 2px, transparent 2px 7px), repeating-linear-gradient(135deg, #111 0 2px, transparent 2px 7px), repeating-linear-gradient(45deg, #111 0 2px, transparent 2px 7px), repeating-linear-gradient(45deg, #111 0 2px, transparent 2px 7px); background-position: left top, left bottom, left top, right top; background-repeat: repeat-x, repeat-x, repeat-y, repeat-y; background-size: 7px 2px, 7px 2px, 2px 7px, 2px 7px; }
+.kitchen-lines .modified-item { position: relative; margin: 3mm 0 2mm; padding: 4mm 2mm 3mm; border: 2px dotted #111; break-inside: avoid; page-break-inside: avoid; }
+.kitchen-lines .modified-item::before { content: "!!!"; position: absolute; top: -2.7mm; left: 50%; padding: 0 2mm; color: #111; background: #fff; font: 900 20px/1 Arial, Helvetica, sans-serif; letter-spacing: 2px; transform: translateX(-50%); }
 .kitchen-lines .modified-item::after { display: none; }
 .receipt-footer { margin-top: 1mm; font-size: 14px; }
 .customer-focus { position: relative; padding: 1mm 0 2.5mm; font-size: 17px; }

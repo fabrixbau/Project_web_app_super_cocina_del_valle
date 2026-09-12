@@ -7,3 +7,4 @@ media/
 staticfiles/
 .pytest_cache/
 .tmp/
+PERFILES_Y_PERMISOS_V1.txt

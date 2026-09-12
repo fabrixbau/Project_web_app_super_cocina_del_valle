@@ -1,0 +1,24 @@
+{% load static %}
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Super Cocina del Valle{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=120">
+</head>
+<body class="auth-page">
+  <main class="auth-shell">
+    <header class="auth-brand">
+      <span class="auth-logo-frame"><img src="{% static 'imgs/logo_super_cocina.png' %}" alt=""></span>
+      <div><h1>Super Cocina</h1><p>del Valle</p></div>
+      <small>Sistema de operación</small>
+    </header>
+    <section class="auth-panel">{% block content %}{% endblock %}</section>
+</main>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

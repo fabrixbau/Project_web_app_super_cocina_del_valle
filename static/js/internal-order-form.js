@@ -543,7 +543,9 @@
     noteDialog.showModal();
     noteForm.elements.note.focus();
   });
-  document.querySelector("[data-ticket-note-close]")?.addEventListener("click", () => noteDialog.close());
+  document.querySelectorAll("[data-ticket-note-close]").forEach((button) => {
+    button.addEventListener("click", () => noteDialog.close());
+  });
   noteForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const errorBox = noteForm.querySelector("[data-ticket-note-error]");
@@ -683,7 +685,16 @@
   });
 
   document.querySelectorAll("[data-internal-package-open]").forEach((button) => button.addEventListener("click", () => {
-    document.querySelector(`#${button.dataset.internalPackageOpen}`)?.showModal();
+    const dialog = document.querySelector(`#${button.dataset.internalPackageOpen}`);
+    if (!dialog) return;
+    const form = dialog.querySelector("form");
+    if (form) form.scrollTop = 0;
+    dialog.scrollTop = 0;
+    dialog.showModal();
+    requestAnimationFrame(() => {
+      if (form) form.scrollTop = 0;
+      dialog.scrollTop = 0;
+    });
   }));
   document.querySelectorAll("[data-package-close]").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
 

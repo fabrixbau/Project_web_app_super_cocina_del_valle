@@ -16,7 +16,7 @@ Borra esta nota después de leerla. -->
     <label>Tipo <select name="order_type"><option value="">Todos</option>{% for value, label in order_type_choices %}<option value="{{ value }}" {% if selected_order_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
   </form></section>
   <p class="message" data-order-board-feedback hidden></p>
-  <section class="card spaced-card" data-order-live-region><div class="order-list">
+  <section class="card spaced-card order-board-card" data-order-live-region><div class="order-list">
     <header class="order-list-head" aria-hidden="true"><span>Folio</span><span>Cliente</span><span>Resumen del ticket</span><span>Modalidad y destino</span><span>Forma de pago</span><span>Estado y horario</span><span>Total</span><span>Siguiente paso</span></header>
     {% for order in orders %}<article class="order-row type-{{ order.order_type }} status-{{ order.status }}{% if order.is_advance_order %} is-scheduled-order{% endif %}" data-order-row-url="{% url 'orders:internal_order_edit' order.id %}" data-order-status="{{ order.status }}" tabindex="0" role="link" aria-label="Editar {{ order.formatted_number }}">
       <span data-column="Folio"><strong>{{ order.formatted_number }}</strong><small>Capturado {{ order.created_at|date:'d/m/Y H:i' }}</small></span>

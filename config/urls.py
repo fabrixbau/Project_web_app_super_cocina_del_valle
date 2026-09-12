@@ -9,17 +9,18 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.contrib.auth import views as auth_views
 from django.urls import include, path
+from accounts.views import login_view
 
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path(
         "cuentas/iniciar-sesion/",
-        auth_views.LoginView.as_view(template_name="registration/login.html"),
+        login_view,
         name="login",
     ),
+    path("cuentas/login/", login_view, name="account_login"),
     path("cuentas/", include("django.contrib.auth.urls")),
     path("app/perfil/", include("accounts.urls")),
     path("app/menu/", include("menu.urls")),
