@@ -13,8 +13,11 @@ from django import forms
 from django.utils import timezone
 
 from menu.forms import PackageSelectionForm
+from menu.egg import egg_products
+from menu.models import Product
 
 from .models import Customer, CustomerAddress, Order
+from .phones import phone_key
 
 
 class PackageCartForm(PackageSelectionForm):
@@ -31,14 +34,24 @@ class PackageCartForm(PackageSelectionForm):
 
 
 class InternalPackageForm(PackageCartForm):
+    egg_product = forms.ModelChoiceField(label="Huevo opcional", queryset=Product.objects.none(), required=False, empty_label="Sin huevo")
     bread = forms.BooleanField(label="Lleva bolillo", required=False)
     customization_comment = forms.CharField(
         label="Comentario para cocina", required=False, max_length=150,
         widget=forms.Textarea(attrs={"rows": 2, "placeholder": "Ej. Sin cebolla"}),
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["egg_product"].queryset = egg_products()
+
     def clean_customization_comment(self):
         return " ".join(self.cleaned_data["customization_comment"].split())
+
+    def calculated_total(self):
+        total = super().calculated_total()
+        egg = self.cleaned_data.get("egg_product")
+        return total + (egg.price * self.cleaned_data.get("quantity", 1) if egg else 0)
 
 
 class InternalPackageExtrasForm(forms.Form):
@@ -48,10 +61,15 @@ class InternalPackageExtrasForm(forms.Form):
     tortillas = forms.BooleanField(label="Lleva tortillas", required=False)
     bread = forms.BooleanField(label="Lleva bolillo", required=False)
     beans = forms.BooleanField(label="Lleva frijoles", required=False)
+    egg_product = forms.ModelChoiceField(label="Huevo opcional", queryset=Product.objects.none(), required=False, empty_label="Sin huevo")
     customization_comment = forms.CharField(
         label="Comentario para cocina", required=False, max_length=150,
         widget=forms.TextInput(attrs={"placeholder": "Ej. Empacar por separado"}),
     )
+
+    def __init__(self, *args, existing_egg_id=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["egg_product"].queryset = egg_products(existing_egg_id)
 
     def clean_customization_comment(self):
         return " ".join(self.cleaned_data["customization_comment"].split())
@@ -191,24 +209,38 @@ class DeliveryTipForm(forms.Form):
 
 
 class CustomerForm(forms.ModelForm):
+    include_country_code = forms.BooleanField(label="Agregar prefijo +52 (opcional)", required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.order_fields(("name", "phone", "include_country_code", "notes"))
+        if not self.is_bound and self.instance.pk:
+            self.fields["include_country_code"].initial = self.instance.phone.strip().startswith("+52")
+
     class Meta:
         model = Customer
         fields = ("name", "phone", "notes")
         labels = {"name": "Nombre", "phone": "Teléfono", "notes": "Indicaciones generales"}
         widgets = {"notes": forms.Textarea(attrs={"rows": 3})}
 
-    def clean_phone(self):
+    def clean(self):
         # NOTA TEMPORAL PARA APRENDIZAJE: normalizamos sólo para comparar; el valor
         # escrito conserva su formato visible. La validación del servidor evita que
         # un segundo formulario salte la advertencia del navegador. Borra esta nota.
-        phone = self.cleaned_data["phone"].strip()
-        phone_key = "".join(character for character in phone if character.isdigit())
-        if not phone_key:
-            return phone
-        duplicate = Customer.objects.filter(phone_key=phone_key).exclude(pk=self.instance.pk).first()
+        data = super().clean()
+        phone = data.get("phone", "").strip()
+        digits = phone_key(phone)
+        if data.get("include_country_code") and len(digits) != 10:
+            self.add_error("phone", "Para agregar +52, escribe un número mexicano de 10 dígitos.")
+            return data
+        if data.get("include_country_code"):
+            data["phone"] = f"+52 {digits}"
+        elif len(digits) == 10 and phone.startswith("+52"):
+            data["phone"] = digits
+        duplicate = Customer.objects.filter(phone_key=digits).exclude(pk=self.instance.pk).first() if digits else None
         if duplicate:
-            raise forms.ValidationError(f"Este teléfono ya pertenece a {duplicate.name}. Revisa su ficha antes de crear otro registro.")
-        return phone
+            self.add_error("phone", f"Este teléfono ya pertenece a {duplicate.name}. Revisa su ficha antes de crear otro registro.")
+        return data
 
 
 class CustomerAddressForm(forms.ModelForm):

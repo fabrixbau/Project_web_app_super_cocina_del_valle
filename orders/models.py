@@ -48,7 +48,8 @@ class Customer(models.Model):
         return self.name
 
     def save(self, *args, **kwargs):
-        self.phone_key = "".join(character for character in self.phone if character.isdigit())
+        from .phones import phone_key
+        self.phone_key = phone_key(self.phone)
         if kwargs.get("update_fields") and "phone" in kwargs["update_fields"]:
             kwargs["update_fields"] = (*kwargs["update_fields"], "phone_key")
         return super().save(*args, **kwargs)
@@ -287,6 +288,9 @@ class OrderItem(models.Model):
         Product, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="order_items_as_beans",
     )
+    egg_product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="order_items_as_egg")
+    egg_name_snapshot = models.CharField(max_length=150, blank=True)
+    egg_price_snapshot = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
     quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)])
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])

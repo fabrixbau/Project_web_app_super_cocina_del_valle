@@ -25,6 +25,7 @@ from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, WAITER, SECTION_ROLE_MA
 from config.printing import order_print_context, printable_item, selected_printable_items
 from print_station.views import queue_ticket
 from menu.inventory import filter_products_by_stock
+from menu.egg import egg_products, selected_egg
 from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product
 from menu.packaging import parse_packaging_quantities
 from menu.selection import resolve_product_selection, serialize_product_selector
@@ -32,6 +33,7 @@ from tables.models import TableAccount
 
 from .cart import add_package, add_product, cart_control_summary, clear, decrease_product, get_order_mode, product_is_orderable, remove_item, resolve_cart, set_cart_note, set_item_note, set_order_mode, update_item, update_product_selection
 from .coffee_report import coffee_sales_for_date
+from .phones import phone_key as normalize_customer_phone
 from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm, PublicOrderModeForm
 from .models import CoffeeSettlement, Customer, CustomerAddress, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
 from .services import ACTION_LABELS, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, start_internal_order, transition_order, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
@@ -163,6 +165,8 @@ def internal_order_ticket(order):
                 description_parts.append("Con bolillo")
             if item.beans:
                 description_parts.append("Con frijoles")
+            if item.egg_name_snapshot:
+                description_parts.append(f"Con {item.egg_name_snapshot}")
         items.append({
             "id": item.pk,
             "name": f"{base_name} ({item.customization_comment})" if item.customization_comment else base_name,
@@ -172,6 +176,7 @@ def internal_order_ticket(order):
             "description": "" if item.is_package_candidate else " · ".join(filter(None, description_parts)),
             "is_package": item.item_type == OrderItem.ItemType.PACKAGE,
             "with_water": item.with_water, "tortillas": item.tortillas, "bread": item.bread,
+            "egg_product_id": item.egg_product_id,
             "beans": item.beans, "comment": item.customization_comment,
             "edit_extras_url": reverse("orders:internal_order_package_extras", args=(order.pk, item.pk)) if item.item_type == OrderItem.ItemType.PACKAGE else "",
             "edit_note_url": reverse("orders:internal_order_item_note", args=(order.pk, item.pk)),
@@ -523,7 +528,7 @@ def internal_order_create(request):
 @role_required(ADMIN, ORDER_TAKER)
 def customer_list(request):
     query = request.GET.get("q", "").strip()
-    phone_query = "".join(character for character in query if character.isdigit())
+    phone_query = normalize_customer_phone(query)
     customers = Customer.objects.prefetch_related(
         "addresses",
         Prefetch(
@@ -640,7 +645,7 @@ def customer_edit(request, customer_id):
 @role_required(ADMIN, ORDER_TAKER)
 def customer_lookup(request):
     query = request.GET.get("q", "").strip()
-    phone_query = "".join(character for character in query if character.isdigit())
+    phone_query = normalize_customer_phone(query)
     customers = Customer.objects.prefetch_related("addresses", "debts")
     if query:
         phone_filter = Q(phone_key__icontains=phone_query) if phone_query else Q(pk__isnull=True)
@@ -787,6 +792,11 @@ def internal_order_edit(request, order_id):
         current_customer_debts = list(order.agenda_customer.debts.filter(
             status__in=(CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL),
         ))
+    egg_choices = list(egg_products())
+    known_egg_ids = {egg.pk for egg in egg_choices}
+    egg_choices.extend(Product.objects.filter(
+        pk__in=order.items.exclude(egg_product_id=None).values_list("egg_product_id", flat=True),
+    ).exclude(pk__in=known_egg_ids))
     return render(request, "orders/internal_order_form.html", {
         "form": form, "order": order, "categories": categories,
         "packaging_products": packaging_products,
@@ -795,6 +805,7 @@ def internal_order_edit(request, order_id):
         "next_menu_mode_label": "Cambiar a comida" if mode == "breakfast" else "Cambiar a desayunos",
         "selector_data": selector_data, "ticket": internal_order_ticket(order),
         "daily_menu": daily_menu, "package_options": package_options,
+        "egg_options": [{"id": egg.pk, "name": egg.name, "price": str(egg.price)} for egg in egg_choices],
         "running_meal_products": running_meal_products,
         "executive_meal_products": executive_meal_products,
         "daily_order_products": daily_order_products,
@@ -861,8 +872,8 @@ def internal_order_customer_autosave(request, order_id):
         )
     except ValidationError as error:
         return JsonResponse({"ok": False, "error": error.message}, status=400)
-    phone_key = "".join(character for character in order.phone if character.isdigit())
-    duplicate = Customer.objects.filter(phone_key=phone_key).exclude(pk=order.agenda_customer_id).first() if phone_key else None
+    lookup_key = normalize_customer_phone(order.phone)
+    duplicate = Customer.objects.filter(phone_key=lookup_key).exclude(pk=order.agenda_customer_id).first() if lookup_key else None
     return JsonResponse({
         "ok": True, "customer_name": order.customer_name,
         "agenda_customer_id": order.agenda_customer_id,
@@ -889,7 +900,7 @@ def internal_order_package_extras(request, order_id, item_id):
     if _order_locked_for_edit(order, request.user):
         return _locked_order_response(request, order)
     item = get_object_or_404(OrderItem, pk=item_id, order=order, item_type=OrderItem.ItemType.PACKAGE)
-    form = InternalPackageExtrasForm(request.POST)
+    form = InternalPackageExtrasForm(request.POST, existing_egg_id=item.egg_product_id)
     if not form.is_valid():
         return JsonResponse({"ok": False, "error": "Revisa los extras del paquete."}, status=400)
     try:
@@ -1057,6 +1068,7 @@ def internal_order_auto_meal_add(request, order_id, product_id):
             bread=request.POST.get("bread") == "1",
             beans=request.POST.get("beans") == "1",
             package_comment=" ".join(request.POST.get("package_comment", "").split()),
+            egg_product=selected_egg(request.POST.get("egg_product")),
         )
     except ValidationError as error:
         return JsonResponse({"ok": False, "error": error.message}, status=400)

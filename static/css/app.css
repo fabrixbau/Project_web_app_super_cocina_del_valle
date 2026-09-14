@@ -1384,7 +1384,7 @@ y el verde confirma acciones terminadas. Borra esta nota después de leerla. */
 .cashier-eyebrow { color: #b47817; font-size: .72rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
 .cashier-back-link { display: inline-flex; gap: .45rem; align-items: center; padding: .62rem .85rem; border: 1px solid #bac9c0; border-radius: .65rem; color: #245b46; background: #fff; text-decoration: none; font-size: .84rem; font-weight: 750; }
 .cashier-back-link:hover { border-color: #28644e; background: #edf4f0; }
-.cashier-tools { display: grid; grid-template-columns: auto repeat(4, minmax(160px, 1fr)); gap: .55rem; align-items: center; padding: .65rem; border: 1px solid #d8d8cd; border-radius: 1rem; background: #fff; box-shadow: 0 5px 16px rgb(25 57 44 / 5%); }
+.cashier-tools { display: grid; grid-template-columns: auto repeat(5, minmax(0, 1fr)); gap: .55rem; align-items: center; padding: .65rem; border: 1px solid #d8d8cd; border-radius: 1rem; background: #fff; box-shadow: 0 5px 16px rgb(25 57 44 / 5%); }
 .cashier-tools > span { padding: 0 .55rem; color: #68756f; font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .cashier-tools a { display: flex; min-height: 2.85rem; align-items: center; justify-content: center; padding: .55rem .7rem; border-radius: .6rem; color: #fff; background: #28644e; text-align: center; text-decoration: none; font-size: .86rem; font-weight: 750; transition: background .16s ease, transform .16s ease; }
 .cashier-tools a:hover { background: #173f31; transform: translateY(-1px); }
@@ -1871,7 +1871,6 @@ html[data-theme="dark"] .ticket-note-cancel { color: #e4ede8; border-color: #5b7
 .table-operation-header .table-package-launcher > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .table-operation-header .table-package-launcher button { min-height: 3.35rem; }
 .category-carousel .category-button.is-outside-carousel-page { visibility: visible; opacity: 1; pointer-events: auto; }
-.category-carousel .category-button.is-partial-carousel-item { visibility: hidden; opacity: 0; pointer-events: none; }
 @media (max-width: 1240px) { .table-operation-header { grid-template-columns: 1fr; } .table-operation-header .table-catalog-toolbar { grid-column: 1; grid-row: 1; min-height: 0; } .table-operation-header .table-ticket-heading { grid-column: 1; grid-row: 2; min-height: 0; } }
 @media (max-width: 760px) { .table-operation-header .table-ticket-heading { grid-template-columns: 1fr; grid-template-rows: auto; } .table-operation-header .table-detail-back, .table-operation-header .table-account-identity, .table-operation-header .table-ticket-heading .ticket-heading-actions { grid-column: 1; grid-row: auto; } .table-operation-header .table-ticket-heading .ticket-heading-actions { align-items: flex-start; } .table-operation-header .table-package-launcher { grid-template-columns: 1fr; } }
 
@@ -2918,3 +2917,5 @@ html[data-theme="dark"] .inventory-product-card strong { color: #eef4f1; }
 .coffee-report-table { width: 100%; border-collapse: collapse; min-width: 650px; }
 .coffee-report-table th, .coffee-report-table td { padding: .65rem; text-align: left; border-bottom: 1px solid #d8ded8; }
 .coffee-report-table th { color: #174c3a; }
+.package-egg-choice { display: grid; gap: .35rem; min-width: 180px; padding: .7rem; border: 1px solid #d9d3c5; border-radius: .65rem; background: #fffaf0; font-weight: 700; }
+.package-egg-choice select { min-width: 0; width: 100%; padding: .65rem; border: 1px solid #b9c9bf; border-radius: .45rem; background: #fff; color: #173d32; }

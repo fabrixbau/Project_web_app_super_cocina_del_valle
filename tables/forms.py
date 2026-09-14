@@ -9,12 +9,16 @@
 from django import forms
 
 from menu.forms import PackageSelectionForm
+from menu.egg import egg_products
+from menu.models import Product
 
 from .models import TableAccount
 
 
 class TablePackageForm(PackageSelectionForm):
+    egg_product = forms.ModelChoiceField(label="Huevo opcional", queryset=Product.objects.none(), required=False, empty_label="Sin huevo")
     refill_extra = forms.BooleanField(label="Refill extra", required=False)
+    bread = forms.BooleanField(label="Lleva bolillo", required=False)
     customization_comment = forms.CharField(
         label="Comentario para cocina",
         required=False,
@@ -27,6 +31,7 @@ class TablePackageForm(PackageSelectionForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["egg_product"].queryset = egg_products(self.initial.get("egg_product"))
         for name in ("order_type", "tortillas", "beans"):
             self.fields.pop(name)
         for name in ("first_course", "second_course", "main_course"):
@@ -73,6 +78,9 @@ class TablePackageForm(PackageSelectionForm):
         total = super().calculated_total()
         if self.cleaned_data.get("refill_extra"):
             total += self.package.table_refill_price
+        egg = self.cleaned_data.get("egg_product")
+        if egg:
+            total += egg.price
         return total
 
 

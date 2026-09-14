@@ -231,7 +231,10 @@
   });
 
   let phoneLookupTimer = null;
-  const normalizePhone = (value) => Array.from(value).filter((character) => /[0-9]/.test(character)).join("");
+  const normalizePhone = (value) => {
+    const digits = Array.from(value).filter((character) => /[0-9]/.test(character)).join("");
+    return digits.length === 12 && digits.startsWith("52") ? digits.slice(2) : digits;
+  };
   function showDuplicateCustomer(duplicate) {
     duplicatePhoneWarning.replaceChildren();
     duplicatePhoneWarning.append(document.createTextNode(`Este teléfono ya pertenece a ${duplicate.name}. `));
@@ -510,6 +513,7 @@
         editExtras.dataset.water = String(Boolean(item.with_water));
         editExtras.dataset.tortillas = String(Boolean(item.tortillas));
         editExtras.dataset.bread = String(Boolean(item.bread));
+        editExtras.dataset.eggProductId = String(item.egg_product_id || "");
         editExtras.dataset.beans = String(Boolean(item.beans));
         editExtras.dataset.comment = item.comment || "";
         controls.append(editExtras);
@@ -817,6 +821,7 @@
     extrasForm.elements.tortillas.checked = button.dataset.tortillas === "true";
     extrasForm.elements.bread.checked = button.dataset.bread === "true";
     extrasForm.elements.beans.checked = button.dataset.beans === "true";
+    extrasForm.elements.egg_product.value = button.dataset.eggProductId || "";
     extrasForm.elements.customization_comment.value = button.dataset.comment || "";
     extrasForm.querySelector("[data-package-extras-error]").hidden = true;
     extrasDialog.showModal();
@@ -869,12 +874,15 @@
     const options = autoForm.closest(".internal-category")?.querySelector("[data-auto-package-options]");
     options?.querySelectorAll("[data-auto-option]").forEach((field) => body.set(field.dataset.autoOption, field.checked ? "1" : "0"));
     body.set("package_comment", options?.querySelector("[data-auto-package-comment]")?.value || "");
+    body.set("egg_product", options?.querySelector("select[name='egg_product']")?.value || "");
     try {
       const response = await fetch(autoForm.action, {method: "POST", body, headers: {"X-CSRFToken": csrf, "X-Requested-With": "XMLHttpRequest"}});
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.error || "No fue posible armar la comida.");
       renderTicket(data.ticket);
       if (data.auto_package_created && options) {
+        const eggChoice = options.querySelector("select[name='egg_product']");
+        if (eggChoice) eggChoice.value = "";
         options.querySelectorAll("[data-auto-option]").forEach((field) => { field.checked = false; });
         options.querySelectorAll("[data-auto-toggle]").forEach((button) => {
           button.classList.remove("is-selected");

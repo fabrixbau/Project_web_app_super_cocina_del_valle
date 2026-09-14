@@ -141,11 +141,14 @@ def _change_item_stock(*, item, quantity, actor, reserve):
             item.first_course_product, item.second_course_product, item.main_course_product,
             (item.water_product or (menu.water_product if menu else None)) if item.with_water else None,
             (item.beans_product or (menu.beans_order if menu else None)) if item.beans else None,
+            item.egg_product,
         ) if product)
         if item.tortillas:
             requirements.append(DailyProductStock.ItemKind.TORTILLAS)
+        if item.bread:
+            requirements.append(DailyProductStock.ItemKind.BREAD)
     elif item.product_id:
-        requirements.append(item.product)
+        requirements.append(DailyProductStock.ItemKind.BREAD if item.product.uses_bread_stock else item.product)
 
     for requirement in requirements:
         is_product = isinstance(requirement, Product)
@@ -156,7 +159,7 @@ def _change_item_stock(*, item, quantity, actor, reserve):
             product=requirement if is_product else None,
             item_kind=DailyProductStock.ItemKind.PRODUCT if is_product else requirement,
             date=stock_date,
-            required=bool(menu and not is_product) or is_required_daily_product,
+            required=bool(not is_product and requirement == DailyProductStock.ItemKind.BREAD) or bool(menu and not is_product) or is_required_daily_product,
             chicken_piece=(
                 item.chicken_piece
                 if is_product and menu and requirement.pk == menu.chicken_stew_id
@@ -270,7 +273,7 @@ def consume_product_units(*, account, product_ids, actor, chicken_product_id=Non
 @transaction.atomic
 def add_auto_meal_component(
     *, account, product, daily_menu, completed_selection, added_by, chicken_piece="",
-    raw_option_ids=None, customization_comment="",
+    raw_option_ids=None, customization_comment="", egg_product=None,
 ):
     account = TableAccount.objects.select_for_update().get(pk=account.pk)
     if account.status != TableAccount.Status.OPEN:
@@ -362,6 +365,7 @@ def add_auto_meal_component(
         "configuration_signature": f"comentarios:{package_comment.casefold()}" if package_comment else "",
         "configuration_snapshot": {"differences": component_comments, "comment": package_comment},
         "is_customized": bool(package_comment),
+        "egg_product": egg_product,
     }
     return add_package_to_table(
         account=account, package=package, daily_menu=daily_menu,
@@ -384,7 +388,8 @@ def add_package_to_table(
     first = cleaned_data.get("first_course")
     second = cleaned_data.get("second_course")
     main = cleaned_data.get("main_course")
-    price = package.price_with_water if cleaned_data["with_water"] else package.price_without_water
+    egg = cleaned_data.get("egg_product")
+    price = (package.price_with_water if cleaned_data["with_water"] else package.price_without_water) + (egg.price if egg else Decimal("0"))
     if cleaned_data["refill_extra"]:
         price += package.table_refill_price
     signature = {
@@ -395,8 +400,9 @@ def add_package_to_table(
         "main_course_product": main, "main_course_snapshot": main.name if main else "",
         "chicken_piece": cleaned_data["chicken_piece"],
         "with_water": cleaned_data["with_water"],
-        "tortillas": False, "beans": False,
+        "tortillas": False, "bread": cleaned_data.get("bread", False), "beans": False,
         "refill_extra": cleaned_data["refill_extra"],
+        "egg_product": egg, "egg_name_snapshot": egg.name if egg else "", "egg_price_snapshot": egg.price if egg else Decimal("0"),
         "is_complete": cleaned_data["is_complete"],
         "customization_comment": cleaned_data.get("customization_comment", ""),
         "configuration_signature": cleaned_data.get("configuration_signature", ""),
@@ -450,7 +456,9 @@ def update_table_package(*, account, item, package, daily_menu, cleaned_data, ch
     first = cleaned_data.get("first_course")
     second = cleaned_data.get("second_course")
     main = cleaned_data.get("main_course")
-    price = package.price_with_water if cleaned_data["with_water"] else package.price_without_water
+    egg = cleaned_data.get("egg_product")
+    egg_price = (item.egg_price_snapshot if egg and item.egg_product_id == egg.pk else egg.price) if egg else Decimal("0")
+    price = (package.price_with_water if cleaned_data["with_water"] else package.price_without_water) + egg_price
     if cleaned_data["refill_extra"]:
         price += package.table_refill_price
     item.first_course_product = first
@@ -465,8 +473,12 @@ def update_table_package(*, account, item, package, daily_menu, cleaned_data, ch
     item.water_product = daily_menu.water_product if cleaned_data["with_water"] else None
     item.refill_extra = cleaned_data["refill_extra"]
     item.tortillas = False
+    item.bread = cleaned_data.get("bread", False)
     item.beans = False
     item.beans_product = None
+    item.egg_product = egg
+    item.egg_name_snapshot = egg.name if egg else ""
+    item.egg_price_snapshot = egg_price
     item.is_complete = cleaned_data["is_complete"]
     item.customization_comment = cleaned_data.get("customization_comment", "")
     item.configuration_signature = cleaned_data.get("configuration_signature", "")
@@ -477,8 +489,9 @@ def update_table_package(*, account, item, package, daily_menu, cleaned_data, ch
     item.save(update_fields=(
         "first_course_product", "first_course_snapshot", "second_course_product",
         "second_course_snapshot", "main_course_product", "main_course_snapshot",
-        "chicken_piece", "with_water", "water_name_snapshot", "water_product", "refill_extra", "tortillas", "beans", "beans_product",
+        "chicken_piece", "with_water", "water_name_snapshot", "water_product", "refill_extra", "tortillas", "bread", "beans", "beans_product",
         "daily_menu", "is_complete", "customization_comment", "configuration_signature",
+        "egg_product", "egg_name_snapshot", "egg_price_snapshot",
         "configuration_snapshot", "is_customized", "unit_price", "subtotal",
     ))
     _change_item_stock(item=item, quantity=item.quantity, actor=changed_by, reserve=True)

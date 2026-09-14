@@ -31,6 +31,8 @@ def printable_item(item, quantity=None):
             details.append(f"Con agua: {item.water_name_snapshot}" if item.water_name_snapshot else "Con agua del día")
         details.append("Con tortillas" if item.tortillas else "Sin tortillas")
         details.append("Con frijoles" if item.beans else "Sin frijoles")
+        if getattr(item, "egg_name_snapshot", ""):
+            details.append(f"Agregar: {item.egg_name_snapshot}")
     else:
         details.extend(_configuration_details(item))
         if getattr(item, "is_package_candidate", False):

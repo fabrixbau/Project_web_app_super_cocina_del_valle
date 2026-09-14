@@ -23,6 +23,7 @@ from menu.selection import resolve_product_selection
 from notifications.models import InternalNotification
 
 from .models import Customer, CustomerAddress, CustomerDebt, CustomerDebtMovement, DailyOrderCounter, Order, OrderItem, OrderStatusHistory
+from .phones import phone_key
 
 
 ACTION_LABELS = {
@@ -52,11 +53,14 @@ def _daily_product_ids(daily_menu):
 
 def _order_item_requirements(item, daily_menu):
     if item.item_type == OrderItem.ItemType.PRODUCT:
-        return [item.product] if item.product_id else []
+        if not item.product_id:
+            return []
+        return [DailyProductStock.ItemKind.BREAD] if item.product.uses_bread_stock else [item.product]
     requirements = [product for product in (
         item.first_course, item.second_course, item.main_course,
         (item.water_product or (daily_menu.water_product if daily_menu else None)) if item.with_water else None,
         (item.beans_product or (daily_menu.beans_order if daily_menu else None)) if item.beans else None,
+        item.egg_product,
     ) if product]
     if item.tortillas:
         requirements.append(DailyProductStock.ItemKind.TORTILLAS)
@@ -74,7 +78,7 @@ def _change_order_item_stock(*, item, quantity, actor, reserve, channel=None):
     selected_channel = channel or _inventory_channel(order.order_type)
     for requirement in _order_item_requirements(item, daily_menu):
         is_product = isinstance(requirement, Product)
-        required = bool(daily_menu and ((is_product and requirement.pk in daily_ids) or not is_product))
+        required = bool((not is_product and requirement == DailyProductStock.ItemKind.BREAD) or (daily_menu and ((is_product and requirement.pk in daily_ids) or not is_product)))
         filters = {
             "date": order.operating_date, "channel": selected_channel,
             "stock_type": DailyProductStock.StockType.DAILY,
@@ -331,7 +335,7 @@ def scheduled_initial_status(order):
 
 
 def _normalize_phone(value):
-    return "".join(character for character in value if character.isdigit())
+    return phone_key(value)
 
 
 def sync_order_customer_agenda(order, form_data):
@@ -606,7 +610,7 @@ def _consume_internal_candidate(*, order, product_id, actor, chicken_product_id=
 def add_internal_auto_meal_component(
     *, order, product, daily_menu, completed_selection, actor, chicken_piece="",
     raw_option_ids=None, comment="", with_water=False, tortillas=False, bread=False, beans=False,
-    package_comment="",
+    package_comment="", egg_product=None,
 ):
     """Guarda un tiempo pendiente y lo convierte en paquete al completar los tres espacios."""
     order = Order.objects.select_for_update().get(pk=order.pk)
@@ -671,6 +675,7 @@ def add_internal_auto_meal_component(
         "chicken_piece": final_piece, "with_water": with_water,
         "tortillas": "yes" if tortillas else "no", "bread": bread, "beans": "yes" if beans else "no",
         "quantity": 1, "customization_comment": final_comment,
+        "egg_product": egg_product,
     }
     return add_internal_order_package(
         order=order, package=package, daily_menu=daily_menu, cleaned_data=cleaned_data,
@@ -714,10 +719,11 @@ def add_internal_order_package(
     daily_menu = DailyMenu.objects.select_for_update().get(pk=daily_menu.pk, status=DailyMenu.Status.PUBLISHED)
     first, second, main = (cleaned_data[name] for name in ("first_course", "second_course", "main_course"))
     comment = cleaned_data.get("customization_comment", "")
-    unit_price = package.price_with_water if cleaned_data["with_water"] else package.price_without_water
+    egg = cleaned_data.get("egg_product")
+    unit_price = (package.price_with_water if cleaned_data["with_water"] else package.price_without_water) + (egg.price if egg else Decimal("0"))
     signature = "|".join(map(str, (
         first.pk, second.pk, main.pk, cleaned_data["chicken_piece"],
-        int(cleaned_data["with_water"]), cleaned_data["tortillas"], int(cleaned_data.get("bread", False)), cleaned_data["beans"], comment.casefold(),
+        int(cleaned_data["with_water"]), cleaned_data["tortillas"], int(cleaned_data.get("bread", False)), cleaned_data["beans"], egg.pk if egg else "", comment.casefold(),
     )))
     item = None
     if merge_identical:
@@ -744,6 +750,7 @@ def add_internal_order_package(
             water_product=daily_menu.water_product if cleaned_data["with_water"] else None,
             tortillas=cleaned_data["tortillas"] == "yes", bread=cleaned_data.get("bread", False), beans=cleaned_data["beans"] == "yes",
             beans_product=daily_menu.beans_order if cleaned_data["beans"] == "yes" else None,
+            egg_product=egg, egg_name_snapshot=egg.name if egg else "", egg_price_snapshot=egg.price if egg else Decimal("0"),
             unit_price=unit_price, quantity=quantity, subtotal=unit_price * quantity,
             configuration_signature=signature, customization_comment=comment,
             configuration_snapshot={"comment": comment}, is_customized=bool(comment),
@@ -802,6 +809,11 @@ def update_internal_package_extras(*, order, item, cleaned_data, actor=None):
     item.bread = cleaned_data["bread"]
     item.beans = cleaned_data["beans"]
     item.beans_product = daily_menu.beans_order if daily_menu and item.beans else None
+    old_egg_id = item.egg_product_id
+    egg = cleaned_data.get("egg_product")
+    item.egg_product = egg
+    item.egg_name_snapshot = egg.name if egg else ""
+    item.egg_price_snapshot = (item.egg_price_snapshot if egg and egg.pk == old_egg_id else egg.price) if egg else Decimal("0")
     item.customization_comment = cleaned_data["customization_comment"]
     item.is_customized = bool(item.customization_comment)
     item.configuration_snapshot = {"comment": item.customization_comment}
@@ -810,10 +822,11 @@ def update_internal_package_extras(*, order, item, cleaned_data, actor=None):
         item.chicken_piece, int(item.with_water), int(item.tortillas), int(item.bread), int(item.beans),
         item.customization_comment.casefold(), item.pk,
     )))
-    item.unit_price = package.price_with_water if item.with_water else package.price_without_water
+    item.unit_price = (package.price_with_water if item.with_water else package.price_without_water) + item.egg_price_snapshot
     item.subtotal = item.unit_price * item.quantity
     item.save(update_fields=(
         "with_water", "water_name_snapshot", "water_product", "tortillas", "bread", "beans", "beans_product",
+        "egg_product", "egg_name_snapshot", "egg_price_snapshot",
         "customization_comment", "is_customized", "configuration_snapshot",
         "configuration_signature", "unit_price", "subtotal",
     ))

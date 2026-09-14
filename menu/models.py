@@ -98,6 +98,7 @@ class Product(models.Model):
     )
     service_periods = models.ManyToManyField(ServicePeriod, blank=True, related_name="products")
     is_sold_individually = models.BooleanField(default=True)
+    uses_bread_stock = models.BooleanField(default=False, help_text="Descuenta una unidad del conteo diario de bolillos por cada unidad vendida.")
     eligible_for_executive_meal = models.BooleanField(default=False)
     packaging_kind = models.CharField(
         "tipo de envase",

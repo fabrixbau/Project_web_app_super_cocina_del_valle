@@ -55,7 +55,7 @@ class ProductForm(forms.ModelForm):
         fields = (
             "category", "name", "price", "description", "image", "image_position_x",
             "image_position_y", "image_zoom", "is_available",
-            "component_type", "service_periods", "is_sold_individually",
+            "component_type", "service_periods", "is_sold_individually", "uses_bread_stock",
             "eligible_for_executive_meal", "packaging_kind", "sort_order",
         )
         labels = {
@@ -64,6 +64,7 @@ class ProductForm(forms.ModelForm):
             "is_available": "Disponible", "component_type": "Función del producto",
             "service_periods": "Periodos en que se vende",
             "is_sold_individually": "Se puede vender por orden",
+            "uses_bread_stock": "Descontar del conteo de bolillos",
             "eligible_for_executive_meal": "Elegible para comida ejecutiva",
             "packaging_kind": "Uso como envase",
             "sort_order": "Orden visual",
@@ -83,6 +84,7 @@ class ProductForm(forms.ModelForm):
             "service_periods": "Sin selección no se limita por periodo. Mesas ignora el horario, pero el menú público sí lo aplica.",
             "is_available": "Apágalo para retirar temporalmente el producto de la venta.",
             "is_sold_individually": "Actívalo para que aparezca como producto suelto dentro de su categoría.",
+            "uses_bread_stock": "Actívalo únicamente en el producto Bolillo; cada unidad vendida descuenta un bolillo del inventario de su canal.",
             "eligible_for_executive_meal": "Solo aplica a productos cuya función sea Producto de plancha.",
             "packaging_kind": "Clasifícalo para mostrarlo en Envases; estas opciones nunca aparecen en el menú público.",
             "sort_order": "Los números menores aparecen primero dentro de la categoría.",

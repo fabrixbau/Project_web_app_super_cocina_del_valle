@@ -291,6 +291,7 @@ function packageEditButton(item) {
   button.dataset.mainCourse = item.main_course_id || "";
   button.dataset.chickenPiece = item.chicken_piece || "";
   button.dataset.withWater = item.with_water ? "true" : "false";
+  button.dataset.bread = item.bread ? "true" : "false";
   button.dataset.refillExtra = item.refill_extra ? "true" : "false";
   const name = document.createElement("strong");
   name.textContent = item.name;
@@ -390,7 +391,7 @@ function enqueueRequest({url, body, source, onSuccess}) {
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.error || "No fue posible actualizar el ticket.");
       renderTicket(data.ticket);
-      onSuccess?.();
+      onSuccess?.(data);
     } catch (error) {
       if (source?.matches("[data-package-add]")) {
         const container = source.querySelector("[data-package-error]");
@@ -470,8 +471,10 @@ document.addEventListener("click", (event) => {
     setRadio("main_course", editButton.dataset.mainCourse);
     setRadio("chicken_piece", editButton.dataset.chickenPiece);
     const waterInput = form.querySelector("input[name$='with_water']");
+    const breadInput = form.querySelector("input[name$='bread']");
     const refillInput = form.querySelector("input[name$='refill_extra']");
     if (waterInput) waterInput.checked = editButton.dataset.withWater === "true";
+    if (breadInput) breadInput.checked = editButton.dataset.bread === "true" || (!Object.hasOwn(editButton.dataset, "bread") && breadInput.defaultChecked);
     if (refillInput) refillInput.checked = editButton.dataset.refillExtra === "true";
     form.querySelector("input[name$='main_course']:checked")?.dispatchEvent(new Event("change", {bubbles: true}));
     form.querySelector("[data-package-submit]").textContent = "Guardar cambios";
@@ -529,7 +532,13 @@ document.addEventListener("submit", (event) => {
   event.preventDefault();
   enqueueRequest({
     url: form.action,
-    body: new FormData(form),
+    body: (() => {
+      const body = new FormData(form);
+      if (form.closest("[data-auto-meal-card]")) {
+        body.set("egg_product", form.closest("#auto-running-meal, #auto-executive-meal")?.querySelector("select[name='egg_product']")?.value || "");
+      }
+      return body;
+    })(),
     source: form,
     onSuccess: form.matches("[data-package-add]") ? () => {
       form.querySelector("[data-package-error]").replaceChildren();
@@ -537,6 +546,11 @@ document.addEventListener("submit", (event) => {
       form.reset();
       form.action = form.dataset.addUrl;
       form.querySelector("[data-package-submit]").textContent = form.hasAttribute("data-historical-edit-form") ? "Guardar cambios" : "Agregar al ticket";
+    } : form.closest("[data-auto-meal-card]") ? (data) => {
+      if (data.auto_package_created) {
+        const eggChoice = form.closest("#auto-running-meal, #auto-executive-meal")?.querySelector("select[name='egg_product']");
+        if (eggChoice) eggChoice.value = "";
+      }
     } : null,
   });
 });

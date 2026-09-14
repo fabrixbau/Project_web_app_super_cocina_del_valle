@@ -189,11 +189,15 @@ class TableAccountItem(models.Model):
         related_name="table_items_as_water",
     )
     tortillas = models.BooleanField(default=False)
+    bread = models.BooleanField(default=False)
     beans = models.BooleanField(default=False)
     beans_product = models.ForeignKey(
         "menu.Product", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="table_items_as_beans",
     )
+    egg_product = models.ForeignKey("menu.Product", on_delete=models.SET_NULL, null=True, blank=True, related_name="table_items_as_egg")
+    egg_name_snapshot = models.CharField(max_length=150, blank=True)
+    egg_price_snapshot = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     refill_extra = models.BooleanField(default=False)
     is_complete = models.BooleanField(default=True)
     product_name_snapshot = models.CharField(max_length=150)

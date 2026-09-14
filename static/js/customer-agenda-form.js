@@ -5,7 +5,10 @@ document.querySelectorAll("[data-customer-agenda-form]").forEach((form) => {
   const phoneField = form.querySelector("input[name='phone']");
   const warning = form.querySelector("[data-agenda-phone-warning]");
   if (!phoneField || !warning) return;
-  const normalizePhone = (value) => Array.from(value).filter((character) => /[0-9]/.test(character)).join("");
+  const normalizePhone = (value) => {
+    const digits = Array.from(value).filter((character) => /[0-9]/.test(character)).join("");
+    return digits.length === 12 && digits.startsWith("52") ? digits.slice(2) : digits;
+  };
   let timer = null;
   phoneField.addEventListener("input", () => {
     window.clearTimeout(timer);

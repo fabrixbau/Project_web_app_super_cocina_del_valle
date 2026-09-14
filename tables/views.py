@@ -39,6 +39,7 @@ from accounts.roles import ADMIN, ORDER_TAKER, SECTION_ROLE_MATRIX, WAITER, role
 from config.printing import printable_item, selected_printable_items, table_print_context
 from print_station.views import queue_ticket
 from menu.inventory import filter_products_by_stock
+from menu.egg import egg_products, selected_egg
 from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product
 from menu.packaging import parse_packaging_quantities
 from menu.selection import resolve_product_selection, serialize_product_selector
@@ -156,6 +157,10 @@ def ticket_summary(account):
                     and item.main_course_product.component_type == Product.ComponentType.CHICKEN_STEW
                 ):
                     description_parts.append("Pieza de pollo pendiente")
+                if item.egg_name_snapshot:
+                    description_parts.append(f"Con {item.egg_name_snapshot}")
+                if item.bread:
+                    description_parts.append("Con bolillo")
             else:
                 description_parts = []
                 if item.chicken_piece:
@@ -187,6 +192,8 @@ def ticket_summary(account):
                 "main_course_id": item.main_course_product_id,
                 "chicken_piece": item.chicken_piece,
                 "with_water": item.with_water,
+                "bread": item.bread,
+                "egg_product_id": item.egg_product_id,
                 "refill_extra": item.refill_extra,
                 "edit_dialog_id": f"package-edit-{item.pk}",
             }
@@ -499,6 +506,8 @@ def table_detail(request, account_id):
             "main_course": item.main_course_product_id,
             "chicken_piece": item.chicken_piece,
             "with_water": item.with_water,
+            "bread": item.bread,
+            "egg_product": item.egg_product_id,
             "refill_extra": item.refill_extra,
             "customization_comment": item.customization_comment,
         }
@@ -545,6 +554,8 @@ def table_detail(request, account_id):
         "ticket": ticket,
         "daily_menu": daily_menu,
         "package_options": package_options,
+        "egg_options": [{"id": egg.pk, "name": egg.name, "price": str(egg.price)} for egg in egg_products()],
+        "egg_initials": {str(option["item"].pk): option["item"].egg_product_id for option in package_edit_options},
         "package_edit_options": package_edit_options,
         "daily_order_products": daily_order_products,
         "running_meal_products": running_meal_products,
@@ -643,6 +654,7 @@ def table_auto_meal_add(request, account_id, product_id):
             chicken_piece=(completed or {}).get("chicken_piece", requested_chicken_piece),
             raw_option_ids=(request.POST.getlist("option_ids") if request.POST.get("customization_selected") == "1" else None),
             customization_comment=(request.POST.get("customization_comment", "") if request.POST.get("customization_selected") == "1" else ""),
+            egg_product=selected_egg(request.POST.get("egg_product")),
         )
     except ValidationError as error:
         return JsonResponse({"ok": False, "error": error.message}, status=400)

@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Sum
+from django.utils import timezone
 
 from .models import DailyProductStock, StockMovement
 
@@ -34,9 +35,20 @@ def filter_products_by_stock(products, *, daily_menu, channel):
     for stock in daily_rows:
         daily_available[stock.product_id] = daily_available.get(stock.product_id, 0) + stock.available_quantity
     fixed_available = {stock.product_id: stock.available_quantity for stock in fixed_rows}
+    bread_products = {product.pk for product in products if product.uses_bread_stock}
+    bread_stock = None
+    if bread_products:
+        bread_stock = DailyProductStock.objects.filter(
+            stock_type=DailyProductStock.StockType.DAILY,
+            date=daily_menu.date if daily_menu else timezone.localdate(),
+            channel=channel,
+            item_kind=DailyProductStock.ItemKind.BREAD,
+        ).first()
     return [
         product for product in products
         if (
+            (product.pk not in bread_products or (bread_stock is not None and bread_stock.available_quantity > 0))
+            and
             (product.pk not in daily_ids or daily_available.get(product.pk, 0) > 0)
             and (product.pk in daily_ids or product.pk not in fixed_available or fixed_available[product.pk] > 0)
         )
