@@ -16,6 +16,45 @@ from .services import (
 )
 
 
+class CapturePrintTests(TestCase):
+    def setUp(self):
+        self.actor = get_user_model().objects.create_superuser(
+            username="print_capture_admin", email="capture@example.test", password="test-password",
+        )
+        self.order = Order.objects.create(
+            daily_number=992, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.PICKUP, source=Order.Source.INTERNAL,
+            status=Order.Status.DRAFT, customer_name="Mostrador", phone="", total=38,
+            created_by=self.actor,
+        )
+        self.client.force_login(self.actor)
+
+    def test_new_capture_exposes_print_actions_before_first_item(self):
+        response = self.client.get(reverse("orders:internal_order_edit", args=(self.order.pk,)))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-internal-print-urls")
+        self.assertContains(response, reverse("orders:order_payment_print", args=(self.order.pk,)))
+
+    def test_print_autosave_persists_cash_before_queue(self):
+        response = self.client.post(reverse("orders:internal_order_customer_autosave", args=(self.order.pk,)), {
+            "order_type": "pickup", "customer_name": "Mostrador", "payment_method": "cash",
+            "cash_bill": "200", "for_print": "1",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.cash_tendered, 200)
+        self.assertTrue(self.order.needs_change)
+
+    def test_print_autosave_rejects_insufficient_cash(self):
+        response = self.client.post(reverse("orders:internal_order_customer_autosave", args=(self.order.pk,)), {
+            "order_type": "pickup", "customer_name": "Mostrador", "payment_method": "cash",
+            "cash_bill": "20", "for_print": "1",
+        })
+        self.assertEqual(response.status_code, 400)
+        self.order.refresh_from_db()
+        self.assertIsNone(self.order.cash_tendered)
+
+
 class OrderInventoryIntegrationTests(TestCase):
     def setUp(self):
         self.actor = get_user_model().objects.create_user(username="stock_order_taker")

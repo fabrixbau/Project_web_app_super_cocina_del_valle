@@ -848,24 +848,14 @@ def internal_order_customer_autosave(request, order_id):
     order = get_object_or_404(Order, pk=order_id)
     if _order_locked_for_edit(order, request.user):
         return _locked_order_response(request, order)
-    form = InternalOrderAutosaveForm(request.POST)
+    form = InternalOrderAutosaveForm(
+        request.POST, order_total=order.total, for_print=request.POST.get("for_print") == "1",
+    )
     if not form.is_valid():
         return JsonResponse({"ok": False, "errors": form.errors.get_json_data()}, status=400)
     try:
         order = autosave_internal_order_customer(
             order=order, form_data=form.cleaned_data, actor=request.user,
-        )
-        running_meal_products = filter_products_by_stock(
-            running_meal_products, daily_menu=daily_menu,
-            channel=DailyProductStock.Channel.ORDERS,
-        )
-        daily_order_products = filter_products_by_stock(
-            daily_order_products, daily_menu=daily_menu,
-            channel=DailyProductStock.Channel.ORDERS,
-        )
-        executive_meal_products = filter_products_by_stock(
-            executive_meal_products, daily_menu=daily_menu,
-            channel=DailyProductStock.Channel.ORDERS,
         )
     except ValidationError as error:
         return JsonResponse({"ok": False, "error": error.message}, status=400)

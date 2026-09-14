@@ -391,6 +391,26 @@
   const noteDialog = document.querySelector("[data-ticket-note-dialog]");
   const noteForm = noteDialog?.querySelector("[data-ticket-note-form]");
   const ticketBox = capture.querySelector(".internal-live-ticket");
+  const printUrls = capture.querySelector("[data-internal-print-urls]");
+  let printActions = ticketBox?.querySelector(".ticket-print-actions");
+  if (ticketBox && printUrls) {
+    if (!printActions) {
+      printActions = document.createElement("div");
+      printActions.className = "ticket-print-actions";
+      [
+        [printUrls.dataset.kitchenUrl, "Imprimir cocina", ""],
+        [printUrls.dataset.paymentUrl, "Imprimir cobro", ""],
+        [printUrls.dataset.customUrl, "Imprimir cocina modificado", "ticket-print-custom"],
+      ].forEach(([url, label, className]) => {
+        const link = document.createElement("a");
+        link.href = url;
+        link.textContent = label;
+        if (className) link.className = className;
+        printActions.append(link);
+      });
+    }
+    ticketBox.querySelector(".current-ticket-heading")?.after(printActions);
+  }
   const generalNoteButton = document.createElement("button");
   const generalNoteText = document.createElement("p");
   if (ticketBox && noteConfig) {
@@ -510,6 +530,11 @@
     }
     ticketTotal.textContent = currency.format(Number(ticket.total));
     ticketCount.textContent = ticket.count;
+    if (printActions) {
+      printActions.classList.toggle("is-disabled", !ticket.items.length);
+      printActions.inert = !ticket.items.length;
+      printActions.querySelectorAll("a").forEach((link) => link.setAttribute("aria-disabled", String(!ticket.items.length)));
+    }
     generalNoteButton.dataset.note = ticket.note || "";
     generalNoteButton.textContent = ticket.note ? "Editar nota general" : "Agregar nota general";
     generalNoteText.textContent = ticket.note || "";

@@ -458,6 +458,8 @@ def autosave_internal_order_customer(*, order, form_data, actor=None):
         setattr(order, field, form_data.get(field, "").strip())
     order.notes = form_data.get("notes", "").strip()
     order.payment_method = form_data.get("payment_method", "")
+    order.needs_change = form_data.get("needs_change", False)
+    order.cash_tendered = form_data.get("cash_tendered")
     if order.order_type != Order.OrderType.DELIVERY or order.payment_method not in {
         Order.PaymentMethod.CARD, Order.PaymentMethod.TRANSFER,
     }:
@@ -468,7 +470,7 @@ def autosave_internal_order_customer(*, order, form_data, actor=None):
     order.save(update_fields=(
         "order_type", "customer_name", "phone", "requested_date", "requested_time",
         "requested_for", "street", "exterior_number", "interior_number",
-        "neighborhood", "references", "notes", "payment_method",
+        "neighborhood", "references", "notes", "payment_method", "needs_change", "cash_tendered",
         "delivery_tip_amount", "delivery_tip_recipient", "delivery_tip_updated_by",
         "delivery_tip_updated_at", "updated_at",
     ))

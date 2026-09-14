@@ -1159,6 +1159,7 @@ tarjeta para conservar teclado, validación y envío estándar. Borra esta nota 
 .ticket-print-actions a { padding: .65rem .45rem; border: 2px solid #285943; border-radius: .55rem; color: #174c3a; background: #fff; font-weight: 850; text-align: center; text-decoration: none; }
 .ticket-print-actions a:first-child { color: #fff; background: #7e4324; border-color: #7e4324; }
 .ticket-print-actions .ticket-print-custom { grid-column: 1 / -1; color: #713712; background: #fff4dc; border-color: #c56a2d; }
+.ticket-print-actions.is-disabled a { opacity: .45; pointer-events: none; }
 .kitchen-print-selection { max-width: 980px; margin-inline: auto; }
 .selection-toolbar { display: flex; gap: .65rem; margin-bottom: 1rem; }
 .selection-list { display: grid; gap: .65rem; margin-bottom: 1rem; }

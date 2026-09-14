@@ -146,6 +146,9 @@ class InternalOrderAutosaveForm(forms.Form):
     agenda_customer_id = forms.IntegerField(required=False)
     agenda_address_id = forms.IntegerField(required=False)
     payment_method = forms.ChoiceField(choices=Order.PaymentMethod.choices, required=False)
+    cash_bill = forms.ChoiceField(required=False, choices=(('', 'Selecciona'), ('20', '$20'), ('50', '$50'), ('100', '$100'), ('200', '$200'), ('500', '$500')))
+    cash_custom_amount = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2)
+    pays_exact = forms.BooleanField(required=False)
     customer_name = forms.CharField(max_length=150, required=False)
     phone = forms.CharField(max_length=30, required=False)
     requested_date = forms.DateField(required=False, input_formats=("%Y-%m-%d",))
@@ -156,6 +159,31 @@ class InternalOrderAutosaveForm(forms.Form):
     neighborhood = forms.CharField(max_length=150, required=False)
     references = forms.CharField(required=False)
     notes = forms.CharField(required=False)
+
+    def __init__(self, *args, order_total=0, for_print=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.order_total = order_total
+        self.for_print = for_print
+
+    def clean(self):
+        data = super().clean()
+        if data.get("payment_method") != Order.PaymentMethod.CASH:
+            data.update({"cash_tendered": None, "needs_change": False})
+            return data
+        choices = sum(bool(data.get(name)) for name in ("cash_bill", "cash_custom_amount", "pays_exact"))
+        if choices > 1 and self.for_print:
+            self.add_error("cash_bill", "Elige solo una cantidad de efectivo.")
+        amount = None
+        if choices == 1:
+            amount = self.order_total if data.get("pays_exact") else data.get("cash_custom_amount")
+            if data.get("cash_bill"):
+                amount = int(data["cash_bill"])
+        if amount is not None and amount < self.order_total:
+            if self.for_print:
+                self.add_error("cash_custom_amount", "El efectivo no alcanza para cubrir el pedido.")
+            amount = None
+        data.update({"cash_tendered": amount, "needs_change": amount is not None and not data.get("pays_exact")})
+        return data
 
 
 class DeliveryTipForm(forms.Form):

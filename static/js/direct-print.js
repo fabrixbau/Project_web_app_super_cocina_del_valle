@@ -43,9 +43,21 @@
     const match = new URL(link.href).pathname.match(/^\/app\/(pedidos\/(\d+)|mesas\/cuentas\/(\d+))\/imprimir\/(cocina|cobro)\/$/);
     if (!match) return;
     event.preventDefault();
+    if (link.getAttribute("aria-disabled") === "true") return;
     if (sending) return;
     sending = true;
     try {
+      const captureForm = document.querySelector("[data-internal-order-form]");
+      if (captureForm) {
+        const data = new FormData(captureForm);
+        if (match[4] === "cobro") data.set("for_print", "1");
+        const saved = await fetch(captureForm.dataset.autosaveUrl, {
+          method: "POST", credentials: "same-origin", body: data,
+          headers: { "X-CSRFToken": data.get("csrfmiddlewaretoken"), "X-Requested-With": "XMLHttpRequest" },
+        });
+        const savedResult = await saved.json();
+        if (!saved.ok || !savedResult.ok) throw new Error("Revisa los datos de cobro antes de imprimir; no se guardaron.");
+      }
       const response = await fetch("/app/impresion/solicitar/", {
         method: "POST",
         credentials: "same-origin",
