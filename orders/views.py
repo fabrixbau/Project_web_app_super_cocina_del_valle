@@ -5,6 +5,7 @@
 # Corrida y ejecutiva permiten pedidos anticipados antes de la 1 p. m. con un aviso.
 # Productos generales también respetan la visibilidad pública de su categoría según horario.
 
+import csv
 from datetime import date, time
 from decimal import Decimal
 
@@ -14,7 +15,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.db.models import Prefetch, Q
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -30,8 +31,9 @@ from menu.selection import resolve_product_selection, serialize_product_selector
 from tables.models import TableAccount
 
 from .cart import add_package, add_product, cart_control_summary, clear, decrease_product, get_order_mode, product_is_orderable, remove_item, resolve_cart, set_cart_note, set_item_note, set_order_mode, update_item, update_product_selection
+from .coffee_report import coffee_sales_for_date
 from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm, PublicOrderModeForm
-from .models import Customer, CustomerAddress, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
+from .models import CoffeeSettlement, Customer, CustomerAddress, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
 from .services import ACTION_LABELS, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, start_internal_order, transition_order, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
 
 
@@ -1646,6 +1648,59 @@ def _report_date(value, fallback):
         return date.fromisoformat(value)
     except (TypeError, ValueError):
         return fallback
+
+
+@role_required(ADMIN)
+def cashier_coffee_report(request):
+    selected_date = _report_date(request.GET.get("date"), timezone.localdate())
+    report = coffee_sales_for_date(selected_date)
+    settlements = list(CoffeeSettlement.objects.filter(operating_date=selected_date).select_related("recorded_by"))
+    paid_total = sum((entry.amount for entry in settlements), Decimal("0.00"))
+    if request.GET.get("download") == "csv":
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="bebidas_calientes_{selected_date.isoformat()}.csv"'
+        response.write("\ufeff")
+        writer = csv.writer(response)
+        writer.writerow(("Producto", "Tamaño", "Leche", "Cantidad", "Precio unitario", "Total"))
+        for row in report["summary"]:
+            writer.writerow((row["product"], row["size"], row["milk"], row["quantity"], row["unit_price"], row["total"]))
+        writer.writerow(("TOTAL COBRABLE", "", "", "", "", report["sales_total"]))
+        writer.writerow(("ENTREGADO AL BARISTA", "", "", "", "", paid_total))
+        writer.writerow(("SALDO", "", "", "", "", report["sales_total"] - paid_total))
+        writer.writerow(())
+        writer.writerow(("DETALLE DE TICKETS",))
+        writer.writerow(("Origen", "Folio o mesa", "Producto", "Tamaño", "Leche", "Cantidad", "Precio unitario", "Total", "Estado"))
+        for row in report["details"]:
+            writer.writerow((row["source"], row["reference"], row["product"], row["size"], row["milk"], row["quantity"], row["unit_price"], row["total"], "Finalizada" if row["finalized"] else "Abierta"))
+        return response
+    return render(request, "orders/cashier_coffee_report.html", {
+        **report, "selected_date": selected_date, "settlements": settlements,
+        "paid_total": paid_total, "balance": report["sales_total"] - paid_total,
+    })
+
+
+@require_POST
+@role_required(ADMIN)
+def cashier_coffee_settlement(request):
+    selected_date = _report_date(request.POST.get("date"), None)
+    try:
+        amount = Decimal(request.POST.get("amount", ""))
+    except (TypeError, ValueError, ArithmeticError):
+        amount = None
+    if not selected_date or amount is None or not amount.is_finite() or amount <= 0 or amount.as_tuple().exponent < -2 or amount >= Decimal("100000000"):
+        messages.error(request, "Indica una fecha y un monto válido mayor a cero.")
+        return redirect("cashier:coffee_report")
+    report = coffee_sales_for_date(selected_date)
+    paid = sum(CoffeeSettlement.objects.filter(operating_date=selected_date).values_list("amount", flat=True), Decimal("0.00"))
+    if amount > report["sales_total"] - paid:
+        messages.error(request, "La entrega no puede superar el saldo cobrable.")
+    else:
+        CoffeeSettlement.objects.create(
+            operating_date=selected_date, amount=amount,
+            note=request.POST.get("note", "").strip()[:250], recorded_by=request.user,
+        )
+        messages.success(request, "Entrega al barista registrada.")
+    return redirect(f'{reverse("cashier:coffee_report")}?date={selected_date.isoformat()}')
 
 
 @role_required(ADMIN)

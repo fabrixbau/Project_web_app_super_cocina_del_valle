@@ -2907,3 +2907,14 @@ html[data-theme="dark"] .inventory-product-card strong { color: #eef4f1; }
   .order-board-card .order-row-actions form,
   .order-board-card .order-row-actions button { width: 100%; }
 }
+.coffee-report-panel { margin-bottom: 1rem; }
+.coffee-report-panel h2 { margin-top: 0; }
+.coffee-report-filter { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; margin-bottom: 1rem; }
+.coffee-report-filter label { display: grid; gap: .25rem; }
+.coffee-report-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
+.coffee-report-totals div { display: grid; gap: .2rem; padding: 1rem; border: 1px solid #d8ded8; border-radius: .65rem; background: #f6faf7; }
+.coffee-report-totals strong { font-size: 1.5rem; }
+.coffee-report-scroll { overflow-x: auto; }
+.coffee-report-table { width: 100%; border-collapse: collapse; min-width: 650px; }
+.coffee-report-table th, .coffee-report-table td { padding: .65rem; text-align: left; border-bottom: 1px solid #d8ded8; }
+.coffee-report-table th { color: #174c3a; }

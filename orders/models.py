@@ -314,6 +314,17 @@ class OrderStatusHistory(models.Model):
         return f"{self.order} · {self.get_to_status_display()}"
 
 
+class CoffeeSettlement(models.Model):
+    operating_date = models.DateField(db_index=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    note = models.CharField(max_length=250, blank=True)
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-recorded_at",)
+
+
 class TerminalCut(models.Model):
     # NOTA TEMPORAL PARA APRENDIZAJE: el corte agrupa los movimientos reales de una
     # terminal y un día. Es conciliación, no una segunda fuente de ventas o propinas.
