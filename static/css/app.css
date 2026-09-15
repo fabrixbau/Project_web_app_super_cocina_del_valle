@@ -2964,12 +2964,91 @@ html.yeemovil-x20 .order-board-card .order-row-actions { justify-items: start; }
 html.yeemovil-x20 .order-board-card .order-row-actions form,
 html.yeemovil-x20 .order-board-card .order-row-actions button { width: auto; max-width: 100%; }
 
+html.yeemovil-x20 .visual-package-dialog:has(form[data-internal-package]) {
+  width: calc(100% - .5rem);
+  max-width: none;
+  max-height: 96dvh;
+  margin: auto;
+}
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] {
+  max-height: 96dvh;
+  gap: .4rem;
+  padding: .45rem;
+  font-size: .78rem;
+}
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] > .dialog-heading {
+  top: -.45rem;
+  margin: -.45rem -.45rem 0;
+  padding: .5rem .65rem;
+}
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .dialog-heading h2 { font-size: 1.2rem; }
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .dialog-heading p { font-size: .68rem; }
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .dialog-heading button {
+  width: 2.1rem;
+  min-width: 2.1rem;
+  height: 2.1rem;
+}
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-modal-search {
+  grid-template-columns: minmax(0, 1fr);
+  gap: .25rem;
+  padding: .35rem .45rem;
+}
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-modal-search input { min-height: 2.2rem; }
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-visual-groups,
+html.yeemovil-x20 .visual-package-dialog form[data-package-kind="executive"] .package-visual-groups {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: none;
+  gap: .35rem;
+}
+html.yeemovil-x20 .visual-package-dialog form[data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(1),
+html.yeemovil-x20 .visual-package-dialog form[data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(2),
+html.yeemovil-x20 .visual-package-dialog form[data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) {
+  grid-column: auto;
+  grid-row: auto;
+}
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-visual-field { padding: .35rem; }
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-visual-field h3 { font-size: .88rem; }
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-choice-grid,
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-visual-field:nth-child(3) .package-choice-grid,
+html.yeemovil-x20 .visual-package-dialog form[data-package-kind="executive"] .package-visual-field:nth-child(3) .package-choice-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .25rem;
+}
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-choice-card {
+  grid-template-rows: 50px auto;
+  min-width: 0;
+  font-size: .68rem;
+}
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-choice-card strong {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-quick-extras {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .35rem;
+}
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-toggle-field { padding: .4rem; }
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-yes-no label { min-height: 2.15rem; }
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-packaging-options > div {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+html.yeemovil-x20 .visual-package-dialog form[data-internal-package] > .confirm-package-button {
+  bottom: -.45rem;
+  width: calc(100% + .9rem);
+  min-height: 2.65rem;
+  margin: 0 -.45rem -.45rem;
+}
+
 @media (orientation: portrait) {
-  html.yeemovil-x20 .order-board-card .order-row { grid-template-columns: minmax(0, 1fr); }
-  html.yeemovil-x20 .order-board-card .order-row > [data-column] {
-    grid-column: 1;
-    grid-row: auto;
-  }
-  html.yeemovil-x20 .order-board-card .order-row-actions form,
-  html.yeemovil-x20 .order-board-card .order-row-actions button { width: 100%; }
+  html.yeemovil-x20 .order-board-card .order-row { gap: .7rem; padding: .8rem; }
+  html.yeemovil-x20 .order-board-card .order-row > [data-column="Cliente"],
+  html.yeemovil-x20 .order-board-card .order-row > [data-column="Resumen"],
+  html.yeemovil-x20 .order-board-card .order-row > [data-column="Modalidad"],
+  html.yeemovil-x20 .order-board-card .order-row > [data-column="Forma de pago"],
+  html.yeemovil-x20 .order-board-card .order-row > [data-column="Siguiente paso"] { grid-column: 1 / -1; grid-row: auto; }
+  html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-visual-groups,
+  html.yeemovil-x20 .visual-package-dialog form[data-package-kind="executive"] .package-visual-groups { grid-template-columns: minmax(0, 1fr); }
+  html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-choice-grid,
+  html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-visual-field:nth-child(3) .package-choice-grid,
+  html.yeemovil-x20 .visual-package-dialog form[data-package-kind="executive"] .package-visual-field:nth-child(3) .package-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

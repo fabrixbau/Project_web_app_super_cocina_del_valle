@@ -1,6 +1,4 @@
 (() => {
-  if (window.location.pathname !== "/app/pedidos/") return;
-
   const params = new URLSearchParams(window.location.search);
   const choice = params.get("x20_layout");
   if (choice === "1" || choice === "0") {
@@ -13,5 +11,9 @@
   const modelMatches = /Android/i.test(navigator.userAgent)
     && /(?:^|[;(\s])X20(?:$|[);\s/])/i.test(navigator.userAgent)
     && Math.min(window.screen.width, window.screen.height) >= 600;
-  document.documentElement.classList.toggle("yeemovil-x20", saved === "1" || (saved !== "0" && modelMatches));
+  const isOrdersScreen = window.location.pathname.startsWith("/app/pedidos/");
+  document.documentElement.classList.toggle(
+    "yeemovil-x20",
+    isOrdersScreen && (saved === "1" || (saved !== "0" && modelMatches)),
+  );
 })();
