@@ -8,7 +8,10 @@
   const makeChoice = (name, initial = "") => {
     const label = document.createElement("label");
     label.className = "package-egg-choice";
-    label.append(document.createTextNode("Huevo opcional"));
+    const caption = document.createElement("span");
+    caption.className = "package-egg-caption";
+    caption.textContent = "Huevo opcional";
+    label.append(caption);
     const select = document.createElement("select");
     select.name = name;
     select.append(new Option("Sin huevo", ""));

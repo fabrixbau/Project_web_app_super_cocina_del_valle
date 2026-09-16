@@ -1257,6 +1257,9 @@ def delivery_board(request):
             number_query | Q(customer_name__icontains=search) | Q(phone__icontains=search)
             | Q(street__icontains=search) | Q(exterior_number__icontains=search)
             | Q(neighborhood__icontains=search)
+            | Q(delivery_person__first_name__icontains=search)
+            | Q(delivery_person__last_name__icontains=search)
+            | Q(delivery_person__username__icontains=search)
         )
     if selected_statuses:
         delivery_orders = delivery_orders.filter(status__in=selected_statuses)

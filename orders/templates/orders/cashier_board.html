@@ -10,12 +10,11 @@ cliente, asignar repartidor, registrar pago y confirmar cambio. Borra esta nota.
     <div>
       <span class="cashier-eyebrow">Centro de cobro</span>
       <h1>Caja</h1>
-      <p>Prepara el cobro y el cambio de cada salida con pocos toques.</p>
     </div>
     <a class="cashier-back-link" href="{% url 'internal_portal:dashboard' %}"><span aria-hidden="true">←</span> Volver al panel</a>
   </div>
   <nav class="cashier-tools" aria-label="Herramientas de Caja">
-    <span>Herramientas</span>
+    <button class="cashier-panel-toggle" type="button" aria-expanded="false" data-cashier-panel-toggle="tools"><span>Herramientas</span><span aria-hidden="true">⌄</span></button>
     <a href="{% url 'cashier:debt_board' %}">Cuentas por cobrar</a>
     <a href="{% url 'cashier:terminal_board' %}">Corte de terminales</a>
     <a href="{% url 'cashier:change_board' %}">Cambios pendientes</a>
@@ -28,6 +27,7 @@ cliente, asignar repartidor, registrar pago y confirmar cambio. Borra esta nota.
 <details class="card cashier-unpaid-quick"><summary><span>Registrar un pedido que no pagó</span><small>Crear cuenta por cobrar</small></summary><form method="post" action="{% url 'cashier:debt_create' %}">{% csrf_token %}<label>Folio<input name="order_reference" placeholder="Ej. 0309015" required></label><label>Nota<input name="note" maxlength="250" placeholder="Ej. Cliente solicitó dejarlo a cuenta"></label><button type="submit">Dejar a cuenta</button></form><small>El pedido debe estar entregado y asociado a un cliente de la agenda.</small></details>
 
 <section class="card cashier-filter-card">
+  <button class="cashier-panel-toggle" type="button" aria-expanded="false" data-cashier-panel-toggle="filters"><span>Buscar pedido</span><span aria-hidden="true">⌄</span></button>
   <form method="get" class="cashier-filters" data-cashier-filters>
     <label>Buscar pedido<input name="q" value="{{ search }}" placeholder="Folio, cliente, teléfono o calle"></label>
     <label>Tipo de pedido<select name="type"><option value="">Todos</option><option value="delivery" {% if selected_type == 'delivery' %}selected{% endif %}>Entrega a domicilio</option><option value="pickup" {% if selected_type == 'pickup' %}selected{% endif %}>Recoger en la fonda</option></select></label>
@@ -68,4 +68,4 @@ Borra esta nota después de leerla. -->
 {% endif %}
 </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/cashier-board.js' %}?v=13"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/cashier-board.js' %}?v=20"></script>{% endblock %}

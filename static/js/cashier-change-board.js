@@ -2,6 +2,15 @@
 sin recargar. Si estamos viendo sólo Pendientes o Devueltos, la fila sale de la lista
 al dejar de pertenecer al filtro. Borra esta nota después de leerla. */
 const changeFilters = document.querySelector("[data-change-filters]");
+const installChangeDisclosure = (toggle, panel) => toggle?.addEventListener("click", () => {
+  const expanded = toggle.getAttribute("aria-expanded") === "true";
+  toggle.setAttribute("aria-expanded", String(!expanded));
+  panel?.classList.toggle("is-mobile-expanded", !expanded);
+});
+const changeTools = document.querySelector(".change-mobile-tools");
+installChangeDisclosure(changeTools?.querySelector("[data-change-tools-toggle]"), changeTools);
+const changeFilterPanel = document.querySelector(".change-filters");
+installChangeDisclosure(changeFilterPanel?.querySelector("[data-change-filter-toggle]"), changeFilterPanel);
 // NOTA TEMPORAL PARA APRENDIZAJE: "Efectivo por devolver" describe exclusivamente
 // repartos. Si Caja elige Recoger, pasamos a Todos los medios para que el filtro no
 // produzca una combinación imposible. Borra esta nota después de leerla.

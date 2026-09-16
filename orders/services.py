@@ -220,14 +220,17 @@ def update_cashier_payment(*, order, payment_method, cash_amount, actor):
     # confirmación anterior de cambio. Caja deberá confirmar otra vez el dinero físico
     # porque el importe pudo cambiar. Borra esta nota después de leerla.
     order = Order.objects.select_for_update().get(pk=order.pk)
-    if payment_method not in Order.PaymentMethod.values:
+    if payment_method not in {"", *Order.PaymentMethod.values}:
         raise ValidationError("Selecciona efectivo, terminal o transferencia.")
     order.payment_method = payment_method
     order.cash_settlement_confirmed = False
     order.cash_settlement_by = None
     order.cash_settlement_at = None
     if payment_method == Order.PaymentMethod.CASH:
-        if cash_amount == "exact":
+        if cash_amount == "":
+            order.needs_change = False
+            order.cash_tendered = None
+        elif cash_amount == "exact":
             order.needs_change = False
             order.cash_tendered = order.total
         else:
@@ -242,7 +245,7 @@ def update_cashier_payment(*, order, payment_method, cash_amount, actor):
     else:
         order.needs_change = False
         order.cash_tendered = None
-    if payment_method == Order.PaymentMethod.CASH:
+    if payment_method != Order.PaymentMethod.TRANSFER:
         order.delivery_tip_amount = 0
         order.delivery_tip_recipient = None
         order.delivery_tip_updated_by = None

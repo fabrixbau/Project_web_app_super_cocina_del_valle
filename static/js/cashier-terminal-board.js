@@ -3,6 +3,13 @@ fila se convierte en movimiento persistente y deja inmediatamente otra vacía de
 así Caja captura consecutivamente sin botones Guardar. Borra esta nota al leerla. */
 (() => {
 const terminalFilters = document.querySelector("[data-terminal-filters]");
+const terminalTools = document.querySelector(".terminal-mobile-tools");
+const terminalToolsToggle = terminalTools?.querySelector("[data-terminal-tools-toggle]");
+terminalToolsToggle?.addEventListener("click", () => {
+  const expanded = terminalToolsToggle.getAttribute("aria-expanded") === "true";
+  terminalToolsToggle.setAttribute("aria-expanded", String(!expanded));
+  terminalTools.classList.toggle("is-mobile-expanded", !expanded);
+});
 terminalFilters?.querySelectorAll("input, select").forEach((field) => field.addEventListener("change", () => terminalFilters.requestSubmit()));
 
 const board = document.querySelector("[data-terminal-board]");

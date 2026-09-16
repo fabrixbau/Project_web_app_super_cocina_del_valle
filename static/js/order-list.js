@@ -6,7 +6,7 @@ tablero pueda usarse con teclado. Borra esta nota después de leerla. */
 // listeners en cada una. Borra esta nota después de leerla.
 document.addEventListener("click", (event) => {
   const row = event.target.closest("[data-order-row-url]");
-  if (!row || event.target.closest("a, button, input, select, textarea, form")) return;
+  if (!row || event.target.closest("a, button, input, select, textarea, form, details, summary, label")) return;
   window.location.href = row.dataset.orderRowUrl;
 });
 document.addEventListener("keydown", (event) => {
@@ -16,6 +16,14 @@ document.addEventListener("keydown", (event) => {
 });
 
 const filterForm = document.querySelector("[data-order-filters]");
+const filterToggle = document.querySelector("[data-order-filter-toggle]");
+if (filterForm && filterToggle) {
+  filterToggle.addEventListener("click", () => {
+    const expanded = filterToggle.getAttribute("aria-expanded") === "true";
+    filterToggle.setAttribute("aria-expanded", String(!expanded));
+    filterForm.classList.toggle("is-mobile-expanded", !expanded);
+  });
+}
 if (filterForm) {
   let searchTimer = null;
   filterForm.querySelectorAll("select").forEach((field) => {
@@ -36,7 +44,6 @@ document.addEventListener("submit", async (event) => {
   // AJAX de estados operativos. Borra esta nota después de leerla.
   if (!statusForm || statusForm.matches("[data-debt-create-form]")) return;
   event.preventDefault();
-  if (statusForm.matches("[data-cancel-order-form]") && !window.confirm("¿Cancelar este pedido? El inventario comprometido regresará a disponible.")) return;
   const row = statusForm.closest("[data-order-status]");
   const button = statusForm.querySelector("button[type='submit']");
   const rowError = statusForm.querySelector("[data-row-status-error]");
@@ -114,11 +121,6 @@ const refreshOrderBoard = async () => {
     const nextRegion = nextDocument.querySelector("[data-order-live-region]");
     if (!nextRegion || nextRegion.innerHTML === region.innerHTML) return;
     region.innerHTML = nextRegion.innerHTML;
-    if (feedback) {
-      feedback.textContent = "El listado se actualizó con los movimientos más recientes.";
-      feedback.className = "message success";
-      feedback.hidden = false;
-    }
   } catch (_) {
     // Una interrupción temporal de red no bloquea el tablero; el siguiente ciclo reintenta.
   }

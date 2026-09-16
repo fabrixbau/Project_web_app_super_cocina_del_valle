@@ -1,5 +1,5 @@
 {% extends "base_internal.html" %}
-{% load l10n %}
+{% load l10n static %}
 <!-- NOTA TEMPORAL PARA APRENDIZAJE: el tablero mezcla resumen y detalle expandible.
 Telefonista recibe exactamente la misma información, pero Django no renderiza ni
 acepta sus acciones financieras. Borra esta nota después de leerla. -->
@@ -26,3 +26,4 @@ acepta sus acciones financieras. Borra esta nota después de leerla. -->
   </details>{% empty %}<p>No hay adeudos que coincidan con los filtros.</p>{% endfor %}
 </section>
 {% endblock %}
+{% block extra_js %}<script src="{% static 'js/debt-board.js' %}?v=2"></script>{% endblock %}

@@ -43,3 +43,65 @@ document.addEventListener("submit", async (event) => {
     detailFeedback.hidden = false;
   }
 });
+
+(() => {
+  const responsiveView = window.matchMedia("(max-width: 900px)");
+  const main = document.querySelector("main.internal-panel");
+  const heading = document.querySelector(".page-heading");
+  const grid = document.querySelector(".order-detail-grid");
+  const history = document.querySelector(".status-history")?.closest("section.card");
+  if (!heading || !grid || !history) return;
+
+  heading.classList.add("order-detail-heading");
+  const backLink = [...document.querySelectorAll("main.internal-panel > p > a")]
+    .find((link) => link.getAttribute("href")?.includes("/pedidos/"));
+  const backRow = backLink?.parentElement;
+  if (backLink) {
+    backLink.classList.add("order-detail-back");
+    backLink.setAttribute("aria-label", "Volver a pedidos");
+    heading.prepend(backLink);
+    if (backRow && !backRow.textContent.trim()) backRow.remove();
+  }
+
+  heading.querySelectorAll(".action-group a").forEach((link) => {
+    const label = link.textContent.trim().toLowerCase();
+    if (label.includes("editar")) link.classList.add("is-edit-action");
+    if (label.includes("imprimir")) {
+      link.classList.add("is-print-action");
+      if (label.includes("cobro")) link.classList.add("is-payment-print-action");
+      else if (label.includes("modificado")) link.classList.add("is-custom-print-action");
+      else link.classList.add("is-kitchen-print-action");
+    }
+  });
+
+  const originalParent = history.parentNode;
+  const originalNext = history.nextSibling;
+  const actionCard = document.querySelector("[data-order-detail-actions]");
+  const summaryCards = main
+    ? [...main.querySelectorAll(":scope > section.card.spaced-card")]
+      .filter((card) => card !== actionCard && card !== history)
+    : [];
+  const summaryAnchor = summaryCards[0] ? document.createComment("order-summary-start") : null;
+  const summaryActionGrid = document.createElement("div");
+  summaryActionGrid.className = "order-summary-action-grid";
+  if (summaryAnchor) originalParent.insertBefore(summaryAnchor, summaryCards[0]);
+  history.classList.add("order-detail-history-card");
+  const arrange = () => {
+    if (responsiveView.matches) {
+      summaryCards.forEach((card) => summaryActionGrid.append(card));
+      if (actionCard) summaryActionGrid.append(actionCard);
+      if (summaryCards.length || actionCard) originalParent.insertBefore(summaryActionGrid, history);
+      grid.append(history);
+    } else {
+      if (summaryActionGrid.isConnected) {
+        summaryCards.forEach((card) => grid.append(card));
+        if (actionCard) originalParent.insertBefore(actionCard, summaryActionGrid);
+        summaryActionGrid.remove();
+      }
+      summaryCards.forEach((card) => grid.append(card));
+      grid.append(history);
+    }
+  };
+  responsiveView.addEventListener?.("change", arrange);
+  arrange();
+})();

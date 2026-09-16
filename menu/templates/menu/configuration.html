@@ -1,9 +1,11 @@
 {% extends "base_internal.html" %}
+{% load static %}
 {% block title %}Administrar menú{% endblock %}
 {% block content %}
   <header class="menu-admin-heading">
-    <div class="menu-admin-title"><a href="{% url 'internal_portal:dashboard' %}">← Panel</a><span>Catálogo</span><h1>Administrar menú</h1><p>Organiza categorías, productos y configuraciones desde un solo lugar.</p></div>
+    <div class="menu-admin-title"><div class="menu-admin-copy"><span>Catálogo</span><h1>Administrar menú</h1><p>Organiza categorías, productos y configuraciones desde un solo lugar.</p></div><a href="{% url 'internal_portal:dashboard' %}">← Panel</a></div>
     <nav class="menu-admin-actions" aria-label="Herramientas del menú">
+      <button class="menu-admin-actions-toggle" type="button" aria-expanded="false" data-menu-actions-toggle><span>Herramientas</span><span aria-hidden="true">⌄</span></button>
       <a href="{% url 'menu:inventory_control' %}"><span>Existencias</span><strong>Ajustar inventario</strong></a>
       <a href="{% url 'menu:package_configuration' %}"><span>Paquetes</span><strong>Configurar paquetes</strong></a>
       <a href="{% url 'menu:daily_menu_list' %}"><span>Publicación</span><strong>Menús diarios</strong></a>
@@ -16,16 +18,16 @@
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
   <section class="card menu-admin-filters">
     <div><span>Filtrar catálogo</span><h2>Encuentra productos rápidamente</h2></div>
-    <form method="get" class="filters">
-      <label>Buscar <input name="q" value="{{ search }}" placeholder="Nombre o descripción"></label>
+    <form method="get" class="filters" data-menu-filters>
+      <div class="menu-catalog-search" data-menu-search><button type="button" aria-label="Buscar producto" data-menu-search-open><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 5 5"></path></svg></button><label>Buscar <input name="q" value="{{ search }}" placeholder="Nombre o descripción" autocomplete="off" data-menu-search-input></label></div>
       <label>Categoría <select name="category"><option value="">Todas</option>{% for category in categories %}<option value="{{ category.id }}" {% if selected_category == category.id|stringformat:'s' %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></label>
       <label>Disponibilidad <select name="availability"><option value="">Todas</option><option value="available" {% if availability == 'available' %}selected{% endif %}>Disponible</option><option value="unavailable" {% if availability == 'unavailable' %}selected{% endif %}>No disponible</option></select></label>
       <button type="submit">Aplicar filtros</button>
     </form>
   </section>
   <section class="card spaced-card menu-category-panel">
-    <header class="menu-section-heading"><div><span>Estructura del catálogo</span><h2>Categorías</h2><p>Edita el nombre o elimina las categorías que ya no utilices.</p></div><strong>{{ categories|length }} categorías</strong></header>
-    <div class="menu-category-grid">
+    <header class="menu-section-heading" data-menu-category-toggle><div><span>Estructura del catálogo</span><h2>Categorías</h2><p data-menu-category-content>Edita el nombre o elimina las categorías que ya no utilices.</p></div><strong>{{ categories|length }} categorías</strong><button type="button" aria-expanded="false" aria-label="Mostrar categorías"><span aria-hidden="true">⌄</span></button></header>
+    <div class="menu-category-grid" data-menu-category-content>
       {% for category in categories %}
         <article class="menu-category-card"><span class="menu-category-index">{{ forloop.counter|stringformat:"02d" }}</span><div><h3>{{ category.name }}</h3><p>{{ category.product_count }} producto{{ category.product_count|pluralize }}</p></div><div class="menu-category-actions"><a href="{% url 'menu:category_edit' category.id %}">Editar</a><a class="danger-link" href="{% url 'menu:category_delete' category.id %}">Eliminar</a></div></article>
       {% empty %}<div class="menu-empty-state"><strong>Aún no hay categorías</strong><p>Crea la primera categoría para comenzar a organizar tus productos.</p></div>{% endfor %}
@@ -52,3 +54,4 @@
     </div>
   </section>
 {% endblock %}
+{% block extra_js %}<script src="{% static 'js/menu-configuration.js' %}?v=1"></script>{% endblock %}

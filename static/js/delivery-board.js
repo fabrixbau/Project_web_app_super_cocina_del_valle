@@ -3,6 +3,44 @@ fetch para conservar scroll y contexto. La clase is-selected muestra quién qued
 asignado después de cada respuesta del servidor. Borra esta nota. */
 const deliveryFilters = document.querySelector("[data-delivery-filters]");
 if (deliveryFilters) {
+  const deliverySearch = deliveryFilters.querySelector("[data-delivery-search]");
+  const deliverySearchOpen = deliverySearch?.querySelector("[data-delivery-search-open]");
+  const deliverySearchInput = deliverySearch?.querySelector("[data-delivery-search-input]");
+  const searchBackdrop = document.createElement("button");
+  searchBackdrop.type = "button";
+  searchBackdrop.className = "delivery-search-backdrop";
+  searchBackdrop.setAttribute("aria-label", "Cerrar búsqueda");
+  searchBackdrop.hidden = true;
+  document.body.append(searchBackdrop);
+  const closeDeliverySearch = () => {
+    deliverySearch?.classList.remove("is-searching");
+    document.body.classList.remove("delivery-search-is-open");
+    searchBackdrop.hidden = true;
+  };
+  const openDeliverySearch = () => {
+    deliverySearch?.classList.add("is-searching");
+    document.body.classList.add("delivery-search-is-open");
+    searchBackdrop.hidden = false;
+    window.requestAnimationFrame(() => deliverySearchInput?.focus());
+  };
+  deliverySearchOpen?.addEventListener("click", openDeliverySearch);
+  searchBackdrop.addEventListener("click", closeDeliverySearch);
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeDeliverySearch(); });
+
+  const statusDisclosure = deliveryFilters.querySelector("[data-delivery-status-disclosure]");
+  const statusToggle = deliveryFilters.querySelector("[data-delivery-status-toggle]");
+  const statusContent = deliveryFilters.querySelector("[data-delivery-status-content]");
+  const setStatusDisclosure = (expanded) => {
+    if (!statusToggle || !statusContent) return;
+    statusToggle.setAttribute("aria-expanded", String(expanded));
+    statusContent.hidden = !expanded;
+  };
+  statusToggle?.addEventListener("click", () => setStatusDisclosure(statusToggle.getAttribute("aria-expanded") !== "true"));
+  statusDisclosure?.addEventListener("click", (event) => {
+    if (event.target.closest("button, input, label") || !statusContent?.hidden) return;
+    setStatusDisclosure(true);
+  });
+
   const scrollStorageKey = "delivery-board-filter-scroll";
   const savedScroll = window.sessionStorage.getItem(scrollStorageKey);
   if (savedScroll !== null) {

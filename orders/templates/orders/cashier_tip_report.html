@@ -5,14 +5,15 @@ pero sólo Terminal y Transferencia alimentan el total administrado porque ese d
 sí pasa por el negocio y después debe entregarse al empleado. Borra esta nota. -->
 {% block title %}Reporte de propinas{% endblock %}
 {% block content %}
-<div class="page-heading"><div><h1>Reporte de propinas</h1><p>Consulta lo correspondiente a meseros y repartidores sin mezclar efectivo con dinero administrado.</p></div><div class="page-heading-actions"><a class="button-link" href="{% url 'cashier:cashier_board' %}">Caja</a><a class="button-link" href="{% url 'cashier:terminal_board' %}">Corte de terminales</a><a class="button-link" href="{% url 'cashier:change_board' %}">Cambios pendientes</a></div></div>
+<div class="page-heading tip-page-heading"><div><h1>Reporte de propinas</h1><p>Consulta lo correspondiente a meseros y repartidores sin mezclar efectivo con dinero administrado.</p></div><div class="page-heading-actions tip-desktop-actions"><a class="button-link" href="{% url 'cashier:cashier_board' %}">Caja</a><a class="button-link" href="{% url 'cashier:terminal_board' %}">Corte de terminales</a><a class="button-link" href="{% url 'cashier:change_board' %}">Cambios pendientes</a></div></div>
+<nav class="cashier-tools tip-mobile-tools" aria-label="Herramientas de Caja"><button class="cashier-panel-toggle" type="button" aria-expanded="false" data-tip-tools-toggle><span>Herramientas</span><span aria-hidden="true">⌄</span></button><a href="{% url 'cashier:cashier_board' %}">Caja</a><a href="{% url 'cashier:debt_board' %}">Cuentas por cobrar</a><a href="{% url 'cashier:terminal_board' %}">Corte de terminales</a><a href="{% url 'cashier:change_board' %}">Cambios pendientes</a><a href="{% url 'cashier:coffee_report' %}">Corte de bebidas calientes</a></nav>
 
 <section class="card tip-report-filters"><form method="get" data-tip-report-filters>
   <label>Desde<input type="date" name="from" value="{{ start_date|date:'Y-m-d' }}"></label>
   <label>Hasta<input type="date" name="to" value="{{ end_date|date:'Y-m-d' }}"></label>
-  <label>Pertenece a<select name="owner_type"><option value="">Meseros y repartidores</option><option value="waiter" {% if selected_owner_type == 'waiter' %}selected{% endif %}>Meseros</option><option value="delivery" {% if selected_owner_type == 'delivery' %}selected{% endif %}>Repartidores</option></select></label>
-  <label>Método<select name="payment_method"><option value="">Todos</option>{% for value, label in payment_method_choices %}<option value="{{ value }}" {% if selected_payment_method == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
-  <label>Empleado<select name="person"><option value="">Todos</option><optgroup label="Meseros">{% for person in waiters %}<option value="{{ person.id }}" {% if selected_person == person.id|stringformat:'s' %}selected{% endif %}>{{ person.get_full_name|default:person.username }}</option>{% endfor %}</optgroup><optgroup label="Repartidores">{% for person in couriers %}<option value="{{ person.id }}" {% if selected_person == person.id|stringformat:'s' %}selected{% endif %}>{{ person.get_full_name|default:person.username }}</option>{% endfor %}</optgroup></select></label>
+  <label>Pertenece a<select name="owner_type" data-native-select><option value="">Meseros y repartidores</option><option value="waiter" {% if selected_owner_type == 'waiter' %}selected{% endif %}>Meseros</option><option value="delivery" {% if selected_owner_type == 'delivery' %}selected{% endif %}>Repartidores</option></select></label>
+  <label>Método<select name="payment_method" data-native-select><option value="">Todos</option>{% for value, label in payment_method_choices %}<option value="{{ value }}" {% if selected_payment_method == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+  <label>Empleado<select name="person" data-native-select><option value="">Todos</option><optgroup label="Meseros">{% for person in waiters %}<option value="{{ person.id }}" {% if selected_person == person.id|stringformat:'s' %}selected{% endif %}>{{ person.get_full_name|default:person.username }}</option>{% endfor %}</optgroup><optgroup label="Repartidores">{% for person in couriers %}<option value="{{ person.id }}" {% if selected_person == person.id|stringformat:'s' %}selected{% endif %}>{{ person.get_full_name|default:person.username }}</option>{% endfor %}</optgroup></select></label>
 </form></section>
 
 <section class="tip-summary-grid">
@@ -35,4 +36,4 @@ sí pasa por el negocio y después debe entregarse al empleado. Borra esta nota.
   </div>
 </dialog>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/tip-report.js' %}?v=2"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/tip-report.js' %}?v=3"></script>{% endblock %}

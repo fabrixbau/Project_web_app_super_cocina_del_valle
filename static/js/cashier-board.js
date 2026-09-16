@@ -10,6 +10,38 @@ let recentlyReleasedRow = null;
 let recentlyReleasedUrl = "";
 let recentlyReleasedParent = null;
 let recentlyReleasedNextSibling = null;
+const compactCashierView = window.matchMedia("(max-width: 900px)");
+
+const enhanceCashierCards = (scope = document) => {
+  scope.querySelectorAll("[data-cashier-order]").forEach((card) => {
+    const totalLabel = card.querySelector(".cashier-order-priority > div:last-child > small");
+    if (totalLabel) totalLabel.textContent = "Total";
+    if (card.querySelector("[data-cashier-card-toggle]")) return;
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "cashier-card-toggle";
+    toggle.dataset.cashierCardToggle = "";
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-label", "Mostrar detalles del pedido");
+    toggle.innerHTML = '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="m4 7 6 6 6-6"/></svg>';
+    card.prepend(toggle);
+
+    if (compactCashierView.matches && !card.querySelector(".cashier-compact-summary")) {
+      const priority = card.querySelector(".cashier-order-priority");
+      const customer = priority?.firstElementChild;
+      const total = priority?.lastElementChild;
+      const assignment = card.matches(".type-delivery") ? card.querySelector(".cashier-assignment") : null;
+      const compactSummary = document.createElement("div");
+      compactSummary.className = "cashier-compact-summary";
+      if (customer) compactSummary.append(customer);
+      if (assignment) compactSummary.append(assignment);
+      if (total && total !== customer) compactSummary.append(total);
+      card.insertBefore(compactSummary, toggle.nextSibling);
+    }
+  });
+};
+
+enhanceCashierCards();
 
 const postCashier = async (url, values) => {
   cashierRequestsInProgress += 1;
@@ -68,6 +100,15 @@ const repaintCashierTip = (panel, data) => {
 };
 
 document.addEventListener("click", async (event) => {
+  const cardToggle = event.target.closest("[data-cashier-card-toggle]");
+  if (cardToggle) {
+    const card = cardToggle.closest("[data-cashier-order]");
+    const expanded = cardToggle.getAttribute("aria-expanded") === "true";
+    cardToggle.setAttribute("aria-expanded", String(!expanded));
+    cardToggle.setAttribute("aria-label", expanded ? "Mostrar detalles del pedido" : "Ocultar detalles del pedido");
+    card.classList.toggle("is-detail-expanded", !expanded);
+    return;
+  }
   const tipButton = event.target.closest("[data-cashier-tip-amount]");
   if (tipButton) {
     const panel = tipButton.closest("[data-cashier-tip]");
@@ -78,15 +119,17 @@ document.addEventListener("click", async (event) => {
   const paymentButton = event.target.closest("[data-payment-method], [data-cash-amount]");
   if (paymentButton) {
     const panel = paymentButton.closest("[data-cashier-payment]");
+    const isSelectedMethod = paymentButton.matches("[data-payment-method]") && paymentButton.classList.contains("is-selected");
+    if (isSelectedMethod) {
+      try { repaintPayment(panel, await postCashier(panel.dataset.paymentUrl, {payment_method: "", cash_amount: ""})); }
+      catch (error) { showError(panel, error); }
+      return;
+    }
     const method = paymentButton.dataset.paymentMethod || "cash";
     const cashAmount = paymentButton.dataset.cashAmount || "";
     if (method === "cash" && !cashAmount) {
-      panel.querySelectorAll("[data-payment-method]").forEach((button) => button.classList.toggle("is-selected", button === paymentButton));
-      panel.querySelector("[data-cash-options]").hidden = false;
-      const row = panel.closest("[data-cashier-order]");
-      row?.querySelector("[data-priority-payment]")?.replaceChildren("Efectivo");
-      const priorityCash = row?.querySelector("[data-priority-cash]");
-      if (priorityCash) priorityCash.textContent = "Selecciona con cuánto paga";
+      try { repaintPayment(panel, await postCashier(panel.dataset.paymentUrl, {payment_method: "cash", cash_amount: ""})); }
+      catch (error) { showError(panel, error); }
       return;
     }
     try { repaintPayment(panel, await postCashier(panel.dataset.paymentUrl, {payment_method: method, cash_amount: cashAmount})); }
@@ -218,6 +261,21 @@ document.addEventListener("submit", async (event) => {
 const filters = document.querySelector("[data-cashier-filters]");
 if (filters) { let timer; filters.querySelectorAll("select").forEach((field) => field.addEventListener("change", () => filters.requestSubmit())); filters.querySelector("input").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => filters.requestSubmit(), 450); }); }
 
+const cashierTools = document.querySelector(".cashier-tools");
+const unpaidQuick = document.querySelector(".cashier-unpaid-quick");
+if (cashierTools && unpaidQuick) cashierTools.append(unpaidQuick);
+
+document.querySelectorAll("[data-cashier-panel-toggle]").forEach((toggle) => {
+  const target = toggle.dataset.cashierPanelToggle === "tools"
+    ? toggle.closest(".cashier-tools")
+    : toggle.closest(".cashier-filter-card");
+  toggle.addEventListener("click", () => {
+    const expanded = toggle.getAttribute("aria-expanded") === "true";
+    toggle.setAttribute("aria-expanded", String(!expanded));
+    target?.classList.toggle("is-mobile-expanded", !expanded);
+  });
+});
+
 // La consulta periódica trae la misma vista y extrae sólo la lista. Si Caja está
 // escribiendo o guardando, esperamos al siguiente ciclo para no borrar su interacción.
 const refreshCashierOrders = async () => {
@@ -229,11 +287,20 @@ const refreshCashierOrders = async () => {
     if (!response.ok) return;
     const nextDocument = new DOMParser().parseFromString(await response.text(), "text/html");
     const nextRegion = nextDocument.querySelector("[data-cashier-live-region]");
+    if (nextRegion) {
+      enhanceCashierCards(nextRegion);
+      region.querySelectorAll("[data-cashier-order].is-detail-expanded").forEach((currentCard) => {
+        const url = currentCard.dataset.cashierOrderUrl;
+        const nextCard = [...nextRegion.querySelectorAll("[data-cashier-order]")]
+          .find((card) => card.dataset.cashierOrderUrl === url);
+        if (!nextCard) return;
+        nextCard.classList.add("is-detail-expanded");
+        nextCard.querySelector("[data-cashier-card-toggle]")?.setAttribute("aria-expanded", "true");
+      });
+    }
     if (!nextRegion || nextRegion.innerHTML === region.innerHTML) return;
     region.innerHTML = nextRegion.innerHTML;
-    feedback.textContent = "Caja se actualizó con los movimientos más recientes.";
-    feedback.className = "message success";
-    feedback.hidden = false;
+    enhanceCashierCards(region);
   } catch (_) {
     // Una pérdida temporal de red no bloquea Caja; el siguiente ciclo reintentará.
   }

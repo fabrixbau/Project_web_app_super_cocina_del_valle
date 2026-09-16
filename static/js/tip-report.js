@@ -2,6 +2,13 @@
 reporte rápido. El cálculo permanece en Django y no depende del navegador.
 Borra esta nota después de leerla. */
 const tipReportFilters = document.querySelector("[data-tip-report-filters]");
+const tipTools = document.querySelector(".tip-mobile-tools");
+const tipToolsToggle = tipTools?.querySelector("[data-tip-tools-toggle]");
+tipToolsToggle?.addEventListener("click", () => {
+  const expanded = tipToolsToggle.getAttribute("aria-expanded") === "true";
+  tipToolsToggle.setAttribute("aria-expanded", String(!expanded));
+  tipTools.classList.toggle("is-mobile-expanded", !expanded);
+});
 tipReportFilters?.querySelectorAll("input, select").forEach((field) => field.addEventListener("change", () => tipReportFilters.requestSubmit()));
 
 const detailDialog = document.querySelector("[data-tip-detail-dialog]");

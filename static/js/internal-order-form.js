@@ -2,8 +2,10 @@
 (() => {
   const form = document.querySelector("[data-internal-order-form]");
   if (!form) return;
+  const paymentChoices = document.querySelectorAll("[data-payment-choice]");
+  const orderTypeChoices = document.querySelectorAll("[data-order-type-choice]");
   const delivery = form.querySelector("[data-delivery-fields]");
-  const cash = form.querySelector("[data-cash-fields]");
+  const cash = document.querySelector("[data-cash-fields]");
   const customerPanel = form.querySelector("[data-customer-panel]");
   const customerSummary = form.querySelector("[data-customer-summary]");
   const customerState = form.querySelector("[data-customer-state]");
@@ -15,12 +17,32 @@
   const ticketCashAmount = document.querySelector("[data-ticket-cash-amount]");
   const tipSection = document.querySelector("[data-internal-tip-section]");
   const tipForm = document.querySelector("[data-internal-tip-form]");
-  const deliveryCashHint = form.querySelector("[data-delivery-cash-hint]");
+  const deliveryCashHint = cash?.querySelector("[data-delivery-cash-hint]");
   const agendaSearch = form.querySelector("input[name='customer_name']");
   const agendaResults = form.querySelector("[data-customer-agenda-results]");
   const agendaHelp = form.querySelector("[data-customer-agenda-help]");
   const duplicatePhoneWarning = form.querySelector("[data-duplicate-phone-warning]");
   const customerDebtWarning = form.querySelector("[data-customer-debt-warning]");
+  const paymentControl = document.querySelector(".ticket-payment-control");
+  const paymentDetails = document.createElement("div");
+  paymentDetails.className = "ticket-payment-details";
+  paymentDetails.dataset.ticketPaymentDetails = "";
+  paymentControl?.after(paymentDetails);
+  if (paymentControl && cash) {
+    cash.querySelectorAll("input, select, textarea").forEach((control) => control.setAttribute("form", form.id));
+    paymentDetails.append(cash);
+  }
+  if (paymentControl && tipSection) paymentDetails.append(tipSection);
+  const captureHeading = document.querySelector(".internal-capture-heading");
+  const commandBar = form.querySelector(".internal-command-bar");
+  const modalityCommand = commandBar?.querySelector(":scope > .command-group:first-child");
+  const customerCommand = commandBar?.querySelector(":scope > .customer-command");
+  const headingActions = captureHeading?.querySelector(".capture-heading-actions");
+  if (captureHeading && headingActions && modalityCommand && customerCommand) {
+    headingActions.before(modalityCommand, customerCommand);
+    commandBar.hidden = true;
+  }
+  const formField = (name) => form.elements.namedItem(name);
   const paymentLabels = {cash: "Efectivo", card: "Terminal", transfer: "Transferencia"};
   const refresh = () => {
     const orderType = form.querySelector("input[name='order_type']:checked")?.value || "pickup";
@@ -32,14 +54,14 @@
     // confirmada por transferencia, pero Terminal se captura después por Caja o por
     // el repartidor cuando realmente se conoce. Borra esta nota después de leerla.
     if (tipSection) tipSection.hidden = !(orderType === "delivery" && paymentMethod === "transfer");
-    form.querySelectorAll("[data-order-type-choice]").forEach((button) => button.classList.toggle("is-selected", button.dataset.orderTypeChoice === orderType));
-    form.querySelectorAll("[data-payment-choice]").forEach((button) => button.classList.toggle("is-selected", button.dataset.paymentChoice === paymentMethod));
+    orderTypeChoices.forEach((button) => button.classList.toggle("is-selected", button.dataset.orderTypeChoice === orderType));
+    paymentChoices.forEach((button) => button.classList.toggle("is-selected", button.dataset.paymentChoice === paymentMethod));
     if (ticketPayment) ticketPayment.textContent = paymentLabels[paymentMethod] || "Sin definir";
-    const bill = Number(form.querySelector("select[name='cash_bill']")?.value || 0);
-    const customCash = Number(form.querySelector("input[name='cash_custom_amount']")?.value || 0);
+    const bill = Number(formField("cash_bill")?.value || 0);
+    const customCash = Number(formField("cash_custom_amount")?.value || 0);
     const total = Number(form.dataset.orderTotal || 0);
     const tendered = bill || customCash;
-    const showChange = paymentMethod === "cash" && tendered >= total && tendered > 0 && !form.querySelector("input[name='pays_exact']")?.checked;
+    const showChange = paymentMethod === "cash" && tendered >= total && tendered > 0 && !formField("pays_exact")?.checked;
     if (ticketCashSource) ticketCashSource.hidden = paymentMethod !== "cash" || tendered <= 0;
     if (ticketCashAmount) ticketCashAmount.textContent = new Intl.NumberFormat("es-MX", {style: "currency", currency: "MXN"}).format(tendered);
     if (ticketChangeRow) ticketChangeRow.hidden = !showChange;
@@ -53,7 +75,7 @@
   };
   form.addEventListener("change", refresh);
   form.addEventListener("input", refresh);
-  form.querySelectorAll("[data-order-type-choice]").forEach((button) => button.addEventListener("click", () => {
+  orderTypeChoices.forEach((button) => button.addEventListener("click", () => {
     const field = form.querySelector(`input[name='order_type'][value='${button.dataset.orderTypeChoice}']`);
     if (field) field.checked = true;
     const customerNameField = form.querySelector("input[name='customer_name']");
@@ -67,7 +89,7 @@
     refresh();
     scheduleAutosave();
   }));
-  form.querySelectorAll("[data-payment-choice]").forEach((button) => button.addEventListener("click", async () => {
+  paymentChoices.forEach((button) => button.addEventListener("click", async () => {
     const field = form.querySelector(`input[name='payment_method'][value='${button.dataset.paymentChoice}']`);
     if (field) field.checked = true;
     // NOTA TEMPORAL PARA APRENDIZAJE: al pasar al pago cerramos Cliente para que
@@ -78,11 +100,39 @@
     window.clearTimeout(autosaveTimer);
     await autosaveCustomer();
   }));
-  form.querySelectorAll("[data-customer-panel-toggle]").forEach((button) => button.addEventListener("click", () => {
+  document.querySelectorAll("[data-customer-panel-toggle]").forEach((button) => button.addEventListener("click", () => {
     customerPanel.hidden = !customerPanel.hidden;
-    if (!customerPanel.hidden) form.querySelector("input[name='customer_name']")?.focus();
   }));
   form.querySelectorAll("[data-customer-panel-close]").forEach((button) => button.addEventListener("click", () => { customerPanel.hidden = true; }));
+
+  const compactCustomerView = window.matchMedia("(max-width: 900px)");
+  const customerFieldBackdrop = document.createElement("button");
+  customerFieldBackdrop.type = "button";
+  customerFieldBackdrop.className = "customer-field-backdrop";
+  customerFieldBackdrop.setAttribute("aria-label", "Cerrar campo del cliente");
+  customerFieldBackdrop.hidden = true;
+  document.body.append(customerFieldBackdrop);
+  let focusedCustomerLabel = null;
+  const closeCustomerField = () => {
+    focusedCustomerLabel?.classList.remove("is-customer-field-focused");
+    focusedCustomerLabel = null;
+    customerFieldBackdrop.hidden = true;
+    document.body.classList.remove("customer-field-focus-open");
+    document.activeElement?.blur?.();
+  };
+  customerPanel.querySelectorAll(".internal-form-grid label, .customer-notes-field").forEach((label) => {
+    label.addEventListener("focusin", () => {
+      if (!compactCustomerView.matches) return;
+      focusedCustomerLabel?.classList.remove("is-customer-field-focused");
+      focusedCustomerLabel = label;
+      label.classList.add("is-customer-field-focused");
+      customerFieldBackdrop.hidden = false;
+      document.body.classList.add("customer-field-focus-open");
+    });
+  });
+  customerFieldBackdrop.addEventListener("click", closeCustomerField);
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeCustomerField(); });
+  compactCustomerView.addEventListener?.("change", (event) => { if (!event.matches) closeCustomerField(); });
 
   // NOTA TEMPORAL PARA APRENDIZAJE: `select()` mantiene Mostrador como valor útil,
   // pero permite que el primer carácter escrito lo reemplace completo. Borra esta nota.
@@ -330,8 +380,8 @@
     window.requestAnimationFrame(() => {
       const targetSelector = errorSummary.querySelector("a[href^='#']")?.getAttribute("href");
       let target = form.querySelector(targetSelector || "[name='customer_name']");
-      if (target?.name === "payment_method") target = form.querySelector("[data-payment-choice]");
-      if (target?.name === "cash_bill") target = form.querySelector("[data-cash-value]");
+      if (target?.name === "payment_method") target = document.querySelector("[data-payment-choice]");
+      if (target?.name === "cash_bill") target = document.querySelector("[data-cash-value]");
       // NOTA TEMPORAL PARA APRENDIZAJE: primero mostramos el resumen y después dejamos
       // visible y enfocado el campo que realmente debe corregirse. Borra esta nota.
       errorSummary.scrollIntoView({behavior: "smooth", block: "center"});
@@ -341,33 +391,33 @@
       }, 350);
     });
   }
-  form.querySelectorAll("[data-cash-value]").forEach((button) => button.addEventListener("click", () => {
+  document.querySelectorAll("[data-cash-value]").forEach((button) => button.addEventListener("click", () => {
     const cashMethod = form.querySelector("input[name='payment_method'][value='cash']");
-    const bill = form.querySelector("select[name='cash_bill']");
+    const bill = formField("cash_bill");
     if (cashMethod) cashMethod.checked = true;
     if (bill) bill.value = button.dataset.cashValue;
-    const custom = form.querySelector("input[name='cash_custom_amount']");
-    const exact = form.querySelector("input[name='pays_exact']");
+    const custom = formField("cash_custom_amount");
+    const exact = formField("pays_exact");
     if (custom) custom.value = "";
     if (exact) exact.checked = false;
     refresh();
   }));
-  const exact = form.querySelector("input[name='pays_exact']");
+  const exact = formField("pays_exact");
   exact?.addEventListener("change", () => {
     if (!exact.checked) return;
     const cashMethod = form.querySelector("input[name='payment_method'][value='cash']");
-    const bill = form.querySelector("select[name='cash_bill']");
-    const custom = form.querySelector("input[name='cash_custom_amount']");
+    const bill = formField("cash_bill");
+    const custom = formField("cash_custom_amount");
     if (cashMethod) cashMethod.checked = true;
     if (bill) bill.value = "";
     if (custom) custom.value = "";
     refresh();
   });
-  const customCash = form.querySelector("input[name='cash_custom_amount']");
+  const customCash = formField("cash_custom_amount");
   customCash?.addEventListener("input", () => {
     if (!customCash.value) return;
     const cashMethod = form.querySelector("input[name='payment_method'][value='cash']");
-    const bill = form.querySelector("select[name='cash_bill']");
+    const bill = formField("cash_bill");
     if (cashMethod) cashMethod.checked = true;
     if (bill) bill.value = "";
     if (exact) exact.checked = false;
