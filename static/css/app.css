@@ -3120,6 +3120,50 @@ input[type="reset"],
   }
 }
 
+/* Panel principal: cuatro módulos por fila en teléfono y tablet. */
+@media (max-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .4rem;
+  }
+  .dashboard-card {
+    min-width: 0;
+    min-height: 7.2rem;
+    padding: .65rem .45rem;
+    border-radius: .7rem;
+  }
+  .dashboard-card-copy { min-width: 0; margin: 0; }
+  .dashboard-card h3 {
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-size: clamp(.62rem, 2.25vw, .82rem);
+    line-height: 1.12;
+  }
+  .dashboard-card p { display: none; }
+  .dashboard-card-action {
+    justify-content: center;
+    padding-top: .45rem;
+    font-size: 0;
+  }
+  .dashboard-card-action b {
+    width: 1.6rem;
+    height: 1.6rem;
+    font-size: .85rem;
+  }
+  .dashboard-section-heading {
+    gap: .45rem;
+    margin-bottom: .7rem;
+  }
+  .dashboard-section-heading h2 { font-size: 1.1rem; }
+  .dashboard-section-heading p,
+  .dashboard-role-summary { font-size: .65rem; }
+  .dashboard-module-count {
+    padding: .3rem .45rem;
+    white-space: nowrap;
+    font-size: .62rem;
+  }
+}
+
 /* Order detail: unified identity/action rail and compact responsive cards. */
 .order-detail-heading {
   display: grid;
