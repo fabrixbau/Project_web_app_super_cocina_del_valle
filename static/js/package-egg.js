@@ -30,7 +30,10 @@
     const name = first.name.replace(/first_course$/, "egg_product");
     const itemId = form.closest("dialog")?.id.match(/^package-edit-(\d+)$/)?.[1];
     const choice = makeChoice(name, itemId ? initials[itemId] : "");
-    (form.querySelector(".package-quick-extras") || form.querySelector(".table-package-visual-extras") || form.querySelector(".package-secondary-fields") || form).append(choice);
+    const target = form.querySelector(".package-quick-extras") || form.querySelector(".table-package-visual-extras") || form.querySelector(".package-secondary-fields") || form;
+    const tableComment = target.querySelector(":scope > .package-comment-field");
+    if (tableComment) target.insertBefore(choice, tableComment);
+    else target.append(choice);
   });
 
   document.querySelectorAll("[data-auto-package-options], #auto-running-meal, #auto-executive-meal").forEach((container) => {

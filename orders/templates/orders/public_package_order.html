@@ -5,7 +5,7 @@ ahora se capturan una sola vez durante checkout. Borra esta nota después de lee
 El formulario ahora presenta una decisión por bloque: los tres tiempos, la pieza condicional
 y los complementos. Los campos siguen siendo los mismos; solo cambió su organización visual.
 Borra esta nota después de revisar la pantalla. -->
-<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ package.name }} | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css?v=4"></head>
+<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ package.name }} | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css?v=202"></head>
 <body><main class="container package-builder public-package-builder"><p><a href="{% url 'public_portal:menu' %}">← Volver al menú</a></p>
   <section class="card package-order-card">
     <header class="package-order-heading"><span>Paquete de tres tiempos</span><h1>{{ package.name }}</h1><p>{{ package.description }}</p><div class="package-price-summary"><p><small>Sin agua</small><strong>${{ package.price_without_water }}</strong></p><p><small>Con agua</small><strong>${{ package.price_with_water }}</strong></p></div>{% if daily_menu.water_product %}<p class="daily-water">Agua de hoy: <strong>{{ daily_menu.water_product.name }}</strong></p>{% endif %}</header>
@@ -28,4 +28,4 @@ Borra esta nota después de revisar la pantalla. -->
       <div class="package-submit-row"><p>Revisa tus elecciones antes de continuar.</p><button type="submit">Agregar al carrito</button></div>
     </form>
   </section>
-</main><script src="/static/js/package-selection.js"></script></body></html>
+</main><script src="/static/js/package-selection.js?v=3"></script></body></html>

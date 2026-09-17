@@ -3164,6 +3164,205 @@ input[type="reset"],
   }
 }
 
+/* Controles visibles dentro de cada ficha del constructor de comidas. */
+.package-choice-card {
+  grid-template-rows: minmax(48px, 62px) auto auto;
+}
+.package-choice-card > label {
+  display: contents;
+  cursor: pointer;
+}
+.package-choice-controls {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: .2rem;
+  align-items: center;
+  min-width: 0;
+}
+.package-choice-controls button {
+  min-width: 0;
+  min-height: 1.75rem;
+  padding: .15rem;
+  border: 1px solid #28644e;
+  border-radius: .38rem;
+  color: #174735;
+  background: #fff;
+  font: inherit;
+  font-weight: 900;
+}
+.package-choice-controls b { min-width: 1rem; text-align: center; }
+.package-choice-controls [data-package-choice-customize] {
+  grid-column: 1 / -1;
+  color: #fff;
+  background: #28644e;
+  font-size: .68rem;
+}
+.package-choice-card.is-selected {
+  border-color: #173f32;
+  background: #dcece2;
+  box-shadow: 0 0 0 2px #f4bd45 inset;
+}
+
+/* Mesas · Ejecutiva: tercer tiempo completo y extras 4 columnas. */
+@media (max-width: 900px) {
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .table-package-stacked-rules {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-egg-choice {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-comment-field {
+    grid-column: 3 !important;
+    grid-row: 3 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .table-water-choice {
+    grid-column: 4 !important;
+    grid-row: 3 !important;
+  }
+  .table-package-stacked-rules {
+    display: grid;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: .22rem;
+    min-width: 0;
+    height: 4.65rem;
+  }
+  .table-package-stacked-rules > .product-rule-card {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    min-width: 0;
+    min-height: 0 !important;
+    height: auto !important;
+    padding: .2rem !important;
+    align-items: center;
+    overflow: hidden;
+  }
+  .table-package-stacked-rules > .product-rule-card small { display: none; }
+  .table-package-stacked-rules > .product-rule-card strong { font-size: .52rem; line-height: 1; }
+  .table-visual-package-dialog .package-egg-choice { overflow: visible !important; }
+  .table-visual-package-dialog .package-egg-choice .app-select { position: relative; z-index: 20; }
+  .package-choice-card { grid-template-rows: 44px auto auto !important; padding: .22rem; }
+  .package-choice-controls { gap: .12rem; }
+  .package-choice-controls button { min-height: 1.35rem; padding: .08rem; font-size: .55rem; }
+  .package-choice-controls [data-package-choice-customize] { min-height: 1.25rem; font-size: .48rem; }
+}
+
+/* Selector modal compartido para cualquier formulario que requiera pieza de pollo. */
+.chicken-piece-overlay-dialog {
+  width: min(460px, calc(100% - 2rem));
+  padding: 0;
+  border: 0;
+  border-radius: 1rem;
+  overflow: hidden;
+  color: #173f32;
+  background: #fff;
+  box-shadow: 0 24px 60px rgb(0 0 0 / 38%);
+}
+.chicken-piece-overlay-dialog::backdrop {
+  background: rgb(8 18 14 / 72%);
+  backdrop-filter: blur(5px);
+}
+.chicken-piece-overlay-dialog > section { display: grid; gap: 0; }
+.chicken-piece-overlay-dialog header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .8rem;
+  align-items: center;
+  padding: 1rem;
+  color: #fff;
+  background: #174735;
+}
+.chicken-piece-overlay-dialog header small { color: #f4c95d; font-weight: 900; letter-spacing: .08em; }
+.chicken-piece-overlay-dialog header h2 { margin: .12rem 0; color: #fff; }
+.chicken-piece-overlay-dialog header p { margin: 0; color: #e5f0ea; }
+.chicken-piece-overlay-dialog header > button {
+  display: grid;
+  width: 2.6rem;
+  min-width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #fff;
+  color: #fff;
+  background: transparent;
+  font-size: 1.25rem;
+}
+.chicken-piece-overlay-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem;
+  padding: 1rem;
+}
+.chicken-piece-overlay-actions button {
+  min-height: 4rem;
+  border: 2px solid #28644e;
+  color: #174735;
+  background: #f4f9f6;
+  font-size: 1rem;
+  font-weight: 900;
+}
+.chicken-piece-overlay-actions button:hover,
+.chicken-piece-overlay-actions button:focus-visible {
+  color: #fff;
+  background: #28644e;
+}
+
+/* Selectores táctiles: primer toque abre opciones; el segundo habilita escritura. */
+@media (max-width: 900px) {
+  .app-select.is-open .app-select-menu {
+    position: fixed;
+    z-index: 1400;
+    inset: auto .65rem .65rem;
+    display: grid;
+    width: auto;
+    max-height: min(52dvh, 24rem);
+    padding: .55rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: .85rem;
+    box-shadow: 0 18px 55px rgb(8 29 21 / 32%);
+  }
+  .app-select.is-open .app-select-option {
+    min-height: 2.55rem;
+    padding: .55rem .7rem;
+    text-align: left;
+  }
+  .app-select-search[readonly] { cursor: pointer; }
+
+  .login-profile-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .4rem;
+  }
+  .login-profile-card {
+    min-width: 0;
+    min-height: 6.4rem;
+    padding: .45rem .3rem;
+    grid-template-columns: 1fr;
+    gap: .3rem;
+    justify-items: center;
+    align-content: center;
+    text-align: center;
+  }
+  .login-profile-avatar {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: .6rem;
+    font-size: .68rem;
+  }
+  .login-profile-copy { width: 100%; gap: .1rem; }
+  .login-profile-copy > strong {
+    width: 100%;
+    font-size: clamp(.55rem, 1.8vw, .7rem);
+  }
+  .login-profile-copy > small { font-size: .48rem; }
+  .login-profile-copy > span { display: none; }
+}
+
 /* Order detail: unified identity/action rail and compact responsive cards. */
 .order-detail-heading {
   display: grid;
@@ -7132,4 +7331,1177 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
     min-height: 0;
     background: transparent;
   }
+}
+
+/* Personalizador compartido: barra de acciones siempre disponible. */
+.product-selector-actionbar {
+  position: sticky;
+  z-index: 12;
+  top: 0;
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 1fr);
+  gap: .55rem;
+  align-items: stretch;
+  padding: .65rem;
+  border-bottom: 1px solid #cbd8d1;
+  background: rgb(255 255 255 / 97%);
+  box-shadow: 0 5px 14px rgb(22 55 42 / 10%);
+  backdrop-filter: blur(8px);
+}
+.product-selector-actionbar button { margin: 0; font-family: "Segoe UI Variable", "Aptos", "Segoe UI", system-ui, sans-serif; }
+.product-selector-close {
+  display: grid;
+  width: 3rem;
+  min-width: 3rem;
+  min-height: 3.2rem;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #b8564d;
+  border-radius: .65rem;
+  color: #912f28;
+  background: #fff3f1;
+  font-size: 1.4rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.product-selector-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: .15rem .35rem;
+  color: #244f40;
+  font-family: "Segoe UI Variable", "Aptos", "Segoe UI", system-ui, sans-serif;
+  text-align: center;
+  line-height: 1.15;
+}
+.product-selector-title > span { font-size: .9rem; font-weight: 800; }
+.product-selector-title > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #172f27;
+  font-size: .95rem;
+  font-weight: 900;
+}
+.product-selector-title > em {
+  padding: .12rem .35rem;
+  border-radius: 999px;
+  color: #664407;
+  background: #f7d77f;
+  font-size: .58rem;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.product-selector-confirm {
+  display: flex;
+  min-width: 0;
+  min-height: 3.2rem;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: .2rem .45rem;
+  padding: .45rem .65rem;
+  border: 1px solid #174c3a;
+  border-radius: .65rem;
+  color: #fff;
+  background: #28644e;
+  text-align: center;
+  line-height: 1.12;
+}
+.product-selector-confirm > span { font-size: .78rem; font-weight: 800; }
+.product-selector-confirm > strong { color: #ffe397; font-size: .88rem; font-weight: 900; white-space: nowrap; }
+.product-selector-confirm:hover { background: #174c3a; }
+
+@media (max-width: 600px) {
+  .product-selector-actionbar {
+    grid-template-columns: 2.45rem minmax(0, 1fr) minmax(0, 1fr);
+    gap: .35rem;
+    padding: .45rem;
+  }
+  .product-selector-close {
+    width: 2.45rem;
+    min-width: 2.45rem;
+    min-height: 2.8rem;
+  }
+  .product-selector-title > span,
+  .product-selector-title > strong { font-size: .68rem; }
+  .product-selector-confirm { min-height: 2.8rem; padding: .3rem .35rem; }
+  .product-selector-confirm > span { font-size: .62rem; }
+  .product-selector-confirm > strong { font-size: .7rem; }
+}
+
+/* Ajustes compactos finales para Caja, bebidas y Mesas. */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (max-width: 900px) {
+  .coffee-report-totals {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .3rem;
+  }
+  .coffee-report-totals div {
+    min-width: 0;
+    padding: .5rem .3rem;
+    text-align: center;
+  }
+  .coffee-report-totals small {
+    overflow-wrap: anywhere;
+    font-size: .55rem;
+    line-height: 1.15;
+  }
+  .coffee-report-totals strong {
+    overflow-wrap: anywhere;
+    font-size: .82rem;
+  }
+
+  .table-map .table-waiter-form { padding-bottom: 1.25rem; }
+  .table-map .waiter-choice-buttons { margin-bottom: .3rem; }
+
+  .table-operation-header:not(.is-closed) .table-ticket-heading {
+    column-gap: .68rem;
+  }
+  .table-operation-header:not(.is-closed) .table-account-identity .table-customer-form {
+    padding-right: .12rem;
+  }
+  .table-operation-header:not(.is-closed) .table-ticket-heading .ticket-heading-actions {
+    margin-left: .12rem;
+  }
+}
+
+/* Normalización final de los constructores compactos mostrados en captura. */
+@media (max-width: 900px) {
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras {
+    grid-area: extras !important;
+    display: grid !important;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 40%) minmax(0, 60%) !important;
+    grid-template-rows: repeat(3, minmax(2.35rem, auto)) !important;
+    gap: .3rem !important;
+    align-items: stretch;
+    margin: 0 !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > * {
+    grid-area: auto !important;
+    min-width: 0;
+    width: auto;
+    margin: 0;
+    box-sizing: border-box;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-toggle-field:nth-child(2) {
+    grid-column: 1 !important;
+    grid-row: 1 / span 3 !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-toggle-field:nth-child(3) {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-water-toggle {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-egg-choice {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-toggle-field:nth-child(2) .package-accompaniment-options {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: repeat(3, minmax(2rem, 1fr));
+    height: 100%;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-toggle-field:nth-child(3),
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-water-toggle,
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-egg-choice {
+    min-height: 2.35rem;
+    align-content: center;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-toggle-field:nth-child(3) {
+    grid-template-columns: 4.2rem minmax(0, 1fr);
+    align-items: center;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-toggle-field:nth-child(3) .package-yes-no {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-water-toggle {
+    grid-template-columns: 4.2rem minmax(0, 1fr);
+    align-items: center;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-egg-choice {
+    grid-template-columns: 4.2rem minmax(0, 1fr) !important;
+    align-items: center;
+  }
+
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .product-rule-card,
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-egg-choice,
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-comment-field {
+    min-height: 4.65rem !important;
+    height: 4.65rem;
+    align-content: center;
+    justify-items: center;
+    padding: .3rem !important;
+    text-align: center;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .product-rule-card {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto auto;
+    gap: .25rem;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .product-rule-card > input {
+    width: 1rem;
+    height: 1rem;
+    margin: 0 auto;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .product-rule-card strong {
+    display: block;
+    font-size: .56rem;
+    line-height: 1.08;
+    text-align: center;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-egg-choice {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: .22rem;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-egg-choice .package-egg-caption {
+    display: block !important;
+    height: auto;
+    visibility: visible;
+    font-size: .54rem;
+    line-height: 1.05;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-egg-choice .app-select-trigger {
+    min-height: 2rem;
+    padding: .2rem;
+    font-size: .52rem;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-comment-field > label {
+    display: none;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-comment-field textarea {
+    width: 100%;
+    min-width: 0;
+    min-height: 3.55rem;
+    height: 3.55rem;
+    padding: .25rem;
+    overflow: hidden;
+    resize: none;
+    font-size: .54rem;
+    line-height: 1.1;
+    text-align: center;
+    box-sizing: border-box;
+  }
+  .table-visual-package-dialog form.is-package-comment-focused .package-comment-field {
+    height: auto;
+    min-height: 0 !important;
+    justify-items: stretch;
+    text-align: left;
+  }
+  .table-visual-package-dialog form.is-package-comment-focused .package-comment-field > label { display: block; }
+}
+
+/* Pedidos: lupa en la barra y bloque de extras 40/60 para ambos paquetes. */
+.visual-package-dialog form[data-internal-package] > .dialog-heading {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+.visual-package-dialog form[data-internal-package] .package-modal-search-launcher {
+  display: grid;
+  width: 2.6rem;
+  min-width: 2.6rem;
+  height: 2.6rem;
+  margin-left: auto;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #fff;
+  color: #fff;
+  background: transparent;
+  font-size: 1.15rem;
+}
+.visual-package-dialog form[data-internal-package] > .package-modal-search {
+  display: none !important;
+}
+.visual-package-dialog form[data-internal-package].is-package-search-open::before {
+  content: "";
+  position: fixed;
+  z-index: 340;
+  inset: 0;
+  background: rgb(8 18 14 / 66%);
+  backdrop-filter: blur(5px);
+}
+.visual-package-dialog form[data-internal-package].is-package-search-open > .package-modal-search {
+  position: fixed;
+  z-index: 341;
+  top: 18dvh;
+  left: 50%;
+  display: grid !important;
+  width: min(620px, calc(100% - 2rem));
+  gap: .4rem;
+  margin: 0;
+  padding: .8rem;
+  border: 1px solid rgb(255 255 255 / 45%);
+  border-radius: .85rem;
+  color: #fff;
+  background: #174735;
+  transform: translateX(-50%);
+}
+.visual-package-dialog form[data-internal-package].is-package-search-open > .package-modal-search input {
+  min-height: 3.2rem;
+  border: 2px solid #f4c95d;
+  background: #fff;
+  font-size: 1rem;
+}
+
+@media (max-width: 900px) {
+  .visual-package-dialog form[data-internal-package],
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] {
+    grid-template-areas:
+      "heading heading heading heading heading heading heading heading heading heading"
+      "errors errors errors errors errors errors errors errors errors errors"
+      "first first first first first second second second second second"
+      "main main main main main main main main main main"
+      "extras extras extras extras extras extras extras extras extras extras"
+      "chicken chicken chicken chicken chicken chicken chicken chicken chicken chicken"
+      "packaging packaging packaging packaging packaging packaging packaging packaging packaging packaging"
+      "comment comment comment comment comment comment comment comment comment comment"
+      "submit submit submit submit submit submit submit submit submit submit" !important;
+  }
+  .visual-package-dialog form[data-internal-package] .package-visual-groups > .package-visual-field:nth-child(3) {
+    grid-area: main !important;
+  }
+  .visual-package-dialog form[data-internal-package] .package-visual-field:nth-child(3) .package-choice-grid,
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-field:nth-child(3) .package-choice-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras {
+    grid-area: extras;
+    display: grid !important;
+    grid-template-columns: minmax(0, 40%) minmax(0, 60%) !important;
+    grid-template-rows: repeat(3, minmax(0, auto));
+    gap: .3rem;
+    min-width: 0;
+    margin: 0;
+  }
+  .visual-package-dialog form[data-internal-package] .package-quick-extras > .package-toggle-field:nth-child(2) {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+  }
+  .visual-package-dialog form[data-internal-package] .package-quick-extras > .package-toggle-field:nth-child(3) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .visual-package-dialog form[data-internal-package] .package-quick-extras > .package-water-toggle {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .visual-package-dialog form[data-internal-package] .package-quick-extras > .package-egg-choice {
+    grid-column: 2;
+    grid-row: 3;
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 36%) minmax(0, 64%);
+    align-items: center;
+    gap: .3rem;
+    margin: 0;
+    padding: .4rem;
+  }
+  .visual-package-dialog form[data-internal-package] .package-quick-extras > .package-egg-choice .package-egg-caption {
+    display: block !important;
+    height: auto;
+    visibility: visible;
+    line-height: 1.1;
+  }
+  .visual-package-dialog form[data-internal-package] .package-quick-extras > .package-egg-choice .app-select,
+  .visual-package-dialog form[data-internal-package] .package-quick-extras > .package-egg-choice .app-select-trigger {
+    min-width: 0;
+    width: 100%;
+  }
+  .visual-package-dialog form[data-internal-package] .package-quick-extras .package-toggle-field {
+    min-width: 0;
+    padding: .4rem;
+  }
+  .visual-package-dialog form[data-internal-package] .package-quick-extras .package-yes-no {
+    min-width: 0;
+  }
+
+  /* Las fichas reales de catálogo conservan las tres acciones en cualquier tamaño. */
+  .catalog-product-card .catalog-quick-controls { display: grid; }
+  .catalog-product-card .catalog-customize-form { display: block; width: 100%; }
+  .catalog-product-card .catalog-customize-button { display: block; width: 100%; }
+}
+
+/* Comida ejecutiva de Mesas comparte la misma matriz compacta que comida corrida. */
+@media (max-width: 900px) {
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    grid-template-rows: auto auto auto !important;
+    gap: .4rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(1) {
+    grid-column: 1 / span 2 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(2) {
+    grid-column: 3 / span 2 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) {
+    grid-column: 1 / span 3 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) .package-choice-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .table-package-visual-extras {
+    display: contents !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .table-water-choice {
+    grid-column: 4 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .product-rule-card:nth-child(2) {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .product-rule-card:nth-child(3) {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-egg-choice {
+    grid-column: 3 !important;
+    grid-row: 3 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-comment-field {
+    grid-column: 4 !important;
+    grid-row: 3 !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups {
+    gap: .28rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-packaging-options > header {
+    min-height: 0;
+    padding-block: 0;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-packaging-options > header small {
+    max-width: 100%;
+    font-size: .48rem;
+    line-height: 1.05;
+  }
+}
+
+/* Terminales: la acción de eliminar vive en la esquina de cada ficha. */
+.terminal-movement-list > header {
+  grid-template-columns: .75fr .7fr .75fr 1fr 1.25fr 2fr;
+}
+.terminal-movement-list > header > :last-child { display: none; }
+.terminal-movement-row {
+  grid-template-columns: .75fr .7fr .75fr 1fr 1.25fr 2fr;
+  padding-right: 3.35rem;
+}
+.terminal-movement-row .terminal-delete {
+  position: absolute;
+  z-index: 3;
+  top: .55rem;
+  right: .55rem;
+  display: grid;
+  width: 2.15rem;
+  min-width: 2.15rem;
+  min-height: 2.15rem;
+  padding: 0;
+  place-items: center;
+  border-radius: .55rem;
+  line-height: 1;
+}
+.terminal-movement-row .terminal-delete[hidden] { display: none; }
+
+/* Pedidos: Huevo opcional siempre permanece dentro del panel de extras. */
+.internal-pos-main,
+.internal-menu-workspace,
+.internal-menu-workspace > .internal-category,
+.internal-menu-workspace .auto-package-options,
+.internal-menu-workspace .package-egg-choice,
+.internal-menu-workspace .package-egg-choice .app-select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 900px) {
+  .terminal-movement-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: .55rem 3.35rem .55rem .55rem;
+  }
+
+  .internal-menu-workspace.is-lunch .auto-package-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    overflow: hidden;
+  }
+  .internal-menu-workspace.is-lunch .auto-package-options > .auto-extra-group:first-child {
+    grid-column: 1;
+    grid-row: 1;
+    width: auto;
+  }
+  .internal-menu-workspace.is-lunch .auto-package-options > .auto-extra-group:nth-child(3) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .internal-menu-workspace.is-lunch .auto-package-options > .package-egg-choice {
+    grid-column: 3;
+    grid-row: 1;
+    width: 100%;
+    overflow: hidden;
+  }
+  .internal-menu-workspace.is-lunch .auto-package-options > .package-egg-choice .app-select-trigger {
+    min-width: 0;
+    padding-inline: .4rem;
+  }
+}
+
+/* Mesas: tres fichas visibles por fila también en teléfonos. */
+@media (max-width: 620px) {
+  .terminal-movement-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .table-map {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .4rem;
+  }
+  .table-map .table-tile { min-width: 0; min-height: 165px; }
+  .table-map .table-tile form { gap: .25rem; padding: .55rem .35rem .8rem; }
+  .table-map .table-number,
+  .table-map .table-waiter-form .table-number { font-size: 1rem; }
+  .table-map .table-state,
+  .table-map .table-waiter-form > small,
+  .table-map .table-main-action > small { font-size: .6rem; }
+  .table-map .waiter-choice-buttons { gap: .22rem; }
+  .table-map .waiter-choice-buttons button {
+    min-height: 2rem;
+    padding: .3rem .2rem;
+    overflow-wrap: anywhere;
+    font-size: .58rem;
+  }
+}
+
+/* Constructor compacto de comidas para Mesas (teléfono y tablet). */
+.table-package-dialog-heading { align-items: center !important; }
+.table-package-dialog-heading > div { min-width: 0; margin-right: auto; }
+.table-package-dialog-heading .package-candidate-search-launcher {
+  display: grid;
+  margin-left: auto;
+  place-items: center;
+  font-size: 1.25rem;
+}
+.package-candidate-search[hidden] { display: none !important; }
+.package-candidate-search {
+  position: fixed;
+  z-index: 320;
+  inset: 0;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  padding: max(14dvh, 4rem) 1rem 1rem;
+  background: rgb(8 18 14 / 66%);
+  backdrop-filter: blur(5px);
+}
+.package-candidate-search > label,
+.package-candidate-search > div,
+.package-candidate-search > p {
+  width: min(620px, 100%);
+  box-sizing: border-box;
+}
+.package-candidate-search > label {
+  display: grid;
+  gap: .35rem;
+  padding: .75rem;
+  border-radius: .8rem .8rem 0 0;
+  color: #fff;
+  background: #174735;
+  font-weight: 800;
+}
+.package-candidate-search input {
+  width: 100%;
+  min-height: 3rem;
+  padding: .65rem .8rem;
+  border: 2px solid #f4c95d;
+  border-radius: .6rem;
+  background: #fff;
+  font: inherit;
+}
+.package-candidate-search > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .35rem;
+  max-height: 48dvh;
+  padding: .65rem;
+  overflow-y: auto;
+  border-radius: 0 0 .8rem .8rem;
+  background: #fff;
+}
+.package-candidate-search > div button {
+  display: grid;
+  min-width: 0;
+  gap: .12rem;
+  padding: .55rem;
+  border: 1px solid #afc4b9;
+  color: #173f32;
+  background: #f8fbf9;
+  text-align: left;
+}
+.package-candidate-search > div button strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.package-candidate-search > div button small { color: #68766f; }
+.package-candidate-search > p { margin: 0; padding: .8rem; border-radius: 0 0 .8rem .8rem; background: #fff; }
+
+@media (max-width: 900px) {
+  .table-visual-package-dialog {
+    width: min(100% - .7rem, 760px);
+    max-height: 96dvh;
+    padding: .45rem;
+  }
+  .table-visual-package-dialog form[data-package-form] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: .45rem;
+    max-height: 94dvh;
+    padding: .45rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .table-visual-package-dialog .package-visual-groups {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: auto auto auto;
+    gap: .4rem;
+  }
+  .table-visual-package-dialog .package-visual-groups > .package-visual-field:nth-child(1) {
+    grid-column: 1 / span 2;
+    grid-row: 1;
+  }
+  .table-visual-package-dialog .package-visual-groups > .package-visual-field:nth-child(2) {
+    grid-column: 3 / span 2;
+    grid-row: 1;
+  }
+  .table-visual-package-dialog .package-visual-groups > .package-visual-field:nth-child(3) {
+    grid-column: 1 / span 3;
+    grid-row: 2;
+  }
+  .table-visual-package-dialog .package-visual-groups > .package-visual-field:nth-child(3) .package-choice-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras { display: contents; }
+  .table-visual-package-dialog .table-package-visual-extras > .table-water-choice {
+    grid-column: 4;
+    grid-row: 2;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > .product-rule-card:nth-of-type(2) {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > .product-rule-card:nth-of-type(3) {
+    grid-column: 2;
+    grid-row: 3;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > .package-egg-choice {
+    grid-column: 3;
+    grid-row: 3;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > .package-comment-field {
+    grid-column: 4;
+    grid-row: 3;
+  }
+  .table-visual-package-dialog .package-visual-field,
+  .table-visual-package-dialog .table-water-choice,
+  .table-visual-package-dialog .product-rule-card,
+  .table-visual-package-dialog .package-egg-choice,
+  .table-visual-package-dialog .package-comment-field {
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: .35rem;
+  }
+  .table-visual-package-dialog .package-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem; }
+  .table-visual-package-dialog .package-choice-card { min-width: 0; grid-template-rows: 48px auto; font-size: .62rem; }
+  .table-visual-package-dialog .table-water-choice { display: grid; grid-template-columns: 1fr; gap: .2rem; }
+  .table-visual-package-dialog .table-water-choice-image { height: 48px; }
+  .table-visual-package-dialog .table-water-choice-copy small,
+  .table-visual-package-dialog .table-water-choice-copy strong,
+  .table-visual-package-dialog .table-water-choice-copy b,
+  .table-visual-package-dialog .product-rule-card small { font-size: .56rem; white-space: normal; }
+  .table-visual-package-dialog .product-rule-card strong,
+  .table-visual-package-dialog .package-egg-caption,
+  .table-visual-package-dialog .package-comment-field > label { font-size: .62rem; }
+  .table-visual-package-dialog .package-egg-choice .app-select-trigger,
+  .table-visual-package-dialog .package-comment-field textarea { min-height: 2.6rem; padding: .35rem; font-size: .62rem; }
+  .table-visual-package-dialog .package-packaging-options > div {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .table-visual-package-dialog form.is-package-comment-focused::before {
+    content: "";
+    position: fixed;
+    z-index: 330;
+    inset: 0;
+    background: rgb(8 18 14 / 66%);
+    backdrop-filter: blur(5px);
+  }
+  .table-visual-package-dialog form.is-package-comment-focused .package-comment-field {
+    position: fixed;
+    z-index: 331;
+    top: 20dvh;
+    left: 50%;
+    display: grid;
+    width: min(560px, calc(100% - 2rem));
+    gap: .4rem;
+    padding: .8rem;
+    border-radius: .8rem;
+    background: #fff;
+    transform: translateX(-50%);
+  }
+  .table-visual-package-dialog form.is-package-comment-focused .package-comment-field textarea {
+    min-height: 4.5rem;
+    font-size: 1rem;
+  }
+}
+
+/* Constructor de paquetes de Pedidos: distribución compacta de corrida y ejecutiva. */
+@media (max-width: 900px) {
+  .visual-package-dialog:has(form[data-internal-package]) {
+    width: min(100% - .7rem, 820px);
+    max-height: 96dvh;
+  }
+  .visual-package-dialog form[data-internal-package] {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    grid-template-areas:
+      "heading heading heading heading heading heading heading heading heading heading"
+      "errors errors errors errors errors errors errors errors errors errors"
+      "search search search search search search search search search search"
+      "first first first first first second second second second second"
+      "main main main main main main main water water water"
+      "accompaniment accompaniment accompaniment beans beans beans egg egg egg egg"
+      "chicken chicken chicken chicken chicken chicken chicken chicken chicken chicken"
+      "packaging packaging packaging packaging packaging packaging packaging packaging packaging packaging"
+      "comment comment comment comment comment comment comment comment comment comment"
+      "submit submit submit submit submit submit submit submit submit submit";
+    gap: .4rem;
+    max-height: 94dvh;
+    padding: .45rem;
+  }
+  .visual-package-dialog form[data-internal-package] > .dialog-heading { grid-area: heading; }
+  .visual-package-dialog form[data-internal-package] > [data-package-error] { grid-area: errors; }
+  .visual-package-dialog form[data-internal-package] > .package-modal-search { grid-area: search; }
+  .visual-package-dialog form[data-internal-package] > .package-visual-groups,
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras,
+  .visual-package-dialog form[data-internal-package] > .package-secondary-fields { display: contents; }
+  .visual-package-dialog form[data-internal-package] .package-visual-groups > .package-visual-field:nth-child(1) { grid-area: first; }
+  .visual-package-dialog form[data-internal-package] .package-visual-groups > .package-visual-field:nth-child(2) { grid-area: second; }
+  .visual-package-dialog form[data-internal-package] .package-visual-groups > .package-visual-field:nth-child(3) { grid-area: main; }
+  .visual-package-dialog form[data-internal-package] .package-quick-extras > .package-water-toggle { grid-area: water; }
+  .visual-package-dialog form[data-internal-package] .package-quick-extras > .package-toggle-field:nth-child(2) { grid-area: accompaniment; }
+  .visual-package-dialog form[data-internal-package] .package-quick-extras > .package-toggle-field:nth-child(3) { grid-area: beans; }
+  .visual-package-dialog form[data-internal-package] .package-quick-extras > .package-egg-choice { grid-area: egg; }
+  .visual-package-dialog form[data-internal-package] .package-secondary-fields > .package-chicken-field { grid-area: chicken; }
+  .visual-package-dialog form[data-internal-package] .package-secondary-fields > .package-comment-field { grid-area: comment; }
+  .visual-package-dialog form[data-internal-package] .package-visual-groups > .package-packaging-options { grid-area: packaging; }
+  .visual-package-dialog form[data-internal-package] > .confirm-package-button { grid-area: submit; }
+
+  .visual-package-dialog form[data-internal-package] .package-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem; }
+  .visual-package-dialog form[data-internal-package] .package-visual-field:nth-child(3) .package-choice-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .visual-package-dialog form[data-internal-package] .package-choice-card {
+    min-width: 0;
+    grid-template-rows: 52px auto;
+    font-size: .64rem;
+  }
+  .visual-package-dialog form[data-internal-package] .package-visual-field,
+  .visual-package-dialog form[data-internal-package] .package-toggle-field,
+  .visual-package-dialog form[data-internal-package] .package-egg-choice,
+  .visual-package-dialog form[data-internal-package] .package-comment-field {
+    min-width: 0;
+    margin: 0;
+    padding: .4rem;
+  }
+  .visual-package-dialog form[data-internal-package] .package-toggle-field > strong,
+  .visual-package-dialog form[data-internal-package] .package-egg-caption,
+  .visual-package-dialog form[data-internal-package] .package-comment-field > label { font-size: .62rem; }
+  .visual-package-dialog form[data-internal-package] .package-yes-no label,
+  .visual-package-dialog form[data-internal-package] .package-egg-choice .app-select-trigger {
+    min-width: 0;
+    min-height: 2.35rem;
+    padding: .3rem;
+    font-size: .62rem;
+  }
+  .visual-package-dialog form[data-internal-package] .package-packaging-options > div {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .visual-package-dialog form[data-internal-package] .package-comment-field textarea {
+    width: 100%;
+    min-height: 3rem;
+    max-height: 4rem;
+  }
+
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] {
+    grid-template-areas:
+      "heading heading heading heading heading heading heading heading heading heading"
+      "errors errors errors errors errors errors errors errors errors errors"
+      "search search search search search search search search search search"
+      "first first first first first second second second second second"
+      "main main main main main main main main main main"
+      "water water water water water water water water water water"
+      "accompaniment accompaniment accompaniment beans beans beans egg egg egg egg"
+      "packaging packaging packaging packaging packaging packaging packaging packaging packaging packaging"
+      "comment comment comment comment comment comment comment comment comment comment"
+      "submit submit submit submit submit submit submit submit submit submit";
+  }
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-field:nth-child(3) .package-choice-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Corrección de prioridad: filas 3 y 4 del constructor de paquetes de Mesas. */
+@media (max-width: 900px) {
+  .table-visual-package-dialog .package-visual-groups > .package-visual-field:nth-child(3) {
+    grid-column: 1 / span 3 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras {
+    display: contents !important;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .table-water-choice {
+    grid-column: 4 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .product-rule-card:nth-child(2) {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .product-rule-card:nth-child(3) {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-egg-choice {
+    grid-column: 3 !important;
+    grid-row: 3 !important;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-comment-field {
+    grid-column: 4 !important;
+    grid-row: 3 !important;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > .product-rule-card,
+  .table-visual-package-dialog .table-package-visual-extras > .package-egg-choice,
+  .table-visual-package-dialog .table-package-visual-extras > .package-comment-field {
+    display: grid;
+    min-width: 0;
+    min-height: 5.2rem;
+    align-content: center;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > .product-rule-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .25rem;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > .product-rule-card small {
+    display: none;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > .product-rule-card strong,
+  .table-visual-package-dialog .table-package-visual-extras > .package-egg-choice,
+  .table-visual-package-dialog .table-package-visual-extras > .package-comment-field {
+    overflow-wrap: anywhere;
+    font-size: .62rem;
+    line-height: 1.15;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > .package-comment-field > label {
+    margin: 0;
+    font-size: .58rem;
+    line-height: 1.1;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > .package-comment-field textarea {
+    width: 100%;
+    min-width: 0;
+    min-height: 2.4rem;
+    height: 2.4rem;
+    padding: .3rem;
+    resize: none;
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 600px) {
+  .table-visual-package-dialog .package-visual-groups {
+    gap: .28rem;
+  }
+  .table-visual-package-dialog .table-water-choice {
+    min-height: 0;
+    align-content: center;
+    padding: .28rem;
+  }
+  .table-visual-package-dialog .table-water-choice-image { display: none; }
+  .table-visual-package-dialog .table-water-choice-copy { gap: .12rem; text-align: center; }
+  .table-visual-package-dialog .table-water-choice-copy small { font-size: .5rem; }
+  .table-visual-package-dialog .table-water-choice-copy strong { font-size: .58rem; white-space: normal; }
+  .table-visual-package-dialog .table-water-choice-copy b {
+    width: 100%;
+    margin-top: .12rem;
+    padding: .2rem .08rem;
+    box-sizing: border-box;
+    font-size: .48rem;
+    text-align: center;
+  }
+
+  .table-visual-package-dialog .package-packaging-options {
+    gap: .25rem;
+    padding: .35rem;
+  }
+  .table-visual-package-dialog .package-packaging-options > header {
+    display: grid;
+    grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+    gap: .3rem;
+    align-items: center;
+    margin: 0 0 .25rem;
+  }
+  .table-visual-package-dialog .package-packaging-options > header strong {
+    font-size: .68rem;
+    line-height: 1.05;
+  }
+  .table-visual-package-dialog .package-packaging-options > header small {
+    font-size: .5rem;
+    line-height: 1.1;
+  }
+  .table-visual-package-dialog .package-packaging-options > div { gap: .25rem; }
+  .table-visual-package-dialog .package-packaging-options article {
+    gap: .15rem;
+    min-height: 0;
+    padding: .25rem;
+  }
+  .table-visual-package-dialog .package-packaging-options article img {
+    width: 2rem;
+    height: 2rem;
+  }
+  .table-visual-package-dialog .package-packaging-options article small,
+  .table-visual-package-dialog .package-packaging-options article strong,
+  .table-visual-package-dialog .package-packaging-options article b {
+    font-size: .52rem;
+    line-height: 1.08;
+  }
+}
+
+/* Mantener estas prioridades al final de la cascada. */
+@media (max-width: 900px) {
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras {
+    grid-area: extras !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 40%) minmax(0, 60%) !important;
+    grid-template-rows: repeat(3, minmax(2.35rem, auto)) !important;
+    gap: .3rem !important;
+    width: 100%;
+    margin: 0 !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > * { grid-area: auto !important; }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-toggle-field:nth-child(2) { grid-column: 1 !important; grid-row: 1 / span 3 !important; }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-toggle-field:nth-child(3) { grid-column: 2 !important; grid-row: 1 !important; }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-water-toggle { grid-column: 2 !important; grid-row: 2 !important; }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-egg-choice { grid-column: 2 !important; grid-row: 3 !important; }
+
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .product-rule-card,
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-egg-choice,
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-comment-field {
+    min-height: 4.65rem !important;
+    height: 4.65rem !important;
+    padding: .3rem !important;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .product-rule-card {
+    grid-template-columns: minmax(0, 1fr) !important;
+    justify-items: center;
+    text-align: center;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .product-rule-card small { display: none !important; }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-comment-field > label { display: none !important; }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-comment-field textarea {
+    min-height: 3.55rem !important;
+    height: 3.55rem !important;
+    padding: .25rem !important;
+    font-size: .54rem !important;
+    text-align: center;
+  }
+  .table-visual-package-dialog form.is-package-comment-focused .package-comment-field {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible;
+  }
+  .table-visual-package-dialog form.is-package-comment-focused .package-comment-field > label { display: block !important; }
+  .table-visual-package-dialog form.is-package-comment-focused .package-comment-field textarea {
+    min-height: 4.5rem !important;
+    height: auto !important;
+    font-size: 1rem !important;
+    text-align: left;
+  }
+}
+
+/* Ticket de altura estable: sólo las partidas tienen desplazamiento. */
+.internal-live-ticket,
+.table-pos-layout .table-ticket:not(.is-closed-summary) {
+  position: sticky;
+  top: 1rem;
+  display: grid !important;
+  min-height: 0;
+  height: calc(100dvh - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow: hidden !important;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+}
+.internal-live-ticket {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+.table-pos-layout .table-ticket:not(.is-closed-summary) {
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+}
+.internal-live-ticket > .table-ticket-items,
+.table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
+  min-width: 0;
+  min-height: 0;
+  max-height: none !important;
+  padding-right: .25rem;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.internal-live-ticket > .table-ticket-items::-webkit-scrollbar,
+.table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items::-webkit-scrollbar {
+  width: .42rem;
+}
+.internal-live-ticket > .table-ticket-items::-webkit-scrollbar-thumb,
+.table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #9eb4a8;
+}
+.internal-live-ticket > .table-ticket-total,
+.internal-live-ticket > .ticket-payment-summary,
+.internal-live-ticket > .ticket-cash-source,
+.internal-live-ticket > .ticket-change-summary,
+.internal-live-ticket > .ticket-print-actions,
+.internal-live-ticket > .internal-ticket-actions,
+.table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-total,
+.table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions,
+.table-pos-layout .table-ticket:not(.is-closed-summary) > .table-close-launcher {
+  flex-shrink: 0;
+}
+.internal-live-ticket > .table-ticket-total,
+.table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-total {
+  margin-top: .45rem;
+  padding-top: .55rem;
+}
+.internal-live-ticket > .ticket-print-actions,
+.table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions {
+  margin-top: .45rem;
+}
+.internal-live-ticket > .internal-ticket-actions { margin-top: .45rem; }
+
+@media (max-width: 760px) {
+  .internal-live-ticket,
+  .table-pos-layout .table-ticket:not(.is-closed-summary) {
+    position: relative !important;
+    top: auto;
+    width: 100%;
+    height: calc(100dvh - 1rem) !important;
+    min-height: min(32rem, calc(100dvh - 1rem));
+    max-height: calc(100dvh - 1rem) !important;
+    overflow: hidden !important;
+  }
+  .internal-live-ticket > .table-ticket-items,
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
+    max-height: none !important;
+    overflow-y: auto !important;
+  }
+  .internal-live-ticket > .ticket-print-actions,
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .25rem;
+  }
+  .internal-live-ticket > .ticket-print-actions a,
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions a {
+    min-width: 0;
+    padding: .42rem .2rem;
+    overflow-wrap: anywhere;
+    font-size: .6rem;
+    line-height: 1.08;
+  }
+  .internal-live-ticket > .ticket-print-actions .ticket-print-custom,
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions .ticket-print-custom {
+    grid-column: auto;
+  }
+  .internal-live-ticket > .internal-ticket-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .3rem;
+  }
+  .internal-live-ticket > .internal-ticket-actions button {
+    min-width: 0;
+    min-height: 2.65rem;
+    padding: .4rem;
+    font-size: .65rem;
+    line-height: 1.08;
+  }
+  .internal-live-ticket > .internal-ticket-actions small { grid-column: 1 / -1; font-size: .55rem; }
+}
+
+/* Prioridad final para controles de las fichas y extras de Ejecutiva en Mesas. */
+.visual-package-dialog .package-choice-card {
+  grid-template-rows: minmax(48px, 62px) auto auto !important;
+}
+.visual-package-dialog .package-choice-card > label { display: contents; cursor: pointer; }
+.visual-package-dialog .package-choice-controls {
+  display: grid !important;
+  grid-template-columns: 1fr auto 1fr;
+  gap: .2rem;
+  align-items: center;
+}
+.visual-package-dialog .package-choice-controls [data-package-choice-customize] { grid-column: 1 / -1; }
+
+@media (max-width: 900px) {
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) {
+    grid-column: 1 / -1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .table-package-stacked-rules { grid-column: 1 !important; grid-row: 3 !important; }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-egg-choice { grid-column: 2 !important; grid-row: 3 !important; }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-comment-field { grid-column: 3 !important; grid-row: 3 !important; }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .table-water-choice { grid-column: 4 !important; grid-row: 3 !important; }
+  .table-visual-package-dialog .table-package-stacked-rules {
+    display: grid !important;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: .2rem;
+    min-width: 0;
+    height: 4.65rem;
+  }
+  .table-visual-package-dialog .table-package-stacked-rules > .product-rule-card {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    min-height: 0 !important;
+    height: auto !important;
+    padding: .18rem !important;
+    overflow: hidden;
+  }
+  .table-visual-package-dialog .table-package-stacked-rules small { display: none !important; }
+  .table-visual-package-dialog .table-package-stacked-rules strong { font-size: .52rem !important; line-height: 1 !important; }
+  .visual-package-dialog .package-choice-card { grid-template-rows: 44px auto auto !important; }
+  .table-visual-package-dialog .package-egg-choice { overflow: visible !important; }
+  .table-visual-package-dialog .package-egg-choice .app-select { z-index: 30; }
 }

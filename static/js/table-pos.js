@@ -35,6 +35,85 @@ const currency = new Intl.NumberFormat("es-MX", {
   style: "currency", currency: "MXN", currencyDisplay: "narrowSymbol",
 });
 
+document.querySelectorAll(".table-visual-package-dialog").forEach((dialog) => {
+  const form = dialog.querySelector("[data-package-add]");
+  const launcher = dialog.querySelector("[data-package-candidate-search-open]");
+  const searchPanel = dialog.querySelector("[data-package-candidate-search]");
+  const searchInput = dialog.querySelector("[data-package-candidate-search-input]");
+  const results = dialog.querySelector("[data-package-candidate-search-results]");
+  const empty = dialog.querySelector("[data-package-candidate-search-empty]");
+  const candidates = [...dialog.querySelectorAll("[data-package-choice]")];
+
+  const closeCandidateSearch = () => {
+    if (!searchPanel) return;
+    searchPanel.hidden = true;
+    dialog.classList.remove("is-candidate-search-open");
+    searchInput?.blur();
+  };
+
+  const renderCandidateSearch = () => {
+    if (!results || !searchInput) return;
+    const query = searchInput.value.trim().toLocaleLowerCase("es-MX");
+    const matches = candidates.filter((card) => !query || card.dataset.searchName.includes(query));
+    results.replaceChildren(...matches.map((card) => {
+      const input = card.querySelector("input[type='radio']");
+      const course = card.closest("[data-package-choice-group]")?.querySelector("h3")?.textContent.trim() || "Producto";
+      const button = document.createElement("button");
+      button.type = "button";
+      const name = document.createElement("strong");
+      const detail = document.createElement("small");
+      name.textContent = card.querySelector("strong")?.textContent || "Producto";
+      detail.textContent = course;
+      button.append(name, detail);
+      button.addEventListener("click", () => {
+        input.checked = true;
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        closeCandidateSearch();
+      });
+      return button;
+    }));
+    empty.hidden = matches.length > 0;
+  };
+
+  launcher?.addEventListener("click", () => {
+    searchPanel.hidden = false;
+    dialog.classList.add("is-candidate-search-open");
+    searchInput.value = "";
+    renderCandidateSearch();
+    searchInput.focus({ preventScroll: true });
+  });
+  searchInput?.addEventListener("input", renderCandidateSearch);
+  searchInput?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    results.querySelector("button")?.click();
+    if (!results.querySelector("button")) closeCandidateSearch();
+  });
+  searchPanel?.addEventListener("click", (event) => {
+    if (event.target === searchPanel) closeCandidateSearch();
+  });
+
+  const comment = form?.querySelector("textarea[name$='customization_comment']");
+  if (comment) comment.placeholder = "Escribir nota";
+  comment?.addEventListener("focus", () => {
+    if (!window.matchMedia("(max-width: 900px)").matches) return;
+    form.classList.add("is-package-comment-focused");
+    window.requestAnimationFrame(() => comment.scrollIntoView({ block: "center" }));
+  });
+  comment?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey) return;
+    event.preventDefault();
+    comment.blur();
+  });
+  comment?.addEventListener("blur", () => form.classList.remove("is-package-comment-focused"));
+  form?.addEventListener("pointerdown", (event) => {
+    if (!form.classList.contains("is-package-comment-focused") || event.target === comment) return;
+    event.preventDefault();
+    comment.blur();
+  });
+});
+
 if (customerAutosaveForm) {
   const input = customerAutosaveForm.querySelector("input[name='customer_name']");
   const state = customerAutosaveForm.querySelector("[data-table-customer-save-state]");

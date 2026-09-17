@@ -6,11 +6,19 @@ pero la interfaz ya no depende de un círculo pequeño. Borra esta nota al leerl
   {% if field.errors %}{{ field.errors }}{% endif %}
   <div class="package-choice-grid">
     {% for product in products %}
-      <label class="package-choice-card" data-package-choice data-search-name="{{ product.name|lower }}">
-        <input type="radio" name="{{ field.html_name }}" value="{{ product.pk }}" {% if not allow_pending %}required{% endif %}>
-        <span class="package-choice-image">{% if product.image %}<img src="{{ product.image.url }}" alt="">{% else %}<span>Sin imagen</span>{% endif %}</span>
-        <strong>{{ product.name }}</strong>
-      </label>
+      <article class="package-choice-card" data-package-choice data-search-name="{{ product.name|lower }}">
+        <label>
+          <input type="radio" name="{{ field.html_name }}" value="{{ product.pk }}" {% if not allow_pending %}required{% endif %}>
+          <span class="package-choice-image">{% if product.image %}<img src="{{ product.image.url }}" alt="">{% else %}<span>Sin imagen</span>{% endif %}</span>
+          <strong>{{ product.name }}</strong>
+        </label>
+        <div class="package-choice-controls">
+          <button type="button" data-package-choice-minus aria-label="Quitar {{ product.name }}">−</button>
+          <b data-package-choice-quantity>0</b>
+          <button type="button" data-package-choice-plus aria-label="Seleccionar {{ product.name }}">+</button>
+          <button type="button" data-package-choice-customize>Personalizar</button>
+        </div>
+      </article>
     {% empty %}<p>No hay productos disponibles para este tiempo.</p>{% endfor %}
   </div>
   <p class="package-choice-empty" data-package-choice-empty hidden>No hay coincidencias en este tiempo.</p>

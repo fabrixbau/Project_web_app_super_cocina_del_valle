@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=120">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=192">
 </head>
 <body class="auth-page">
   <main class="auth-shell">
@@ -20,5 +20,6 @@
     <section class="auth-panel">{% block content %}{% endblock %}</section>
 </main>
   {% block extra_js %}{% endblock %}
+  <script src="{% static 'js/search-dismiss.js' %}?v=1"></script>
 </body>
 </html>

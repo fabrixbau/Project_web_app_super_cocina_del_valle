@@ -59,11 +59,17 @@ oculta el catálogo para conservar ticket y pago como historial. Borra esta nota
     <dialog class="table-package-dialog chicken-choice-dialog" data-chicken-choice-dialog><div class="dialog-heading"><div><h2>¿Qué pieza de pollo?</h2><p>Selecciona la pieza antes de agregarla al ticket.</p></div><button type="button" data-chicken-choice-close aria-label="Cerrar">×</button></div><div class="chicken-choice-buttons"><button type="button" data-chicken-piece="leg">Pierna</button><button type="button" data-chicken-piece="thigh">Muslo</button></div></dialog>
     {% for option in package_options %}
       <dialog id="package-{{ option.package.id }}" class="table-package-dialog visual-package-dialog table-visual-package-dialog">
-        <form method="post" action="{% url 'tables:table_package_add' account.id option.package.id %}" data-package-add data-package-form data-package-id="{{ option.package.id }}" data-add-url="{% url 'tables:table_package_add' account.id option.package.id %}" data-chicken-product="{{ daily_menu.chicken_stew_id }}">
+        <form method="post" action="{% url 'tables:table_package_add' account.id option.package.id %}" data-package-add data-package-form data-package-kind="{{ option.package.package_type }}" data-package-id="{{ option.package.id }}" data-add-url="{% url 'tables:table_package_add' account.id option.package.id %}" data-chicken-product="{{ daily_menu.chicken_stew_id }}">
           {% csrf_token %}
-          <div class="dialog-heading">
+          <div class="dialog-heading table-package-dialog-heading">
             <div><h2>{{ option.package.name }}</h2></div>
+            <button type="button" class="package-candidate-search-launcher" data-package-candidate-search-open aria-label="Buscar producto válido para {{ option.package.name }}">⌕</button>
             <button type="button" data-package-close aria-label="Cerrar">×</button>
+          </div>
+          <div class="package-candidate-search" data-package-candidate-search hidden>
+            <label><span>Buscar producto del paquete</span><input type="search" autocomplete="off" placeholder="Escribe el nombre del producto" data-package-candidate-search-input></label>
+            <div data-package-candidate-search-results></div>
+            <p data-package-candidate-search-empty hidden>No hay productos válidos con ese nombre.</p>
           </div>
           <div data-package-error></div>
           <div class="package-visual-groups">
@@ -73,13 +79,12 @@ oculta el catálogo para conservar ticket y pago como historial. Borra esta nota
             {% include "orders/includes/package_product_choices.html" with field=option.form.main_course products=option.main_products step="3" label=option.form.main_course.label allow_pending=True suppress_packaging=True %}
             <section class="table-package-visual-extras">
               <label class="table-water-choice">{{ option.form.with_water }}{% if daily_menu.water_product.image %}<span class="table-water-choice-image"><img src="{{ daily_menu.water_product.image.url }}" alt="{{ daily_menu.water_product.name }}"></span>{% endif %}<span class="table-water-choice-copy"><small>Agua del día</small><strong>{{ daily_menu.water_product.name }}</strong><b>Agregar a la comida</b>{{ option.form.with_water.errors }}</span></label>
-              <label class="product-rule-card">{{ option.form.refill_extra }}<span><strong>{{ option.form.refill_extra.label }}</strong><small>Agrega el cargo de refill configurado para mesa.</small>{{ option.form.refill_extra.errors }}</span></label>
-              <label class="product-rule-card">{{ option.form.bread }}<span><strong>{{ option.form.bread.label }}</strong><small>Descuenta un bolillo del conteo de Mesas.</small>{{ option.form.bread.errors }}</span></label>
+              {% if option.package.package_type == 'executive' %}<div class="table-package-stacked-rules">{% endif %}<label class="product-rule-card">{{ option.form.refill_extra }}<span><strong>{{ option.form.refill_extra.label }}</strong><small>Agrega el cargo de refill configurado para mesa.</small>{{ option.form.refill_extra.errors }}</span></label><label class="product-rule-card">{{ option.form.bread }}<span><strong>{{ option.form.bread.label }}</strong><small>Descuenta un bolillo del conteo de Mesas.</small>{{ option.form.bread.errors }}</span></label>{% if option.package.package_type == 'executive' %}</div>{% endif %}
+              <div class="table-package-field package-comment-field">{{ option.form.customization_comment.label_tag }}{{ option.form.customization_comment.errors }}{{ option.form.customization_comment }}</div>
             </section>
           </div>
           <div class="package-secondary-fields">
             <div class="table-package-field package-chicken-field" data-chicken-piece-field hidden>{{ option.form.chicken_piece.label_tag }}{{ option.form.chicken_piece.errors }}{{ option.form.chicken_piece }}</div>
-            <div class="table-package-field package-comment-field">{{ option.form.customization_comment.label_tag }}{{ option.form.customization_comment.errors }}{{ option.form.customization_comment }}</div>
           </div>
           {% include "menu/_package_packaging_options.html" %}
           <button type="submit" class="confirm-package-button" data-package-submit>Agregar al ticket</button>
@@ -103,4 +108,4 @@ oculta el catálogo para conservar ticket y pago como historial. Borra esta nota
   <details class="card spaced-card table-activity-log"><summary>Bitácora de movimientos</summary><p>El responsable recibe la propina; el operador indica quién hizo cada movimiento.</p><ol>{% for activity in account.activities.all %}<li><time>{{ activity.created_at|date:'d/m/Y H:i:s' }}</time><strong>{{ activity.actor.get_full_name|default:activity.actor.username }}</strong><span>{{ activity.get_action_display }}{% if activity.description %}: {{ activity.description }}{% endif %}</span></li>{% empty %}<li>Esta cuenta es anterior a la bitácora.</li>{% endfor %}</ol></details>
   {{ product_customizations|json_script:"product-selector-data" }}{{ ticket.standard_quantities|json_script:"table-standard-quantities" }}{{ ticket.candidate_quantities|json_script:"table-candidate-quantities" }}{{ egg_options|json_script:"egg-product-options" }}{{ egg_initials|json_script:"egg-product-initials" }}{% include "menu/_product_selector_dialog.html" %}
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/package-selection.js' %}?v=2"></script><script src="{% static 'js/product-selector.js' %}?v=4"></script><script src="{% static 'js/packaging-controls.js' %}?v=1"></script><script src="{% static 'js/table-pos.js' %}?v=26"></script><script src="{% static 'js/package-egg.js' %}?v=1"></script><script src="{% static 'js/table-close.js' %}?v=7"></script><script src="{% static 'js/ticket-expand.js' %}?v=2"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/package-selection.js' %}?v=5"></script><script src="{% static 'js/product-selector.js' %}?v=4"></script><script src="{% static 'js/packaging-controls.js' %}?v=1"></script><script src="{% static 'js/table-pos.js' %}?v=28"></script><script src="{% static 'js/package-egg.js' %}?v=2"></script><script src="{% static 'js/table-close.js' %}?v=7"></script><script src="{% static 'js/ticket-expand.js' %}?v=2"></script>{% endblock %}

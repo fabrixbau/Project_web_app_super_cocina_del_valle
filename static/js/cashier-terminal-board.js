@@ -38,7 +38,14 @@ function updateConsumption(row) {
 }
 
 function appendBlankFrom(row) {
+  if (board.querySelector(".terminal-movement-row.is-new[data-movement-id='']")) return;
   const clone = row.cloneNode(true); clone.dataset.movementId = ""; clone.dataset.savedTotal = "0"; clone.dataset.savedTip = "0"; clone.classList.add("is-new");
+  clone.querySelectorAll(".app-select").forEach((wrapper) => {
+    const select = wrapper.querySelector(":scope > select");
+    if (!select) return;
+    select.classList.remove("app-select-native");
+    wrapper.replaceWith(select);
+  });
   clone.querySelector("[name='total_amount']").value = ""; clone.querySelector("[name='tip_amount']").value = "0";
   clone.querySelector("[name='terminal_name_reference']").value = ""; clone.querySelector("[name='linked_record']").value = ""; clone.querySelector("[name='tip_recipient']").value = "";
   clone.querySelectorAll("[data-recipient-id]").forEach((button) => button.classList.remove("is-selected")); clone.querySelector("[data-consumption]").textContent = "$0.00";

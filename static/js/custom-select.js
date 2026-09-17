@@ -1,11 +1,22 @@
 (() => {
   const enhanced = new WeakSet();
+  const compactViewport = window.matchMedia("(max-width: 900px)");
+
+  const isCompactViewport = () => compactViewport.matches;
+  const resetCompactTrigger = (wrapper) => {
+    const trigger = wrapper.querySelector(".app-select-search");
+    if (!trigger || !isCompactViewport()) return;
+    trigger.readOnly = true;
+    trigger.inputMode = "none";
+    wrapper.classList.remove("is-keyboard-ready");
+  };
 
   const closeAll = (except = null) => {
     document.querySelectorAll(".app-select.is-open").forEach((wrapper) => {
       if (wrapper === except) return;
       wrapper.classList.remove("is-open");
       wrapper.querySelector(".app-select-trigger")?.setAttribute("aria-expanded", "false");
+      resetCompactTrigger(wrapper);
     });
   };
 
@@ -48,6 +59,7 @@
     select.parentNode.insertBefore(wrapper, select);
     wrapper.append(select);
     select.classList.add("app-select-native");
+    resetCompactTrigger(wrapper);
 
     const rebuild = () => {
       menu.replaceChildren();
@@ -65,7 +77,7 @@
           if (option.disabled) return;
           select.value = option.value;
           select.dispatchEvent(new Event("change", { bubbles: true }));
-          trigger.focus();
+          if (!isCompactViewport()) trigger.focus();
           closeAll();
           filter();
         });
@@ -110,15 +122,38 @@
       trigger.setAttribute("aria-expanded", String(opening));
       if (opening) menu.querySelector(".is-selected")?.scrollIntoView({ block: "nearest" });
     };
+    trigger.addEventListener("pointerdown", () => {
+      if (!searchable || !isCompactViewport() || !wrapper.classList.contains("is-open") || !trigger.readOnly) return;
+      trigger.readOnly = false;
+      trigger.inputMode = "search";
+      wrapper.classList.add("is-keyboard-ready");
+    });
     trigger.addEventListener("click", () => {
+      if (searchable && isCompactViewport()) {
+        if (!wrapper.classList.contains("is-open")) {
+          toggleMenu();
+          resetCompactTrigger(wrapper);
+          trigger.blur();
+          return;
+        }
+        if (trigger.readOnly) {
+          trigger.readOnly = false;
+          trigger.inputMode = "search";
+          wrapper.classList.add("is-keyboard-ready");
+          trigger.focus({ preventScroll: true });
+          trigger.select();
+        }
+        return;
+      }
       if (searchable && wrapper.classList.contains("is-open")) return;
       toggleMenu();
       if (searchable) trigger.select();
     });
     if (searchable) {
       trigger.addEventListener("focus", () => {
+        if (isCompactViewport() && trigger.readOnly) return;
         if (!wrapper.classList.contains("is-open")) toggleMenu();
-        trigger.select();
+        if (!isCompactViewport() || !trigger.readOnly) trigger.select();
       });
       trigger.addEventListener("input", () => {
         if (!wrapper.classList.contains("is-open")) toggleMenu();
@@ -126,11 +161,23 @@
       });
       trigger.addEventListener("blur", () => {
         window.setTimeout(() => {
-          if (!wrapper.contains(document.activeElement)) { filter(); sync(); }
+          if (wrapper.dataset.preserveMobileFilter === "1") {
+            delete wrapper.dataset.preserveMobileFilter;
+            resetCompactTrigger(wrapper);
+            return;
+          }
+          if (!wrapper.contains(document.activeElement)) { filter(); sync(); resetCompactTrigger(wrapper); }
         }, 0);
       });
     }
     trigger.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && searchable) {
+        event.preventDefault();
+        filter(trigger.value);
+        if (isCompactViewport()) wrapper.dataset.preserveMobileFilter = "1";
+        trigger.blur();
+        return;
+      }
       if (!["ArrowDown", "ArrowUp", "Escape"].includes(event.key)) return;
       event.preventDefault();
       if (event.key === "Escape") {
@@ -172,5 +219,36 @@
   })).observe(document.body, { childList: true, subtree: true });
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".app-select")) closeAll();
+  });
+
+  compactViewport.addEventListener?.("change", () => {
+    document.querySelectorAll(".app-select").forEach((wrapper) => {
+      const trigger = wrapper.querySelector(".app-select-search");
+      if (!trigger) return;
+      if (isCompactViewport()) resetCompactTrigger(wrapper);
+      else {
+        trigger.readOnly = false;
+        trigger.removeAttribute("inputmode");
+        wrapper.classList.remove("is-keyboard-ready");
+      }
+    });
+  });
+
+  const dismissFocusedSearch = () => {
+    if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
+    document.querySelectorAll(
+      ".compact-search-backdrop:not([hidden]), .menu-search-backdrop:not([hidden]), .delivery-search-backdrop:not([hidden])"
+    ).forEach((backdrop) => backdrop.click());
+  };
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || !event.target.matches("input[type='search'], input[data-catalog-search], input[data-menu-search-input]")) return;
+    window.setTimeout(dismissFocusedSearch, 0);
+  });
+  document.addEventListener("search", (event) => {
+    if (event.target.matches("input[type='search'], input[data-catalog-search], input[data-menu-search-input]")) dismissFocusedSearch();
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest("button[type='submit'], input[type='submit']")) return;
+    if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
   });
 })();

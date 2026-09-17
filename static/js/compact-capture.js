@@ -45,7 +45,8 @@
       label.classList.add("is-compact-field-open");
       backdrop.hidden = false;
       document.body.classList.add("compact-field-open");
-      window.requestAnimationFrame(() => input.focus());
+      input.focus({ preventScroll: true });
+      input.select?.();
     });
   });
 

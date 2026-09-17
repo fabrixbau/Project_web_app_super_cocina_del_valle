@@ -215,6 +215,7 @@
     }
     agendaResults.hidden = true;
     customerPanel.hidden = true;
+    closeCustomerField();
     if (duplicatePhoneWarning) duplicatePhoneWarning.hidden = true;
     showCustomerDebt(customer);
     refresh();
@@ -777,6 +778,52 @@
   }));
   document.querySelectorAll("[data-package-close]").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
 
+  document.querySelectorAll("form[data-internal-package]").forEach((packageForm) => {
+    const heading = packageForm.querySelector(":scope > .dialog-heading");
+    const closeButton = heading?.querySelector("[data-package-close]");
+    let search = packageForm.querySelector("[data-package-product-search]")?.closest("label");
+    if (!search) {
+      search = document.createElement("label");
+      search.className = "package-modal-search";
+      const caption = document.createElement("span");
+      const input = document.createElement("input");
+      caption.textContent = "Buscar producto del paquete";
+      input.type = "search";
+      input.autocomplete = "off";
+      input.placeholder = "Escribe el nombre del producto";
+      input.dataset.packageProductSearch = "";
+      search.append(caption, input);
+      heading.insertAdjacentElement("afterend", search);
+    }
+    const input = search.querySelector("[data-package-product-search]");
+    const launcher = document.createElement("button");
+    launcher.type = "button";
+    launcher.className = "package-modal-search-launcher";
+    launcher.setAttribute("aria-label", "Buscar producto válido para el paquete");
+    launcher.textContent = "⌕";
+    heading.insertBefore(launcher, closeButton);
+
+    const closeSearch = () => {
+      packageForm.classList.remove("is-package-search-open");
+      input.blur();
+    };
+    launcher.addEventListener("click", () => {
+      packageForm.classList.add("is-package-search-open");
+      input.focus({ preventScroll: true });
+      input.select();
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      closeSearch();
+    });
+    packageForm.addEventListener("pointerdown", (event) => {
+      if (!packageForm.classList.contains("is-package-search-open") || search.contains(event.target) || event.target === launcher) return;
+      event.preventDefault();
+      closeSearch();
+    });
+  });
+
   // NOTA TEMPORAL PARA APRENDIZAJE: el buscador vive sólo en la Ejecutiva y filtra
   // por nombre dentro de los tres tiempos. Normalizar acentos permite que "consome"
   // encuentre "consomé". Borra esta nota después de leerla.
@@ -804,7 +851,7 @@
     const refreshChickenField = () => {
       const selectedMain = form.querySelector("input[name$='main_course']:checked")?.value || "";
       const show = selectedMain === form.dataset.chickenProduct;
-      chickenField.hidden = !show;
+      chickenField.hidden = true;
       if (!show) chickenField.querySelectorAll("input[type='radio']").forEach((input) => { input.checked = false; });
     };
     form.querySelectorAll("input[name$='main_course']").forEach((input) => input.addEventListener("change", refreshChickenField));

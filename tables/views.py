@@ -96,8 +96,15 @@ def auto_meal_slot(product, daily_menu):
 def planned_auto_meal_selection(request, account_id, slot, product_id, chicken_piece=""):
     all_builders = request.session.get(AUTO_MEAL_SESSION_KEY, {})
     builders = [dict(builder) for builder in all_builders.get(str(account_id), [])]
-    builder = next((candidate for candidate in builders if slot not in candidate), None)
-    if builder is None:
+    if builders:
+        builder = builders[0]
+        if slot in builder:
+            labels = {"first": "primer tiempo", "second": "segundo tiempo", "main": "tercer tiempo"}
+            missing = [label for key, label in labels.items() if key not in builder]
+            raise ValidationError(
+                "Completa la comida actual antes de iniciar otra. Falta: " + ", ".join(missing) + "."
+            )
+    else:
         builder = {}
         builders.append(builder)
     builder[slot] = product_id
@@ -200,10 +207,10 @@ def ticket_summary(account):
         grouped[key]["quantity"] += item.quantity
         grouped[key]["subtotal"] += item.subtotal
         total += item.subtotal
-        if item.product_id and not item.is_package_candidate and not item.is_customized:
+        if item.product_id and not item.is_package_candidate:
             product_key = str(item.product_id)
             standard_quantities[product_key] = standard_quantities.get(product_key, 0) + item.quantity
-        if item.product_id and item.is_package_candidate and not item.is_customized:
+        if item.product_id and item.is_package_candidate:
             product_key = str(item.product_id)
             candidate_quantities[product_key] = candidate_quantities.get(product_key, 0) + item.quantity
     items = list(grouped.values())
@@ -644,10 +651,10 @@ def table_auto_meal_add(request, account_id, product_id):
             "error": "Este producto no puede formar un paquete del menú de hoy.",
         }, status=400)
     requested_chicken_piece = request.POST.get("chicken_piece", "")
-    all_builders, builders, completed = planned_auto_meal_selection(
-        request, account.pk, slot, product.pk, requested_chicken_piece,
-    )
     try:
+        all_builders, builders, completed = planned_auto_meal_selection(
+            request, account.pk, slot, product.pk, requested_chicken_piece,
+        )
         package_item = add_auto_meal_component(
             account=account, product=product, daily_menu=daily_menu,
             completed_selection=completed, added_by=request.user,

@@ -82,7 +82,10 @@ const repaintPayment = (panel, data) => {
   panel.querySelector("[data-payment-result]")?.classList.toggle("has-change", data.payment_method === "cash" && data.needs_change);
   const tipPanel = panel.querySelector("[data-cashier-tip]");
   if (tipPanel) {
-    tipPanel.hidden = data.payment_method !== "transfer";
+    const tipAllowed = data.payment_method === "transfer";
+    tipPanel.hidden = !tipAllowed;
+    tipPanel.inert = !tipAllowed;
+    tipPanel.querySelectorAll("button, input").forEach((control) => { control.disabled = !tipAllowed; });
     tipPanel.querySelector("[data-cashier-tip-value]").textContent = data.tip_amount;
     tipPanel.querySelector("[data-cashier-total-tip]").textContent = data.total_with_tip;
     tipPanel.querySelector("[data-cashier-custom-tip]").value = data.tip_amount;
@@ -139,16 +142,23 @@ document.addEventListener("click", async (event) => {
   const release = event.target.closest("[data-cashier-release]");
   if (release) {
     const panel = release.closest("[data-cashier-payment]"); const row = panel.closest("[data-cashier-order]");
+    const parent = row.parentNode;
+    const nextSibling = row.nextSibling;
+    row.remove();
     try {
       await postCashier(panel.dataset.releaseUrl, {released: "1"});
       window.clearTimeout(releaseUndoTimer); recentlyReleasedRow = row; recentlyReleasedUrl = panel.dataset.releaseUrl;
       // NOTA TEMPORAL PARA APRENDIZAJE: retiramos físicamente la fila del documento.
       // Guardamos su posición sólo durante tres segundos para poder reinsertarla si el
       // operador pulsa Seguir orden. Borra esta nota después de leerla.
-      recentlyReleasedParent = row.parentNode; recentlyReleasedNextSibling = row.nextSibling;
-      row.remove(); undoRelease.hidden = false;
+      recentlyReleasedParent = parent; recentlyReleasedNextSibling = nextSibling;
+      undoRelease.hidden = false;
       releaseUndoTimer = window.setTimeout(() => { recentlyReleasedRow = null; recentlyReleasedUrl = ""; recentlyReleasedParent = null; recentlyReleasedNextSibling = null; undoRelease.hidden = true; }, 3000);
-    } catch (error) { showError(panel, error); }
+    } catch (error) {
+      if (nextSibling?.parentNode === parent) parent.insertBefore(row, nextSibling);
+      else parent?.append(row);
+      showError(panel, error);
+    }
   }
 });
 

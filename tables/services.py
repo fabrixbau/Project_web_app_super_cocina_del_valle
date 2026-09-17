@@ -336,15 +336,18 @@ def add_auto_meal_component(
     if not package:
         raise ValidationError("No existe un paquete activo para completar esta comida.")
     component_comments = []
+    customization_surcharge = Decimal("0")
     for selected_product in (first, second, main):
         candidate = TableAccountItem.objects.filter(
             account=account, product=selected_product,
             item_type=TableAccountItem.ItemType.PRODUCT, is_package_candidate=True,
-        ).exclude(customization_comment="").order_by("-id").first()
+        ).order_by("-id").first()
         if candidate:
-            component_comments.append(
-                f"{candidate.product_name_snapshot}: {candidate.customization_comment}"
-            )
+            customization_surcharge += max(candidate.unit_price - selected_product.price, Decimal("0"))
+            if candidate.customization_comment:
+                component_comments.append(
+                    f"{candidate.product_name_snapshot}: {candidate.customization_comment}"
+                )
     package_comment = " · ".join(component_comments)
     consume_product_units(
         account=account,
@@ -362,9 +365,17 @@ def add_auto_meal_component(
         "refill_extra": False,
         "is_complete": True,
         "customization_comment": package_comment,
-        "configuration_signature": f"comentarios:{package_comment.casefold()}" if package_comment else "",
-        "configuration_snapshot": {"differences": component_comments, "comment": package_comment},
-        "is_customized": bool(package_comment),
+        "configuration_signature": (
+            f"comentarios:{package_comment.casefold()}|extra:{customization_surcharge}"
+            if package_comment or customization_surcharge else ""
+        ),
+        "configuration_snapshot": {
+            "differences": component_comments,
+            "comment": package_comment,
+            "price_delta": str(customization_surcharge),
+        },
+        "is_customized": bool(package_comment or customization_surcharge),
+        "customization_surcharge": customization_surcharge,
         "egg_product": egg_product,
     }
     return add_package_to_table(
@@ -389,7 +400,11 @@ def add_package_to_table(
     second = cleaned_data.get("second_course")
     main = cleaned_data.get("main_course")
     egg = cleaned_data.get("egg_product")
-    price = (package.price_with_water if cleaned_data["with_water"] else package.price_without_water) + (egg.price if egg else Decimal("0"))
+    price = (
+        (package.price_with_water if cleaned_data["with_water"] else package.price_without_water)
+        + (egg.price if egg else Decimal("0"))
+        + cleaned_data.get("customization_surcharge", Decimal("0"))
+    )
     if cleaned_data["refill_extra"]:
         price += package.table_refill_price
     signature = {

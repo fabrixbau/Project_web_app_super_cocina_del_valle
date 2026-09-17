@@ -3,9 +3,12 @@ Este diálogo comparte ingredientes y comentario entre clientes y Mesas. Todos l
 pueden comentar; cuando no tienen grupos, la zona de ingredientes se omite. El comentario
 pertenece a esta partida y aparecerá entre paréntesis junto al nombre. Borra esta nota. -->
 <dialog class="product-selector-dialog" data-product-selector-dialog>
-  <div class="dialog-heading"><div><span class="mode-kicker">Personalizar producto</span><h2 data-selector-product-name></h2></div><button type="button" data-selector-close aria-label="Cerrar">×</button></div>
+  <div class="product-selector-actionbar">
+    <button type="button" class="product-selector-close" data-selector-close aria-label="Cerrar personalización">×</button>
+    <div class="product-selector-title"><span>Personalizar producto</span><strong data-selector-product-name></strong><em data-selector-modified hidden>Modificado</em></div>
+    <button type="button" class="product-selector-confirm" data-selector-confirm><span>Agregar producto</span><strong data-selector-price></strong></button>
+  </div>
   <div data-selector-error class="message error" hidden></div>
   <div class="product-selector-groups" data-selector-groups></div>
   <label class="product-selector-comment"><strong>Comentario</strong><textarea data-selector-comment maxlength="150" rows="2" placeholder="Ej. Dorada la salchicha"></textarea><small>Opcional · se mostrará entre paréntesis en el ticket.</small></label>
-  <div class="product-selector-footer"><div><small>Precio por unidad</small><strong data-selector-price></strong><span data-selector-modified hidden>Modificado</span></div><button type="button" data-selector-confirm>Agregar producto</button></div>
 </dialog>

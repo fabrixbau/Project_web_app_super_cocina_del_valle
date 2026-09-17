@@ -5,11 +5,10 @@
     <header class="dashboard-section-heading">
       <div>
         <h2 id="dashboard-modules-title">Módulos disponibles</h2>
+        <span class="visually-hidden">
+          {% for role in role_names %}{{ role }}{% if not forloop.last %}, {% endif %}{% empty %}{% if user.is_superuser %}Superusuario{% else %}Sin rol operativo{% endif %}{% endfor %}
+        </span>
       </div>
-      <span class="dashboard-module-count">
-        {% for role in role_names %}{{ role }}{% if not forloop.last %}, {% endif %}{% empty %}{% if user.is_superuser %}Superusuario{% else %}Sin rol operativo{% endif %}{% endfor %}
-        · {{ allowed_sections|length }} secciones
-      </span>
     </header>
 
     <div class="dashboard-grid">

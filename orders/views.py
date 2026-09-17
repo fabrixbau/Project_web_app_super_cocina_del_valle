@@ -116,8 +116,15 @@ def internal_auto_meal_slot(product, daily_menu):
 def plan_internal_auto_meal(request, order_id, slot, product_id, chicken_piece=""):
     all_builders = request.session.get(INTERNAL_AUTO_MEAL_SESSION_KEY, {})
     builders = [dict(builder) for builder in all_builders.get(str(order_id), [])]
-    builder = next((candidate for candidate in builders if slot not in candidate), None)
-    if builder is None:
+    if builders:
+        builder = builders[0]
+        if slot in builder:
+            labels = {"first": "primer tiempo", "second": "segundo tiempo", "main": "tercer tiempo"}
+            missing = [label for key, label in labels.items() if key not in builder]
+            raise ValidationError(
+                "Completa la comida actual antes de iniciar otra. Falta: " + ", ".join(missing) + "."
+            )
+    else:
         builder = {}
         builders.append(builder)
     builder[slot] = product_id
@@ -182,7 +189,7 @@ def internal_order_ticket(order):
             "edit_note_url": reverse("orders:internal_order_item_note", args=(order.pk, item.pk)),
             "change_url": reverse("orders:internal_order_item_change", args=(order.pk, item.pk)),
         })
-        if item.item_type == OrderItem.ItemType.PRODUCT and not item.is_customized:
+        if item.item_type == OrderItem.ItemType.PRODUCT:
             target = candidate_quantities if item.is_package_candidate else quantities
             target[str(item.product_id)] = target.get(str(item.product_id), 0) + item.quantity
     return {
@@ -1053,10 +1060,10 @@ def internal_order_auto_meal_add(request, order_id, product_id):
     if not slot:
         return JsonResponse({"ok": False, "error": "Este producto no puede formar un paquete."}, status=400)
     chicken_piece = request.POST.get("chicken_piece", "")
-    all_builders, builders, completed = plan_internal_auto_meal(
-        request, order.pk, slot, product.pk, chicken_piece,
-    )
     try:
+        all_builders, builders, completed = plan_internal_auto_meal(
+            request, order.pk, slot, product.pk, chicken_piece,
+        )
         package_item = add_internal_auto_meal_component(
             order=order, product=product, daily_menu=daily_menu,
             completed_selection=completed, actor=request.user,

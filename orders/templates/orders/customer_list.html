@@ -4,7 +4,7 @@
 {% block content %}
   <div class="page-heading"><div><a href="{% url 'orders:order_list' %}">← Pedidos</a><h1>Agenda de clientes</h1><p>Busca por nombre, teléfono, calle o colonia.</p></div><a class="button-link" href="{% url 'orders:customer_create' %}">Agregar cliente</a></div>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
-  <form method="get" class="customer-agenda-search"><label>Buscar<input type="search" name="q" value="{{ query }}" placeholder="Nombre, teléfono o dirección" autofocus></label><button type="submit">Buscar</button>{% if query %}<a href="{% url 'orders:customer_list' %}">Limpiar</a>{% endif %}</form>
+  <form method="get" class="customer-agenda-search"><label>Buscar<input type="search" name="q" value="{{ query }}" placeholder="Nombre, teléfono o dirección"></label><button type="submit">Buscar</button>{% if query %}<a href="{% url 'orders:customer_list' %}">Limpiar</a>{% endif %}</form>
   <section class="customer-agenda-list">
     {% for customer in customers %}
       <article class="customer-agenda-entry">
