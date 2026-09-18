@@ -1188,8 +1188,21 @@ def update_delivery_tip(*, order, amount, actor):
     order = Order.objects.select_for_update().get(pk=order.pk)
     if order.order_type != Order.OrderType.DELIVERY:
         raise ValidationError("La propina de reparto sólo aplica a entregas a domicilio.")
-    if order.payment_method not in {Order.PaymentMethod.CARD, Order.PaymentMethod.TRANSFER}:
-        raise ValidationError("La propina registrada sólo aplica a pagos con Terminal o Transferencia.")
+    is_delivery_profile = (
+        user_has_any_role(actor, (DELIVERY,))
+        and not user_has_any_role(actor, (ADMIN, ORDER_TAKER))
+    )
+    if is_delivery_profile:
+        if order.delivery_person_id != actor.pk:
+            raise ValidationError("Sólo puedes registrar propinas de pedidos asignados a ti.")
+        if order.delivery_tip_updated_at is not None:
+            raise ValidationError("La propina ya fue registrada y no puede editarse.")
+        if order.payment_method not in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}:
+            raise ValidationError("Como repartidor sólo puedes registrar propina en Efectivo o Terminal.")
+    elif order.payment_method not in {
+        Order.PaymentMethod.CASH, Order.PaymentMethod.CARD, Order.PaymentMethod.TRANSFER,
+    }:
+        raise ValidationError("Selecciona una forma de pago antes de registrar la propina.")
     order.delivery_tip_amount = amount
     order.delivery_tip_recipient = order.delivery_person if amount > 0 else None
     order.delivery_tip_updated_by = actor

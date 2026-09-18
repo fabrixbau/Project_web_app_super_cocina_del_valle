@@ -162,6 +162,12 @@ document.addEventListener("submit", async (event) => {
     card.querySelector("[data-total-with-tip]").textContent = data.total_with_tip;
     card.querySelector("[data-tip-recipient]").textContent = data.recipient;
     errorBox.hidden = true;
+    if (card.dataset.deliveryProfile === "true") {
+      const confirmation = document.createElement("small");
+      confirmation.textContent = "Propina registrada; ya no puede editarse.";
+      form.replaceWith(confirmation);
+      return;
+    }
   } catch (error) {
     errorBox.textContent = error.message;
     errorBox.hidden = false;

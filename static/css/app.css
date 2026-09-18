@@ -246,6 +246,68 @@ html[data-theme="dark"] .active-operator { color: #102d24; background: #f4f0e5; 
   .visual-package-dialog form[data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) { grid-column: 1; grid-row: auto; }
 }
 
+/* Ticket de Mesas coherente en todos los tamaños: las acciones quedan dentro del
+   panel y sólo la lista de productos adquiere scroll cuando deja de caber. */
+.table-pos-layout .table-ticket:not(.is-closed-summary) {
+  display: flex !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: calc(100dvh - 18rem) !important;
+  flex-direction: column;
+  overflow: hidden !important;
+}
+.table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
+  display: grid !important;
+  flex: 0 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  grid-auto-rows: max-content;
+  align-content: start !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain;
+}
+.table-pos-layout .table-ticket .table-ticket-item {
+  display: grid !important;
+  min-width: 0;
+  min-height: 0 !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-auto-rows: max-content;
+  gap: .25rem .5rem;
+  align-items: start !important;
+}
+.table-pos-layout .table-ticket .table-ticket-item > .quantity-buttons {
+  display: grid !important;
+  width: max-content !important;
+  max-width: 100%;
+  grid-column: 1 / -1 !important;
+  grid-template-columns: repeat(4, 2.35rem) !important;
+  gap: .3rem !important;
+  justify-content: start !important;
+  align-items: center !important;
+  margin-top: .25rem !important;
+}
+.table-pos-layout .table-ticket .quantity-buttons button,
+.table-pos-layout .table-ticket .quantity-buttons span {
+  display: grid !important;
+  width: 2.35rem !important;
+  min-width: 2.35rem !important;
+  height: 2.35rem !important;
+  min-height: 2.35rem !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  place-items: center;
+}
+.table-pos-layout .table-ticket:not(.is-closed-summary) > :not(.table-ticket-items) {
+  flex: 0 0 auto !important;
+}
+
+@media (max-width: 900px) {
+  .table-pos-layout .table-ticket:not(.is-closed-summary) {
+    max-height: calc(100dvh - 1rem) !important;
+  }
+}
+
 /* Repartos y controles operativos pendientes en modo oscuro. */
 html[data-theme="dark"] .delivery-filter-card,
 html[data-theme="dark"] .delivery-filters,
@@ -10117,5 +10179,62 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     position: static !important;
     width: 100% !important;
     min-width: 0 !important;
+  }
+}
+
+/* Prioridad final del ticket de Mesas para celular, tablet y ordenador. */
+.table-pos-layout .table-ticket:not(.is-closed-summary) {
+  display: flex !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: calc(100dvh - 18rem) !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+.table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
+  display: grid !important;
+  flex: 0 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  grid-auto-rows: max-content !important;
+  align-content: start !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain !important;
+}
+.table-pos-layout .table-ticket .table-ticket-item {
+  display: grid !important;
+  min-height: 0 !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-auto-rows: max-content !important;
+  align-items: start !important;
+}
+.table-pos-layout .table-ticket .table-ticket-item > .quantity-buttons {
+  display: grid !important;
+  width: max-content !important;
+  max-width: 100% !important;
+  grid-column: 1 / -1 !important;
+  grid-template-columns: repeat(4, 2.35rem) !important;
+  gap: .3rem !important;
+  justify-content: start !important;
+  margin-top: .25rem !important;
+}
+.table-pos-layout .table-ticket .quantity-buttons button,
+.table-pos-layout .table-ticket .quantity-buttons span {
+  display: grid !important;
+  width: 2.35rem !important;
+  min-width: 2.35rem !important;
+  height: 2.35rem !important;
+  min-height: 2.35rem !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  place-items: center !important;
+}
+.table-pos-layout .table-ticket:not(.is-closed-summary) > :not(.table-ticket-items) {
+  flex: 0 0 auto !important;
+}
+@media (max-width: 900px) {
+  .table-pos-layout .table-ticket:not(.is-closed-summary) {
+    max-height: calc(100dvh - 1rem) !important;
   }
 }

@@ -92,6 +92,8 @@ def _can_edit_delivery_tip(order, user):
         return (
             order.status == Order.Status.OUT_FOR_DELIVERY
             and order.delivery_person_id == user.pk
+            and order.payment_method in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}
+            and order.delivery_tip_updated_at is None
         )
     if user_has_any_role(user, (ORDER_TAKER,)):
         return (
@@ -1263,9 +1265,7 @@ def delivery_board(request):
         is_active=True, groups__name=DELIVERY,
     ).distinct().order_by("first_name", "username")
     if is_delivery_profile:
-        delivery_orders = delivery_orders.filter(
-            Q(delivery_person__isnull=True) | Q(delivery_person=request.user)
-        )
+        delivery_orders = delivery_orders.filter(delivery_person=request.user)
     search = request.GET.get("q", "").strip()
     selected_statuses = [value for value in request.GET.getlist("status") if value in Order.Status.values]
     delivery_person = request.GET.get("delivery_person", "").strip()
@@ -1292,12 +1292,11 @@ def delivery_board(request):
         # servidor tendría que rechazar cuando el pedido ya salió. Borra esta nota.
         order.is_locked_for_user = _order_locked_for_edit(order, request.user)
         order.can_edit_delivery_tip = _can_edit_delivery_tip(order, request.user)
-        order.can_assign_delivery = not order.is_locked_for_user
+        order.can_assign_delivery = can_assign_any_delivery and not order.is_locked_for_user
         order.can_update_delivery_status = (
             order.status in {Order.Status.READY, Order.Status.OUT_FOR_DELIVERY}
             if not is_delivery_profile
-            else order.status == Order.Status.OUT_FOR_DELIVERY
-            and order.delivery_person_id == request.user.pk
+            else False
         )
     return render(request, "orders/delivery_board.html", {
         "delivery_orders": delivery_orders,
@@ -1311,7 +1310,7 @@ def delivery_board(request):
 
 
 @require_POST
-@role_required(ADMIN, DELIVERY)
+@role_required(ADMIN)
 def delivery_assign(request, order_id):
     order = get_object_or_404(Order, pk=order_id)
     if _order_locked_for_edit(order, request.user):
@@ -1364,6 +1363,8 @@ def delivery_tip_update(request, order_id):
     )
     if is_delivery_profile and order.delivery_person_id != request.user.pk:
         return JsonResponse({"ok": False, "error": "Sólo puedes modificar propinas de pedidos asignados a ti."}, status=403)
+    if is_delivery_profile and order.delivery_tip_updated_at is not None:
+        return JsonResponse({"ok": False, "error": "La propina ya fue registrada y no puede editarse."}, status=400)
     if is_delivery_profile and order.status in {Order.Status.DELIVERED, Order.Status.PICKED_UP}:
         return JsonResponse({"ok": False, "error": "La propina ya no puede modificarse después de finalizar el pedido."}, status=400)
     form = DeliveryTipForm(request.POST)
@@ -1396,12 +1397,9 @@ def delivery_complete(request, order_id):
     # NOTA TEMPORAL PARA APRENDIZAJE: el Repartidor no inicia ni reinicia ciclos;
     # solamente el asignado puede cerrar su pedido de En reparto a Entregado.
     # Borra esta nota después de leerla.
-    if is_delivery_profile and (
-        order.status != Order.Status.OUT_FOR_DELIVERY
-        or order.delivery_person_id != request.user.pk
-    ):
+    if is_delivery_profile:
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return JsonResponse({"ok": False, "error": "Como repartidor sólo puedes cerrar como Entregado un pedido en reparto asignado a ti."}, status=403)
+            return JsonResponse({"ok": False, "error": "El repartidor no puede cambiar el estado del pedido."}, status=403)
         raise PermissionDenied
     action = (
         "complete_delivery"

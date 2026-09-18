@@ -5,14 +5,14 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.roles import ADMIN, ORDER_TAKER, WAITER
+from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, WAITER
 
 from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product, StockMovement
 
 from .models import Order
 from .services import (
     add_internal_order_package, add_internal_order_product, change_internal_order_item,
-    change_internal_order_type, transition_order, update_cashier_payment,
+    change_internal_order_type, transition_order, update_cashier_payment, update_delivery_tip,
     update_internal_package_extras,
 )
 
@@ -103,6 +103,59 @@ class OrderPaymentPermissionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, order.formatted_number)
         self.assertNotContains(response, "data-order-payment-method")
+
+
+class DeliveryProfileRestrictionTests(TestCase):
+    def setUp(self):
+        self.courier = get_user_model().objects.create_user(username="restricted_courier")
+        self.courier.groups.add(Group.objects.get_or_create(name=DELIVERY)[0])
+        self.other_courier = get_user_model().objects.create_user(username="other_courier")
+        self.other_courier.groups.add(Group.objects.get_or_create(name=DELIVERY)[0])
+        self.order = Order.objects.create(
+            daily_number=979, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.OUT_FOR_DELIVERY, customer_name="Entrega restringida",
+            total=100, payment_method=Order.PaymentMethod.CASH,
+            delivery_person=self.courier,
+        )
+        self.client.force_login(self.courier)
+
+    def test_courier_cannot_assign_orders_or_change_status(self):
+        assign_response = self.client.post(
+            reverse("deliveries:delivery_assign", args=(self.order.pk,)),
+            {"delivery_person": self.courier.pk},
+        )
+        self.assertEqual(assign_response.status_code, 403)
+        status_response = self.client.post(
+            reverse("deliveries:delivery_complete", args=(self.order.pk,)),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(status_response.status_code, 403)
+
+    def test_courier_only_sees_assigned_orders(self):
+        unassigned = Order.objects.create(
+            daily_number=978, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.READY, customer_name="Sin asignar", total=80,
+            payment_method=Order.PaymentMethod.CARD,
+        )
+        response = self.client.get(reverse("deliveries:delivery_board"))
+        self.assertContains(response, self.order.formatted_number)
+        self.assertNotContains(response, unassigned.formatted_number)
+        self.assertNotContains(response, "Asignarme este pedido")
+
+    def test_courier_can_register_cash_tip_only_once(self):
+        update_delivery_tip(order=self.order, amount=10, actor=self.courier)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.delivery_tip_amount, 10)
+        with self.assertRaisesMessage(ValidationError, "ya fue registrada"):
+            update_delivery_tip(order=self.order, amount=20, actor=self.courier)
+
+    def test_courier_cannot_register_transfer_tip(self):
+        self.order.payment_method = Order.PaymentMethod.TRANSFER
+        self.order.save(update_fields=("payment_method",))
+        with self.assertRaisesMessage(ValidationError, "Efectivo o Terminal"):
+            update_delivery_tip(order=self.order, amount=10, actor=self.courier)
 
 
 class CapturePrintTests(TestCase):
