@@ -23,6 +23,7 @@
 
   const isSearchInput = (element) => element instanceof HTMLInputElement && element.matches(searchInputSelector);
   let pointerSearchInput = null;
+  let productSearchWasOpenAtPointerDown = false;
 
   const closeSearchFocus = (input = document.activeElement) => {
     if (input instanceof HTMLElement) input.blur();
@@ -63,8 +64,13 @@
   }, true);
 
   document.addEventListener("pointerdown", (event) => {
-    if (!event.target.closest("button, input[type='submit']")) return;
+    const pointerButton = event.target.closest("button, input[type='submit']");
+    if (!pointerButton) return;
     pointerSearchInput = isSearchInput(document.activeElement) ? document.activeElement : null;
+    productSearchWasOpenAtPointerDown = (
+      pointerButton.matches(".compact-field-launcher.is-product-search")
+      && document.body.classList.contains("compact-field-open")
+    );
   }, true);
 
   document.addEventListener("click", (event) => {
@@ -73,10 +79,15 @@
 
     const activeInput = (isSearchInput(document.activeElement) ? document.activeElement : null) || pointerSearchInput;
     pointerSearchInput = null;
+    const productLauncherWasAlreadyOpen = productSearchWasOpenAtPointerDown;
+    productSearchWasOpenAtPointerDown = false;
     const form = button.form || button.closest("form");
     const formSearch = form?.querySelector(searchInputSelector);
     const focusedLauncher = button.matches("[data-menu-search-open], [data-delivery-search-open], .compact-field-launcher.is-product-search");
-    const openSearch = button.closest(".is-searching") || (button.matches(".compact-field-launcher.is-product-search") && document.body.classList.contains("compact-field-open"));
+    const openSearch = button.closest(".is-searching") || (
+      button.matches(".compact-field-launcher.is-product-search")
+      && productLauncherWasAlreadyOpen
+    );
 
     if (focusedLauncher && openSearch) {
       event.preventDefault();
