@@ -35,6 +35,36 @@ if (filterForm) {
   });
 }
 
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-order-payment-method]");
+  if (!button) return;
+  const panel = button.closest("[data-order-payment]");
+  const feedbackNode = panel.querySelector("[data-order-payment-feedback]");
+  panel.querySelectorAll("[data-order-payment-method]").forEach((item) => { item.disabled = true; });
+  const body = new FormData();
+  body.append("payment_method", button.dataset.orderPaymentMethod);
+  body.append("cash_amount", "");
+  body.append("csrfmiddlewaretoken", panel.querySelector("[name='csrfmiddlewaretoken']").value);
+  try {
+    const response = await fetch(panel.dataset.paymentUrl, {
+      method: "POST", body,
+      headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "No se pudo cambiar la forma de pago.");
+    panel.querySelectorAll("[data-order-payment-method]").forEach((item) => {
+      item.classList.toggle("is-selected", item.dataset.orderPaymentMethod === data.payment_method);
+    });
+    feedbackNode.textContent = data.payment_label;
+    feedbackNode.classList.remove("is-error");
+  } catch (error) {
+    feedbackNode.textContent = error.message;
+    feedbackNode.classList.add("is-error");
+  } finally {
+    panel.querySelectorAll("[data-order-payment-method]").forEach((item) => { item.disabled = false; });
+  }
+});
+
 const feedback = document.querySelector("[data-order-board-feedback]");
 let orderBoardRequestsInProgress = 0;
 document.addEventListener("submit", async (event) => {

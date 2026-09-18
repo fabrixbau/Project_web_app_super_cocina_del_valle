@@ -3712,7 +3712,7 @@ input[type="reset"],
 }
 
 /* Cashier card tab sits on the border and leaves the three-column row untouched. */
-@media (max-width: 900px) {
+@media (max-width: 900px), (max-width: 1200px) and (pointer: coarse) {
   .cashier-board-columns .cashier-order {
     margin-top: .85rem;
     padding: .45rem;
@@ -3773,7 +3773,7 @@ input[type="reset"],
 }
 
 /* Cashier disclosure tab: its bottom edge meets the card's top border. */
-@media (max-width: 900px) {
+@media (max-width: 900px), (max-width: 1200px) and (pointer: coarse) {
   .cashier-board-columns .cashier-order {
     width: 100%;
     margin-top: 2rem;
@@ -3865,7 +3865,7 @@ input[type="reset"],
 }
 
 /* Cashier cards start folded on phones/tablets; payment stays immediately available. */
-@media (max-width: 900px) {
+@media (max-width: 900px), (max-width: 1200px) and (pointer: coarse) {
   .cashier-board-columns .cashier-order {
     position: relative;
     display: grid;
@@ -3985,7 +3985,7 @@ input[type="reset"],
 }
 
 /* Definitive compact cashier card: use explicit rows, never inherited grid contents. */
-@media (max-width: 900px) {
+@media (max-width: 900px), (max-width: 1200px) and (pointer: coarse) {
   .cashier-board-columns .cashier-order {
     position: relative;
     display: block;
@@ -4075,6 +4075,73 @@ input[type="reset"],
   .cashier-order.type-pickup.is-detail-expanded .cashier-order-operation {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+
+/* iPad Air landscape: preserve the operational three-column reading order. */
+@media (min-width: 901px) and (max-width: 1200px) and (pointer: coarse) {
+  .order-board-card { min-width: 0; padding: .8rem; }
+  .order-board-card .order-list { min-width: 0; }
+  .order-board-card .order-list-head { display: none; }
+  .order-board-card .order-row {
+    display: grid;
+    grid-template-columns: minmax(0, 30fr) minmax(0, 30fr) minmax(0, 40fr);
+    grid-template-rows: repeat(3, auto);
+    gap: .55rem .75rem;
+    align-items: stretch;
+    min-width: 0;
+    padding: .9rem;
+  }
+  .order-board-card .order-row > [data-column] {
+    min-width: 0;
+    padding: .42rem .5rem;
+    overflow-wrap: anywhere;
+    border: 1px solid #d7e0da;
+    border-radius: .5rem;
+    background: rgb(255 255 255 / 72%);
+  }
+  .order-board-card .order-row > [data-column]::before {
+    content: attr(data-column);
+    display: block;
+    margin-bottom: .22rem;
+    color: #52685e;
+    font-size: .62rem;
+    font-weight: 850;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  .order-board-card .order-row > [data-column="Folio"] { grid-column: 1; grid-row: 1; }
+  .order-board-card .order-row > [data-column="Cliente"] { grid-column: 1; grid-row: 2; }
+  .order-board-card .order-row > [data-column="Resumen"] { grid-column: 1; grid-row: 3; }
+  .order-board-card .order-row > [data-column="Modalidad"] { grid-column: 2; grid-row: 1 / span 2; }
+  .order-board-card .order-row > [data-column="Forma de pago"] { grid-column: 2; grid-row: 3; }
+  .order-board-card .order-row > [data-column="Total"] { grid-column: 3; grid-row: 1; }
+  .order-board-card .order-row > [data-column="Estado"] { grid-column: 3; grid-row: 2; }
+  .order-board-card .order-row > [data-column="Siguiente paso"] { grid-column: 3; grid-row: 3; }
+  .order-board-card .order-row-actions,
+  .order-board-card .order-row-actions form { width: 100%; }
+  .order-board-card .order-row-actions button {
+    width: 100%;
+    min-width: 0;
+    min-height: 4rem;
+    padding: .8rem .65rem;
+    font-size: .84rem;
+  }
+  .order-board-card .order-list-modality {
+    display: grid !important;
+    grid-template-columns: 2.15rem minmax(0, 1fr);
+  }
+}
+
+.cashier-order.is-cashier-target {
+  border-color: #e39a12 !important;
+  outline: 4px solid rgb(244 189 69 / 72%);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 7px rgb(244 189 69 / 18%), 0 10px 26px rgb(83 57 9 / 20%);
+  animation: cashier-target-pulse .75s ease-in-out 4 alternate;
+}
+@keyframes cashier-target-pulse {
+  from { outline-color: rgb(244 189 69 / 35%); }
+  to { outline-color: rgb(244 189 69 / 92%); }
 }
 
 /* Readable two-row order-detail command bar on compact screens. */
@@ -6102,7 +6169,7 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 }
 
 /* Final SVG disclosure controls and compact debt-board layout. */
-@media (max-width: 900px) {
+@media (max-width: 900px), (max-width: 1200px) and (pointer: coarse) {
   .cashier-card-toggle {
     display: grid;
     color: #28644e;
@@ -8562,4 +8629,1493 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   .visual-package-dialog .package-choice-card { grid-template-rows: 44px auto auto !important; }
   .table-visual-package-dialog .package-egg-choice { overflow: visible !important; }
   .table-visual-package-dialog .package-egg-choice .app-select { z-index: 30; }
+}
+
+/* Ticket de Mesas en iPad Air horizontal: partidas compactas y acciones accesibles. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .table-pos-layout .table-ticket:not(.is-closed-summary) {
+    display: flex !important;
+    flex-direction: column;
+    height: calc(100dvh - 6rem) !important;
+    max-height: calc(100dvh - 6rem) !important;
+    overflow: hidden !important;
+  }
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
+    display: grid;
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-auto-rows: max-content;
+    align-content: start;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: auto !important;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-pos-layout .table-ticket .table-ticket-item {
+    align-content: start;
+    align-items: start;
+    min-height: 0;
+  }
+  .table-pos-layout .table-ticket .quantity-buttons {
+    display: grid !important;
+    width: max-content !important;
+    max-width: 100%;
+    grid-template-columns: repeat(4, 2.35rem) !important;
+    gap: .3rem !important;
+    justify-content: start;
+    align-items: center;
+    margin-top: .25rem;
+  }
+  .table-pos-layout .table-ticket .quantity-buttons button,
+  .table-pos-layout .table-ticket .quantity-buttons span {
+    display: grid;
+    width: 2.35rem !important;
+    min-width: 2.35rem !important;
+    height: 2.35rem !important;
+    min-height: 2.35rem;
+    margin: 0 !important;
+    padding: 0 !important;
+    place-items: center;
+    line-height: 1;
+  }
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-total,
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions,
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-close-launcher {
+    flex: 0 0 auto;
+  }
+}
+
+/* Mesas, iPad Air horizontal: constructor compacto y legible. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups {
+    display: grid !important;
+    grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+    grid-template-rows: auto auto auto auto !important;
+    gap: .5rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(1) {
+    grid-column: 1 / 4 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(2) {
+    grid-column: 4 / 7 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(3) {
+    grid-column: 7 / 13 !important;
+    grid-row: 1 / 4 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(3) .package-choice-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    align-content: start;
+  }
+  .table-visual-package-dialog form[data-package-form] .table-package-visual-extras,
+  .table-visual-package-dialog form[data-package-form] .table-package-stacked-rules {
+    display: contents !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .table-water-choice {
+    grid-column: 1 / 4 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .product-rule-card:nth-of-type(2),
+  .table-visual-package-dialog form[data-package-form] .table-package-stacked-rules > .product-rule-card:first-child {
+    grid-column: 4 / 7 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-egg-choice {
+    grid-column: 1 / 4 !important;
+    grid-row: 3 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .product-rule-card:nth-of-type(3),
+  .table-visual-package-dialog form[data-package-form] .table-package-stacked-rules > .product-rule-card:last-child {
+    grid-column: 4 / 7 !important;
+    grid-row: 3 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-comment-field {
+    grid-column: 1 / 7 !important;
+    grid-row: 4 !important;
+    min-height: 0 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-comment-field textarea {
+    min-height: 3.25rem !important;
+    height: 3.25rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form] > .package-packaging-options {
+    grid-column: 1 / -1 !important;
+    margin-top: 0 !important;
+  }
+}
+
+.package-packaging-image-add {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  min-height: 0;
+  padding: 0;
+  place-items: center;
+  overflow: hidden;
+  border: 0;
+  border-radius: .35rem;
+  background: transparent;
+  cursor: pointer;
+}
+.package-packaging-image-add img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.package-packaging-image-add:active { transform: scale(.96); }
+
+/* Huevo: el desplegable debe flotar completo sobre tarjetas y tickets. */
+.package-egg-choice,
+.package-egg-choice .app-select {
+  position: relative;
+  overflow: visible !important;
+}
+.package-egg-choice .app-select.is-open { z-index: 360 !important; }
+.package-egg-choice .app-select-menu {
+  top: auto;
+  right: 0;
+  bottom: calc(100% + .38rem);
+  left: auto;
+  width: max(100%, min(18rem, calc(100vw - 1rem)));
+  max-width: calc(100vw - 1rem);
+  max-height: min(17rem, 45dvh);
+  z-index: 361 !important;
+}
+.internal-menu-workspace .auto-package-options,
+.internal-menu-workspace > .internal-category,
+.visual-package-dialog .package-quick-extras,
+.table-visual-package-dialog .table-package-visual-extras {
+  overflow: visible !important;
+}
+
+/* Pedidos, iPad Air horizontal: Agua, acompañamiento, frijoles y huevo en 4 columnas. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras {
+    position: relative;
+    z-index: 12;
+    display: grid !important;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: .55rem !important;
+    align-items: stretch;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-water-toggle,
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-toggle-field:nth-child(2),
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-toggle-field:nth-child(3),
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-egg-choice {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    grid-column: auto !important;
+    grid-row: 1 !important;
+    box-sizing: border-box;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-egg-choice .app-select-trigger {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* Corrección final para iPad: misma composición estable en vertical y horizontal. */
+@media (min-width: 700px) and (max-width: 1200px) and (pointer: coarse) {
+  .order-board-card {
+    min-width: 0;
+    padding: .75rem;
+  }
+  .order-board-card .order-list { min-width: 0; }
+  .order-board-card .order-list-head { display: none; }
+  .order-board-card .order-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 30fr) minmax(0, 30fr) minmax(0, 40fr) !important;
+    grid-template-rows: repeat(3, auto) !important;
+    gap: .45rem !important;
+    align-items: stretch;
+    min-width: 0;
+    padding: .65rem !important;
+  }
+  .order-board-card .order-row > [data-column] {
+    min-width: 0;
+    padding: .45rem;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    border: 1px solid #d4dfd8;
+    border-radius: .5rem;
+    background: rgb(255 255 255 / 78%);
+  }
+  .order-board-card .order-row > [data-column]::before {
+    content: attr(data-column);
+    display: block;
+    margin-bottom: .2rem;
+    color: #52685e;
+    font-size: .61rem;
+    font-weight: 900;
+    letter-spacing: .035em;
+    text-transform: uppercase;
+  }
+  .order-board-card .order-row > [data-column="Folio"] { grid-column: 1 !important; grid-row: 1 !important; }
+  .order-board-card .order-row > [data-column="Cliente"] { grid-column: 1 !important; grid-row: 2 !important; }
+  .order-board-card .order-row > [data-column="Resumen"] { grid-column: 1 !important; grid-row: 3 !important; }
+  .order-board-card .order-row > [data-column="Modalidad"] { grid-column: 2 !important; grid-row: 1 / span 2 !important; }
+  .order-board-card .order-row > [data-column="Forma de pago"] { grid-column: 2 !important; grid-row: 3 !important; }
+  .order-board-card .order-row > [data-column="Total"] { grid-column: 3 !important; grid-row: 1 !important; }
+  .order-board-card .order-row > [data-column="Estado"] { grid-column: 3 !important; grid-row: 2 !important; }
+  .order-board-card .order-row > [data-column="Siguiente paso"] { grid-column: 3 !important; grid-row: 3 !important; }
+  .order-board-card .order-list-modality {
+    display: grid !important;
+    grid-template-columns: 2.15rem minmax(0, 1fr) !important;
+    grid-template-rows: auto 1fr;
+    gap: .25rem .5rem;
+    align-content: start;
+  }
+  .order-board-card .order-list-modality::before { grid-column: 1 / -1; grid-row: 1; }
+  .order-board-card .order-list-modality > .order-type-icon { grid-column: 1; grid-row: 2; }
+  .order-board-card .order-list-modality > span:last-child {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    width: 100%;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
+  }
+  .order-board-card .order-row-actions,
+  .order-board-card .order-row-actions form { width: 100% !important; }
+  .order-board-card .order-row-actions button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 4rem !important;
+    padding: .7rem .55rem !important;
+    font-size: .78rem !important;
+    line-height: 1.2;
+  }
+  .order-board-card .order-more-actions { justify-self: end; }
+
+  .cashier-board-columns .cashier-order {
+    position: relative;
+    display: block !important;
+    width: 100%;
+    margin-top: .8rem;
+    padding: 2rem .5rem .5rem !important;
+  }
+  .cashier-order > .cashier-order-priority { display: none !important; }
+  .cashier-card-toggle {
+    position: absolute;
+    z-index: 4;
+    top: -.1rem;
+    right: .45rem;
+    display: grid !important;
+    width: 2.2rem;
+    min-width: 2.2rem;
+    height: 1.75rem;
+    padding: 0;
+    place-items: center;
+    border-radius: 0 0 .5rem .5rem;
+  }
+  .cashier-compact-summary {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.2fr) minmax(0, .72fr);
+    gap: .35rem;
+  }
+  .cashier-order.type-pickup .cashier-compact-summary {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, .6fr);
+  }
+  .cashier-order .cashier-delivery-details,
+  .cashier-order .cashier-order-operation { display: none !important; }
+  .cashier-order.is-detail-expanded .cashier-delivery-details,
+  .cashier-order.is-detail-expanded .cashier-order-operation {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .35rem;
+    margin-top: .4rem;
+  }
+  .cashier-order .cashier-delivery-payment,
+  .cashier-order .cashier-order-controls,
+  .cashier-order .cashier-order-controls.is-pickup { display: block !important; }
+}
+
+/* Mesas en iPad Air: barra contextual sin traslapes y ticket táctil estable. */
+@media (min-width: 700px) and (max-width: 1200px) and (pointer: coarse) {
+  .table-operation-header:not(.is-closed) .table-ticket-heading,
+  .table-operation-header.is-breakfast:not(.is-closed) .table-ticket-heading {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(8rem, .75fr) minmax(10rem, 1fr) 3rem;
+    grid-template-rows: auto;
+    gap: .55rem;
+    align-items: center;
+    padding: .7rem;
+  }
+  .table-operation-header:not(.is-closed) .table-detail-back {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    justify-self: stretch;
+  }
+  .table-operation-header:not(.is-closed) .table-account-identity {
+    display: grid;
+    grid-column: 2 / span 2;
+    grid-row: 1;
+    grid-template-columns: minmax(7rem, .8fr) minmax(9rem, 1.2fr);
+    gap: .55rem;
+    align-items: center;
+    min-width: 0;
+  }
+  .table-operation-header:not(.is-closed) .table-account-identity h1,
+  .table-operation-header:not(.is-closed) .table-account-identity > p { grid-column: 1; min-width: 0; }
+  .table-operation-header:not(.is-closed) .table-account-identity h1 { grid-row: 1; margin: 0; font-size: 1.05rem; }
+  .table-operation-header:not(.is-closed) .table-account-identity > p { grid-row: 2; margin: 0; font-size: .62rem; }
+  .table-operation-header:not(.is-closed) .table-account-identity .table-customer-form {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+  }
+  .table-operation-header:not(.is-closed) .table-account-identity .table-customer-form input { width: 100%; min-width: 0; }
+  .table-operation-header:not(.is-closed) .table-ticket-heading .ticket-heading-actions {
+    grid-column: 4;
+    grid-row: 1;
+    width: 3rem;
+    min-width: 3rem;
+    align-self: center;
+    justify-self: end;
+    margin: 0;
+  }
+  .table-operation-header .ticket-heading-actions .capture-mode-switch {
+    width: 3rem;
+    min-width: 3rem;
+    height: 3rem;
+    margin: 0;
+  }
+
+  .table-pos-layout .table-ticket:not(.is-closed-summary) {
+    position: sticky !important;
+    top: .75rem !important;
+    height: calc(100dvh - 6rem) !important;
+    max-height: calc(100dvh - 6rem) !important;
+    overflow: hidden !important;
+    overscroll-behavior-y: auto !important;
+  }
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
+    flex: 1 1 4rem;
+    min-height: 0;
+    overflow-y: auto !important;
+    overscroll-behavior-y: auto !important;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-pos-layout .table-ticket .table-ticket-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+  .table-pos-layout .table-ticket .quantity-buttons {
+    display: grid;
+    width: 100%;
+    grid-column: 1 / -1;
+    grid-template-columns: 2.35rem minmax(2rem, 1fr) 2.35rem 2.35rem;
+    gap: .3rem;
+    align-items: center;
+  }
+  .table-pos-layout .table-ticket .quantity-buttons button,
+  .table-pos-layout .table-ticket .quantity-buttons span {
+    width: 100%;
+    min-width: 0;
+    height: 2.35rem;
+    margin: 0;
+    padding: 0;
+  }
+  .table-pos-layout .table-ticket .quantity-buttons span { display: grid; place-items: center; }
+
+  .internal-menu-workspace.is-lunch .auto-package-options {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+  .internal-menu-workspace.is-lunch .auto-package-options > .package-egg-choice {
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+  }
+  .internal-menu-workspace.is-lunch .auto-package-options > .auto-package-comment { display: none !important; }
+}
+
+.package-packaging-options article img { cursor: pointer; }
+.package-packaging-options article img:active { transform: scale(.96); }
+
+/* Últimos ajustes de cabecera y efectivo para iPad Air horizontal. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .table-operation-header,
+  .table-operation-header .table-ticket-heading {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .table-operation-header:not(.is-closed) .table-ticket-heading,
+  .table-operation-header.is-breakfast:not(.is-closed) .table-ticket-heading {
+    grid-template-columns: 4rem minmax(0, .8fr) minmax(0, 1.2fr) 2.75rem !important;
+    gap: .4rem !important;
+    overflow: hidden;
+  }
+  .table-operation-header:not(.is-closed) .table-account-identity {
+    grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr) !important;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .table-operation-header:not(.is-closed) .table-account-identity .table-customer-form,
+  .table-operation-header:not(.is-closed) .table-account-identity .table-customer-form label,
+  .table-operation-header:not(.is-closed) .table-account-identity .table-customer-form input {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .table-operation-header:not(.is-closed) .table-ticket-heading .ticket-heading-actions,
+  .table-operation-header .ticket-heading-actions .capture-mode-switch {
+    width: 2.75rem !important;
+    min-width: 2.75rem !important;
+    max-width: 2.75rem;
+    height: 2.75rem !important;
+  }
+
+  .internal-live-ticket .cash-command-buttons {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .internal-live-ticket .cash-exact-choice {
+    display: grid !important;
+    min-width: 0 !important;
+    height: 100%;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .35rem;
+    align-items: center;
+    justify-items: start;
+    padding: .4rem .5rem !important;
+    box-sizing: border-box;
+    text-align: left;
+  }
+  .internal-live-ticket .cash-exact-choice input {
+    width: 1rem !important;
+    min-width: 1rem !important;
+    height: 1rem;
+    margin: 0;
+  }
+  .internal-live-ticket .cash-exact-choice span {
+    min-width: 0;
+    font-size: .72rem;
+    line-height: 1.1;
+    white-space: normal;
+  }
+  .internal-live-ticket .cash-custom-choice {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    grid-template-columns: minmax(7rem, .7fr) minmax(0, 1.3fr);
+    gap: .45rem;
+    align-items: center;
+    padding: .35rem .5rem !important;
+    box-sizing: border-box;
+  }
+  .internal-live-ticket .cash-custom-choice > span {
+    min-width: 0;
+    font-size: .72rem;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  .internal-live-ticket .cash-custom-choice input {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 2.35rem;
+    margin: 0;
+    box-sizing: border-box;
+  }
+}
+
+/* Constructor de comidas para iPad Air horizontal: tres filas útiles, sin huecos. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .table-visual-package-dialog {
+    width: min(1040px, calc(100% - 1rem));
+    max-height: 94dvh;
+  }
+  .table-visual-package-dialog form[data-package-form] {
+    max-height: 94dvh;
+    gap: .5rem;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups {
+    display: grid !important;
+    grid-template-columns: repeat(20, minmax(0, 1fr)) !important;
+    grid-template-rows: auto auto auto !important;
+    gap: .5rem !important;
+    align-items: stretch;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(1),
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(1) {
+    grid-column: 1 / 7 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(2),
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(2) {
+    display: block !important;
+    grid-column: 7 / 13 !important;
+    grid-row: 1 !important;
+    visibility: visible !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(3),
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) {
+    grid-column: 13 / 21 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(1) .package-choice-grid,
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(2) .package-choice-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(3) .package-choice-grid,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) .package-choice-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras,
+  .table-visual-package-dialog .table-package-visual-extras,
+  .table-visual-package-dialog .table-package-stacked-rules { display: contents !important; }
+
+  .table-visual-package-dialog .table-package-visual-extras > .table-water-choice {
+    grid-column: 1 / 6 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > label.product-rule-card:nth-of-type(2),
+  .table-visual-package-dialog .table-package-stacked-rules > .product-rule-card:first-child {
+    grid-column: 6 / 11 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > label.product-rule-card:nth-of-type(3),
+  .table-visual-package-dialog .table-package-stacked-rules > .product-rule-card:last-child {
+    grid-column: 11 / 16 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > .package-egg-choice {
+    display: grid !important;
+    grid-column: 16 / 21 !important;
+    grid-row: 2 !important;
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > .package-comment-field {
+    display: block !important;
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+    min-height: 0 !important;
+  }
+  .table-visual-package-dialog .table-package-visual-extras > .package-comment-field textarea {
+    min-height: 3.4rem !important;
+    height: 3.4rem !important;
+  }
+  .table-visual-package-dialog .table-water-choice,
+  .table-visual-package-dialog .product-rule-card,
+  .table-visual-package-dialog .package-egg-choice { min-height: 4.6rem !important; height: auto !important; }
+}
+
+/* Destino visual del aviso "falta repartidor" para cualquier tamaño de pantalla. */
+.delivery-card.is-delivery-target {
+  position: relative;
+  z-index: 2;
+  scroll-margin-block: 1rem;
+  border-color: #e0960d !important;
+  outline: 5px solid rgb(244 189 69 / 78%);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 8px rgb(244 189 69 / 20%), 0 12px 30px rgb(79 51 5 / 24%);
+  animation: delivery-target-pulse .75s ease-in-out 4 alternate;
+}
+@keyframes delivery-target-pulse {
+  from {
+    outline-color: rgb(244 189 69 / 38%);
+    box-shadow: 0 0 0 5px rgb(244 189 69 / 12%), 0 8px 20px rgb(79 51 5 / 12%);
+  }
+  to {
+    outline-color: rgb(244 189 69 / 95%);
+    box-shadow: 0 0 0 9px rgb(244 189 69 / 24%), 0 12px 30px rgb(79 51 5 / 25%);
+  }
+}
+
+/* Nuevo tablero de Pedidos: domicilio y recoger permanecen visibles en paralelo. */
+.order-board-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .8rem;
+  align-items: start;
+}
+.order-type-board { min-width: 0; margin: 0; padding: .75rem; }
+.order-type-board > header { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .55rem; }
+.order-type-board > header small { color: #9b6810; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
+.order-type-board > header h2 { margin: .08rem 0 0; font-size: 1.05rem; }
+.order-type-board > header > strong { display: grid; min-width: 2rem; height: 2rem; place-items: center; border-radius: 999px; background: #e7f2ec; color: #18533e; }
+.order-type-list { display: grid; gap: .55rem; }
+.order-board-item { min-width: 0; overflow: visible; border: 1px solid #d6ddd8; border-left: 5px solid #2a765b; border-radius: .7rem; background: #f8fbf9; cursor: pointer; }
+.order-board-item.type-pickup { border-left-color: #d09a26; background: #fffaf0; }
+.order-board-primary { display: grid; grid-template-columns: minmax(0, 20fr) minmax(0, 20fr) minmax(0, 25fr) minmax(0, 35fr); gap: .35rem; padding: .45rem; }
+.order-board-secondary { display: grid; grid-template-columns: minmax(0, 20fr) minmax(0, 20fr) minmax(0, 25fr) minmax(0, 35fr); gap: .35rem; padding: 0 .45rem .45rem; }
+.order-board-primary > section,
+.order-board-secondary > section { min-width: 0; padding: .42rem; overflow: hidden; border: 1px solid #dbe4de; border-radius: .5rem; background: rgb(255 255 255 / 84%); }
+.order-board-item section > small { display: block; margin-bottom: .15rem; color: #557066; font-size: .57rem; font-weight: 900; letter-spacing: .045em; text-transform: uppercase; }
+.order-board-item section > strong,
+.order-board-item section > span { display: block; min-width: 0; overflow: hidden; font-size: .72rem; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.order-board-folio > strong { font-size: 1rem !important; color: #173f32; }
+.order-board-total > strong { font-size: 1.15rem !important; color: #9a4a12; }
+.order-board-modality { display: grid; grid-template-columns: 2.7rem minmax(0, 1fr); grid-template-rows: auto auto; gap: .2rem .35rem; align-items: center; }
+.order-board-modality > small { grid-column: 1 / -1; }
+.order-board-modality > .order-type-icon { display: grid; width: 2.7rem; height: 2.7rem; grid-column: 1; grid-row: 2; place-items: center; }
+.order-board-modality > .order-type-icon svg { width: 1.75rem; height: 1.75rem; }
+.order-board-modality > .order-type-icon + span { grid-column: 2; grid-row: 2; }
+.order-board-payment { display: flex; min-width: 0; flex-direction: column; justify-content: center; }
+.order-inline-payment { min-width: 0; }
+.order-inline-payment > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .18rem; }
+.order-inline-payment button { min-width: 0; min-height: 1.8rem; padding: .2rem; border: 1px solid #28644e; border-radius: .35rem; color: #184b39; background: #fff; font-size: .55rem; font-weight: 850; }
+.order-inline-payment button.is-selected { color: #173125; background: #f4c34f; }
+.order-inline-payment > span { margin-top: .15rem; color: #24634d; font-size: .55rem; }
+.order-inline-payment > span.is-error { color: #9b2822; }
+.order-board-summary.is-empty { border-color: #c33b32; color: #9c231d; background: #ffe9e7; }
+.order-board-summary.is-empty strong { color: #a52520; }
+.order-board-action-line { display: grid; grid-template-columns: minmax(0, 25fr) minmax(0, 75fr); gap: .25rem; align-items: stretch; }
+.order-board-action-line > form { width: 100%; }
+.order-board-action-line button { width: 100%; min-width: 0; min-height: 2.7rem; padding: .35rem; font-size: .62rem; }
+.order-board-action-line .order-more-actions,
+.order-actions-placeholder { display: grid; min-width: 0; place-items: center; }
+.order-actions-placeholder { border: 1px solid #b9c9c0; border-radius: .4rem; }
+.order-board-action-line .order-more-actions summary { display: grid; width: 100%; height: 100%; min-height: 2.7rem; place-items: center; }
+.order-no-action { display: grid !important; place-items: center; font-size: .6rem !important; white-space: normal !important; text-align: center; }
+
+@media (max-width: 700px) {
+  .order-board-columns { gap: .35rem; }
+  .order-type-board { padding: .35rem; }
+  .order-type-board > header h2 { font-size: .72rem; }
+  .order-board-primary,
+  .order-board-secondary { gap: .18rem; padding: .25rem; }
+  .order-board-secondary { padding-top: 0; }
+  .order-board-primary > section,
+  .order-board-secondary > section { padding: .25rem; }
+  .order-board-item section > small { font-size: .43rem; }
+  .order-board-item section > strong,
+  .order-board-item section > span { font-size: .52rem; }
+  .order-board-folio > strong { font-size: .65rem !important; }
+  .order-board-total > strong { font-size: .72rem !important; }
+  .order-board-modality { grid-template-columns: 1.7rem minmax(0, 1fr); }
+  .order-board-modality > .order-type-icon { width: 1.7rem; height: 1.7rem; }
+  .order-board-modality > .order-type-icon svg { width: 1.2rem; height: 1.2rem; }
+  .order-inline-payment button { min-height: 1.45rem; padding: .08rem; font-size: .4rem; }
+  .order-board-action-line button,
+  .order-board-action-line .order-more-actions summary { min-height: 2rem; font-size: .43rem; }
+}
+
+/* Ajustes aislados para el editor en iPad Air, vertical y horizontal. */
+@media (min-width: 700px) and (max-width: 1200px) and (pointer: coarse) {
+  .internal-live-ticket {
+    height: calc(100dvh - 7rem) !important;
+    max-height: calc(100dvh - 7rem) !important;
+    overscroll-behavior-y: auto !important;
+  }
+  .internal-live-ticket > .table-ticket-items {
+    flex: 1 1 3rem;
+    overscroll-behavior-y: auto !important;
+  }
+  .internal-live-ticket .cash-command-buttons {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: .35rem !important;
+  }
+  .internal-live-ticket .cash-command-buttons > * { min-width: 0; width: 100%; margin: 0; }
+  .internal-live-ticket .cash-command-buttons > button:nth-of-type(1) { grid-column: 1; grid-row: 1; }
+  .internal-live-ticket .cash-command-buttons > button:nth-of-type(2) { grid-column: 2; grid-row: 1; }
+  .internal-live-ticket .cash-command-buttons > button:nth-of-type(3) { grid-column: 3; grid-row: 1; }
+  .internal-live-ticket .cash-command-buttons > button:nth-of-type(4) { grid-column: 1; grid-row: 2; }
+  .internal-live-ticket .cash-command-buttons > button:nth-of-type(5) { grid-column: 2; grid-row: 2; }
+  .internal-live-ticket .cash-exact-choice { grid-column: 3; grid-row: 2; }
+  .internal-live-ticket .cash-custom-choice { grid-column: 1 / -1; grid-row: 3; }
+  .internal-live-ticket .cash-custom-choice input { width: 100%; min-width: 0; }
+  .internal-menu-workspace.is-lunch .auto-package-options {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: .4rem !important;
+    align-items: stretch;
+  }
+  .internal-menu-workspace.is-lunch .auto-package-options > * {
+    grid-column: auto !important;
+    grid-row: auto !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+}
+
+/* Mesas, iPad Air horizontal: eliminar expansiones vacías del constructor. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups {
+    align-items: start !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field,
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(3) {
+    height: fit-content !important;
+    min-height: 0 !important;
+    align-self: start !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .table-water-choice,
+  .table-visual-package-dialog form[data-package-form] .product-rule-card,
+  .table-visual-package-dialog form[data-package-form] .package-egg-choice {
+    height: auto !important;
+    min-height: 4.25rem !important;
+    padding: .4rem !important;
+    align-self: stretch !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .table-water-choice {
+    grid-template-columns: 4.6rem minmax(0, 1fr) !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .table-water-choice-image {
+    width: 4.6rem !important;
+    height: 3.8rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .product-rule-card small {
+    font-size: .65rem;
+    line-height: 1.15;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-comment-field {
+    padding: .45rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-comment-field textarea {
+    min-height: 2.8rem !important;
+    height: 2.8rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form] > .package-packaging-options {
+    padding: .5rem !important;
+  }
+}
+
+/* Etiquetas de estado: el fondo termina con el texto en todas las vistas. */
+.order-status-label,
+.status-badge {
+  display: inline-flex !important;
+  width: fit-content !important;
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+/* Prioridad definitiva del ticket de Mesas en iPad Air horizontal. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
+    display: grid !important;
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-auto-rows: max-content;
+    align-content: start !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: auto !important;
+  }
+  .table-pos-layout .table-ticket .table-ticket-item {
+    min-height: 0 !important;
+    align-content: start !important;
+    align-items: start !important;
+  }
+  .table-pos-layout .table-ticket .quantity-buttons {
+    display: grid !important;
+    width: max-content !important;
+    max-width: 100%;
+    grid-template-columns: repeat(4, 2.35rem) !important;
+    gap: .3rem !important;
+    justify-content: start !important;
+    align-items: center !important;
+    margin-top: .25rem;
+  }
+  .table-pos-layout .table-ticket .quantity-buttons button,
+  .table-pos-layout .table-ticket .quantity-buttons span {
+    display: grid !important;
+    width: 2.35rem !important;
+    min-width: 2.35rem !important;
+    height: 2.35rem !important;
+    min-height: 2.35rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    place-items: center;
+  }
+}
+
+/* Pedidos en iPad Air horizontal: Efectivo compacto y ticket desplazable completo. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .internal-live-ticket {
+    display: flex !important;
+    height: calc(100dvh - 5rem) !important;
+    max-height: calc(100dvh - 5rem) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: auto !important;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+  }
+  .internal-live-ticket > .table-ticket-items {
+    flex: 0 0 auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .internal-live-ticket .ticket-payment-details,
+  .internal-live-ticket .cash-command-panel,
+  .internal-live-ticket .cash-command-buttons {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .internal-live-ticket .cash-custom-choice {
+    position: static !important;
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+    grid-template-columns: 7rem minmax(0, 1fr) !important;
+    gap: .5rem !important;
+    align-items: center !important;
+    padding: .4rem .5rem !important;
+    border: 2px solid #c98a20 !important;
+    border-radius: .5rem;
+    box-sizing: border-box;
+  }
+  .internal-live-ticket .cash-custom-choice > span {
+    display: block;
+    min-width: 0;
+    font-size: .7rem;
+    line-height: 1.1;
+    white-space: normal;
+  }
+  .internal-live-ticket .cash-custom-choice input {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: 2.3rem !important;
+    margin: 0 !important;
+    padding: .35rem .5rem !important;
+    border: 1px solid #b9c7c0 !important;
+    border-radius: .4rem;
+    background: #fff;
+    box-sizing: border-box;
+  }
+  .internal-live-ticket .cash-exact-choice {
+    position: static !important;
+    display: grid !important;
+    grid-template-columns: 1rem minmax(0, 1fr) !important;
+    gap: .35rem !important;
+    align-items: center !important;
+    padding: .4rem !important;
+    box-sizing: border-box;
+  }
+  .internal-live-ticket > .internal-ticket-actions {
+    flex: 0 0 auto;
+    padding-bottom: .35rem;
+  }
+}
+
+/* Mesas en iPad Air horizontal: contenido corto compacto; contenido largo desplazable. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .table-pos-layout .table-ticket:not(.is-closed-summary) {
+    display: flex !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: calc(100dvh - 5rem) !important;
+    flex-direction: column;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: auto !important;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+  }
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
+    display: grid !important;
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    grid-auto-rows: max-content;
+    align-content: start !important;
+    overflow: visible !important;
+  }
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-total,
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions,
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-close-launcher {
+    flex: 0 0 auto;
+  }
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-close-launcher {
+    margin-bottom: .25rem;
+  }
+}
+
+/* Prioridad definitiva: huevo visible y cuatro extras en paquetes de Pedidos. */
+.package-egg-choice,
+.package-egg-choice .app-select,
+.internal-menu-workspace .auto-package-options,
+.visual-package-dialog .package-quick-extras,
+.table-visual-package-dialog .table-package-visual-extras {
+  overflow: visible !important;
+}
+.package-egg-choice .app-select.is-open { z-index: 360 !important; }
+.package-egg-choice .app-select.is-open .app-select-menu {
+  top: auto !important;
+  right: 0 !important;
+  bottom: calc(100% + .38rem) !important;
+  left: auto !important;
+  display: grid;
+  width: max(100%, min(18rem, calc(100vw - 1rem)));
+  max-width: calc(100vw - 1rem);
+  max-height: min(17rem, 45dvh);
+  z-index: 361 !important;
+}
+
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras {
+    position: relative;
+    z-index: 12;
+    display: grid !important;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: .55rem !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > * {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    grid-column: auto !important;
+    grid-row: 1 !important;
+    box-sizing: border-box;
+  }
+}
+
+/* Prioridad definitiva del constructor de Mesas en iPad Air horizontal. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups {
+    display: grid !important;
+    grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+    grid-template-rows: auto auto auto auto !important;
+    gap: .5rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(1) {
+    grid-column: 1 / 4 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(2) {
+    grid-column: 4 / 7 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(3) {
+    grid-column: 7 / 13 !important;
+    grid-row: 1 / 5 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(3) .package-choice-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    align-content: start !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .table-package-visual-extras,
+  .table-visual-package-dialog form[data-package-form] .table-package-stacked-rules {
+    display: contents !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .table-water-choice {
+    grid-column: 1 / 4 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .table-package-visual-extras > .product-rule-card:nth-of-type(2),
+  .table-visual-package-dialog form[data-package-form] .table-package-stacked-rules > .product-rule-card:first-child {
+    grid-column: 4 / 7 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-egg-choice {
+    grid-column: 1 / 4 !important;
+    grid-row: 3 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .table-package-visual-extras > .product-rule-card:nth-of-type(3),
+  .table-visual-package-dialog form[data-package-form] .table-package-stacked-rules > .product-rule-card:last-child {
+    grid-column: 4 / 7 !important;
+    grid-row: 3 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-comment-field {
+    grid-column: 1 / 7 !important;
+    grid-row: 4 !important;
+    min-height: 0 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-comment-field textarea {
+    min-height: 3.25rem !important;
+    height: 3.25rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form] > .package-packaging-options {
+    margin-top: 0 !important;
+  }
+}
+
+/* Pedidos en celular: las dos modalidades se muestran una debajo de la otra. */
+@media (max-width: 700px) {
+  .order-board-columns {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: .65rem !important;
+  }
+  .order-type-board {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* Prioridad final: compacidad del constructor de Mesas en iPad Air horizontal. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups {
+    align-items: start !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field,
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(3) {
+    height: fit-content !important;
+    min-height: 0 !important;
+    align-self: start !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .table-water-choice,
+  .table-visual-package-dialog form[data-package-form] .product-rule-card,
+  .table-visual-package-dialog form[data-package-form] .package-egg-choice {
+    height: auto !important;
+    min-height: 4.25rem !important;
+    padding: .4rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .table-water-choice {
+    grid-template-columns: 4.6rem minmax(0, 1fr) !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .table-water-choice-image {
+    width: 4.6rem !important;
+    height: 3.8rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-comment-field textarea {
+    min-height: 2.8rem !important;
+    height: 2.8rem !important;
+  }
+}
+
+/* Pedidos: Panel, título y botones de captura comparten una fila. */
+main:has(.order-board-columns) > .page-heading {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: .75rem !important;
+  align-items: center !important;
+  flex-direction: initial !important;
+}
+main:has(.order-board-columns) > .page-heading > div:first-child {
+  display: flex !important;
+  min-width: 0;
+  gap: .65rem;
+  align-items: center;
+}
+main:has(.order-board-columns) > .page-heading > div:first-child > a:first-child {
+  order: 0 !important;
+  flex: 0 0 auto;
+  grid-column: auto !important;
+  grid-row: auto !important;
+  justify-self: auto !important;
+  white-space: nowrap;
+}
+main:has(.order-board-columns) > .page-heading h1 {
+  order: 1;
+  margin: 0 !important;
+}
+main:has(.order-board-columns) > .page-heading .new-order-type-actions {
+  display: grid !important;
+  width: auto !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: .5rem;
+}
+main:has(.order-board-columns) > .page-heading .new-order-type-actions form { min-width: 0; }
+main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-type-action {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 700px) {
+  main:has(.order-board-columns) > .page-heading { gap: .35rem !important; }
+  main:has(.order-board-columns) > .page-heading > div:first-child { gap: .35rem; }
+  main:has(.order-board-columns) > .page-heading h1 { font-size: 1.15rem; }
+  main:has(.order-board-columns) > .page-heading > div:first-child > a:first-child { font-size: .7rem; }
+  main:has(.order-board-columns) > .page-heading .new-order-type-actions { gap: .25rem; }
+  main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-type-action {
+    min-height: 2.55rem;
+    gap: .25rem;
+    padding: .3rem .4rem;
+    font-size: .65rem;
+  }
+main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-type-icon {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+}
+
+/* Mesas: el estado no ocupa espacio en la cabecera operativa. */
+.table-operation-header .ticket-heading-actions > .status-badge { display: none !important; }
+.package-packaging-options article { cursor: pointer; }
+
+/* Mesas, iPad Air horizontal: composición final de Corrida y Ejecutiva. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .table-operation-header:not(.is-closed) .table-ticket-heading,
+  .table-operation-header.is-breakfast:not(.is-closed) .table-ticket-heading {
+    grid-template-columns: 4.25rem minmax(0, 1fr) 3rem !important;
+  }
+  .table-operation-header:not(.is-closed) .table-account-identity {
+    grid-column: 2 !important;
+    grid-template-columns: minmax(0, .75fr) minmax(0, 1.25fr) !important;
+  }
+  .table-operation-header:not(.is-closed) .ticket-heading-actions {
+    grid-column: 3 !important;
+  }
+
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups {
+    display: grid !important;
+    grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+    grid-template-rows: auto auto !important;
+    gap: .5rem !important;
+    align-items: start !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(1) {
+    grid-column: 1 / 4 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(2) {
+    grid-column: 4 / 7 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(3) {
+    grid-column: 7 / 13 !important;
+    grid-row: 1 !important;
+    height: fit-content !important;
+    align-self: start !important;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-visual-groups > .package-visual-field:nth-child(3) .package-choice-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .table-visual-package-dialog form[data-package-form] .table-package-visual-extras {
+    display: grid !important;
+    grid-column: 1 / 13 !important;
+    grid-row: 2 !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: .4rem !important;
+    align-items: stretch;
+  }
+  .table-visual-package-dialog form[data-package-form] .table-package-stacked-rules { display: contents !important; }
+  .table-visual-package-dialog form[data-package-form] .table-package-visual-extras > *,
+  .table-visual-package-dialog form[data-package-form] .table-package-stacked-rules > * {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 5rem !important;
+    height: auto !important;
+    margin: 0 !important;
+    grid-column: auto !important;
+    grid-row: 1 !important;
+    box-sizing: border-box;
+  }
+  .table-visual-package-dialog form[data-package-form] .package-comment-field textarea {
+    min-height: 2.7rem !important;
+    height: 2.7rem !important;
+  }
+
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) {
+    grid-row: 1 / 3 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) .package-choice-grid {
+    max-height: 21rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    scrollbar-gutter: stable;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras {
+    grid-column: 1 / 7 !important;
+    grid-row: 2 !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > *,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules > * {
+    min-height: 4.6rem !important;
+    padding: .3rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-water-choice {
+    grid-template-columns: 1fr !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-water-choice-image { display: none !important; }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .product-rule-card small,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-water-choice-copy small { display: none !important; }
+
+  .table-visual-package-dialog form[data-package-form] > .package-packaging-options {
+    margin-top: 0 !important;
+  }
+}
+
+/* Pedidos, iPad Air horizontal: Plancha conserva exactamente dos filas visibles. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) {
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: hidden !important;
+  }
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) .package-choice-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    grid-auto-rows: 10.9rem;
+    max-height: 22.2rem !important;
+    align-content: start !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+  }
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) .package-choice-card {
+    height: 100% !important;
+    min-height: 0 !important;
+    box-sizing: border-box;
+  }
+}
+
+/* Mesas, Corrida en iPad Air horizontal: cinco extras exactos al 20%. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras {
+    display: grid !important;
+    grid-column: 1 / 13 !important;
+    grid-row: 2 !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: .4rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .table-water-choice {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .product-rule-card:nth-of-type(2) {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .package-egg-choice {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .product-rule-card:nth-of-type(3) {
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .package-comment-field {
+    grid-column: 5 !important;
+    grid-row: 1 !important;
+  }
+}
+
+/* Mesas, Ejecutiva en iPad Air horizontal: extras legibles bajo tiempos 1 y 2. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras {
+    display: grid !important;
+    grid-column: 1 / 7 !important;
+    grid-row: 2 !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-rows: auto auto !important;
+    gap: .4rem !important;
+    align-content: start;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules {
+    display: contents !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .table-water-choice {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules > .product-rule-card:first-child {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-egg-choice {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules > .product-rule-card:last-child {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-comment-field {
+    grid-column: 2 / 4 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > *,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules > * {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 4.8rem !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: .4rem !important;
+    box-sizing: border-box;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-comment-field textarea {
+    min-height: 2.8rem !important;
+    height: 2.8rem !important;
+  }
+}
+
+/* Mesas, Ejecutiva en iPad Air horizontal: dos columnas balanceadas. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups {
+    display: grid !important;
+    grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+    grid-template-rows: auto auto !important;
+    gap: .5rem !important;
+    align-items: stretch !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(1) {
+    grid-column: 1 / 4 !important;
+    grid-row: 1 !important;
+    height: fit-content !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(2) {
+    grid-column: 4 / 7 !important;
+    grid-row: 1 !important;
+    height: fit-content !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) {
+    display: grid !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    grid-column: 7 / 13 !important;
+    grid-row: 1 / 3 !important;
+    grid-template-rows: auto minmax(0, 1fr);
+    align-self: stretch !important;
+    overflow: hidden !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) .package-choice-grid {
+    min-height: 0 !important;
+    height: 100% !important;
+    max-height: none !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-rows: repeat(2, minmax(10.4rem, 1fr));
+    grid-auto-rows: minmax(10.4rem, 1fr);
+    align-content: start !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-choice-card {
+    height: 100% !important;
+    min-height: 0 !important;
+    grid-template-rows: 4.1rem minmax(2.5rem, auto) auto auto !important;
+    box-sizing: border-box;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-choice-controls {
+    margin-top: auto;
+  }
+
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras {
+    display: grid !important;
+    grid-column: 1 / 7 !important;
+    grid-row: 2 !important;
+    grid-template-columns: repeat(110, minmax(0, 1fr)) !important;
+    grid-template-rows: auto auto !important;
+    gap: .4rem 0 !important;
+    align-content: start;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules {
+    display: contents !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .table-water-choice {
+    grid-column: 1 / 45 !important;
+    grid-row: 1 !important;
+    margin-right: .4rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules > .product-rule-card:first-child {
+    grid-column: 45 / 78 !important;
+    grid-row: 1 !important;
+    margin-right: .4rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules > .product-rule-card:last-child {
+    grid-column: 78 / 111 !important;
+    grid-row: 1 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-egg-choice {
+    grid-column: 1 / 36 !important;
+    grid-row: 2 !important;
+    margin-right: .4rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-comment-field {
+    grid-column: 36 / 111 !important;
+    grid-row: 2 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > *,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules > * {
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 5rem !important;
+    height: auto !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding: .4rem !important;
+    box-sizing: border-box;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-egg-choice {
+    position: relative;
+    overflow: visible !important;
+    z-index: 40;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-comment-field textarea {
+    min-height: 3rem !important;
+    height: 3rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] > .package-packaging-options {
+    width: 100% !important;
+    grid-column: 1 / -1 !important;
+  }
+}
+
+/* Mesas, Ejecutiva en iPad Air horizontal: cuatro fichas por fila, dos filas visibles. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  /* Iguala exclusivamente el tamano exterior al constructor de Pedidos. */
+  .table-visual-package-dialog:has(form[data-package-form][data-package-kind="executive"]) {
+    width: min(1180px, calc(100% - 1.5rem)) !important;
+    max-height: 92dvh !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] {
+    max-height: 92dvh !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) {
+    height: fit-content !important;
+    align-self: start !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) .package-choice-grid {
+    height: 23.6rem !important;
+    max-height: 23.6rem !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    grid-template-rows: repeat(2, 11.5rem) !important;
+    grid-auto-rows: 11.5rem !important;
+    gap: .4rem !important;
+    align-content: start !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-choice-card {
+    min-width: 0 !important;
+    height: 11.5rem !important;
+    overflow: hidden !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-choice-controls {
+    align-self: end !important;
+    margin-top: 0 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-choice-controls [data-package-choice-customize] {
+    position: static !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
 }

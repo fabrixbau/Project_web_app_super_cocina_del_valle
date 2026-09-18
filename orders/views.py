@@ -477,6 +477,7 @@ def order_list(request):
         if len(items) > 3:
             names.append(f"+{len(items) - 3} más")
         order.ticket_summary = " · ".join(names) if names else "Sin productos"
+        order.has_no_products = not items
         actions = [action for action in _order_actions_for_user(order, request.user) if action != "cancel"]
         order.quick_action = actions[0] if actions else ""
         order.quick_action_label = ACTION_LABELS.get(order.quick_action, "")
@@ -486,6 +487,8 @@ def order_list(request):
         )
     return render(request, "orders/order_list.html", {
         "orders": orders,
+        "delivery_orders": [order for order in orders if order.order_type == Order.OrderType.DELIVERY],
+        "pickup_orders": [order for order in orders if order.order_type == Order.OrderType.PICKUP],
         "status_choices": Order.Status.choices,
         "order_type_choices": Order.OrderType.choices,
         "search": search,
@@ -493,6 +496,7 @@ def order_list(request):
         "selected_order_type": order_type,
         "selected_scope": scope,
         "can_capture_internal": user_has_any_role(request.user, (ADMIN, ORDER_TAKER)),
+        "can_edit_payment": user_has_any_role(request.user, (ADMIN, ORDER_TAKER)),
         "can_manage_debts": user_has_any_role(request.user, (ADMIN,)),
     })
 
@@ -1205,8 +1209,15 @@ def order_resolve(request, order_id):
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             action = request.POST.get("action")
             if action == "dispatch_delivery":
-                recovery_url = f"{reverse('deliveries:delivery_board')}?q={order.daily_number}"
-                recovery_label = "Asignar repartidor"
+                if user_has_any_role(request.user, (ADMIN,)):
+                    recovery_url = f"{reverse('cashier:cashier_board')}?focus_order={order.pk}"
+                    recovery_label = "Ir a Caja y asignar repartidor"
+                else:
+                    recovery_url = (
+                        f"{reverse('deliveries:delivery_board')}"
+                        f"?q={order.daily_number}&focus_order={order.pk}"
+                    )
+                    recovery_label = "Ir a Repartos y asignar repartidor"
             else:
                 recovery_url = f"{reverse('orders:internal_order_edit', args=(order.pk,))}#payment-methods"
                 recovery_label = "Completar pedido"
@@ -2241,7 +2252,7 @@ def cashier_tip_detail(request, source, record_id):
 
 
 @require_POST
-@role_required(ADMIN)
+@role_required(ADMIN, ORDER_TAKER)
 def cashier_payment_update(request, order_id):
     order = get_object_or_404(Order, pk=order_id)
     try:

@@ -10,7 +10,10 @@ let recentlyReleasedRow = null;
 let recentlyReleasedUrl = "";
 let recentlyReleasedParent = null;
 let recentlyReleasedNextSibling = null;
-const compactCashierView = window.matchMedia("(max-width: 900px)");
+// iPad Air en horizontal supera 900px, pero sigue siendo una superficie táctil.
+// Conservamos el tablero de escritorio en monitores y activamos las fichas plegables
+// hasta 1200px únicamente cuando el dispositivo tiene puntero táctil.
+const compactCashierView = window.matchMedia("(max-width: 900px), (max-width: 1200px) and (pointer: coarse)");
 
 const enhanceCashierCards = (scope = document) => {
   scope.querySelectorAll("[data-cashier-order]").forEach((card) => {
@@ -42,6 +45,20 @@ const enhanceCashierCards = (scope = document) => {
 };
 
 enhanceCashierCards();
+
+const revealFocusedCashierOrder = () => {
+  const orderId = new URLSearchParams(window.location.search).get("focus_order");
+  if (!orderId) return;
+  const card = document.querySelector(`[data-cashier-order-id="${CSS.escape(orderId)}"]`);
+  if (!card) return;
+  card.classList.add("is-detail-expanded", "is-cashier-target");
+  const toggle = card.querySelector("[data-cashier-card-toggle]");
+  toggle?.setAttribute("aria-expanded", "true");
+  window.requestAnimationFrame(() => card.scrollIntoView({behavior: "smooth", block: "center"}));
+  window.setTimeout(() => card.classList.remove("is-cashier-target"), 3000);
+};
+
+revealFocusedCashierOrder();
 
 const postCashier = async (url, values) => {
   cashierRequestsInProgress += 1;

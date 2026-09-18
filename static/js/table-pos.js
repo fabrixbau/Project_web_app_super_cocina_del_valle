@@ -519,6 +519,10 @@ document.querySelectorAll("[data-package-open]").forEach((button) => {
     form.action = form.dataset.addUrl;
     form.querySelector("[data-package-submit]").textContent = "Agregar al ticket";
     dialog.showModal();
+    window.requestAnimationFrame(() => {
+      form.scrollTop = 0;
+      dialog.scrollTop = 0;
+    });
   });
 });
 document.querySelectorAll("[data-package-close]").forEach((button) => {
@@ -558,6 +562,10 @@ document.addEventListener("click", (event) => {
     form.querySelector("input[name$='main_course']:checked")?.dispatchEvent(new Event("change", {bubbles: true}));
     form.querySelector("[data-package-submit]").textContent = "Guardar cambios";
     dialog.showModal();
+    window.requestAnimationFrame(() => {
+      form.scrollTop = 0;
+      dialog.scrollTop = 0;
+    });
     return;
   }
   // NOTA TEMPORAL PARA APRENDIZAJE: la imagen envía el mismo formulario estándar

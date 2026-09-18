@@ -64,6 +64,28 @@ if (deliveryFilters) {
   });
 }
 
+// Los avisos de Pedidos pueden traer al usuario directamente al reparto que debe
+// atender. Esperamos al primer cuadro para que el navegador termine de calcular
+// la tarjeta, la mostramos desde su borde superior y retiramos el énfasis a los 3 s.
+const revealFocusedDeliveryOrder = () => {
+  const orderId = new URLSearchParams(window.location.search).get("focus_order");
+  if (!orderId) return;
+  const card = document.querySelector(`[data-delivery-card][data-order-id="${CSS.escape(orderId)}"]`);
+  if (!card) return;
+  card.classList.add("is-delivery-target");
+  window.requestAnimationFrame(() => {
+    const cardHeight = card.getBoundingClientRect().height;
+    card.scrollIntoView({
+      behavior: "smooth",
+      block: cardHeight <= window.innerHeight - 24 ? "center" : "start",
+      inline: "nearest",
+    });
+  });
+  window.setTimeout(() => card.classList.remove("is-delivery-target"), 3000);
+};
+
+revealFocusedDeliveryOrder();
+
 const deliveryFeedback = document.querySelector("[data-delivery-feedback]");
 document.addEventListener("submit", async (event) => {
   const form = event.target.closest("[data-delivery-assign]");

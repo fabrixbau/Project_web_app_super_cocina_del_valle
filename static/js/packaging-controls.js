@@ -2,9 +2,12 @@
 Los botones escriben en inputs reales. El servidor vuelve a validar estas cantidades;
 el número dibujado no es la fuente autoritativa. Borra esta nota después de leerla. */
 document.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-packaging-change]");
+  const card = event.target.closest("[data-package-packaging] article");
+  const button = event.target.closest("[data-packaging-change]")
+    || card?.querySelector('[data-packaging-change="1"]');
   if (!button) return;
-  const counter = button.closest(".package-packaging-counter");
+  const counter = button.closest(".package-packaging-counter")
+    || button.closest("article")?.querySelector(".package-packaging-counter");
   const input = counter?.querySelector("input[type='hidden']");
   const output = counter?.querySelector("output");
   if (!input || !output) return;
