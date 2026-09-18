@@ -1613,7 +1613,7 @@ tarjeta para conservar teclado, validación y envío estándar. Borra esta nota 
 .ticket-package-edit { display: flex; gap: .45rem; align-items: center; padding: 0; color: #285943; background: transparent; text-align: left; }
 .ticket-package-edit:hover { text-decoration: underline; }
 .incomplete-badge { display: inline-block; padding: .2rem .45rem; border-radius: 999px; color: #6f3f24; background: #f4c95d; font-size: .75rem; font-weight: 900; }
-.quantity-buttons { grid-column: 1 / -1; display: flex; gap: .4rem; align-items: center; }
+.quantity-buttons { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
 .quantity-buttons form { margin: 0; }
 .quantity-buttons button { min-width: 2.4rem; padding: .45rem; font-size: 1.1rem; }
 .quantity-buttons span { min-width: 2rem; text-align: center; font-weight: 800; }
@@ -1798,7 +1798,7 @@ tarjeta para conservar teclado, validación y envío estándar. Borra esta nota 
 .internal-live-ticket article span small { display: block; color: #9a521f; font-weight: 800; }
 .internal-live-ticket article div { grid-column: 1 / -1; display: flex; gap: .35rem; }
 .internal-live-ticket article button { min-width: 2.5rem; padding: .4rem; }
-.internal-live-ticket article .ticket-edit-extras { margin-left: auto; padding-inline: .7rem; background: #f2bd48; color: #173f32; font-size: .78rem; font-weight: 850; }
+.internal-live-ticket article .ticket-edit-extras { padding-inline: .7rem; background: #f2bd48; color: #173f32; font-size: .78rem; font-weight: 850; }
 .internal-order-details-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .internal-order-form { max-width: none; margin-top: 1rem; }
 .internal-order-section { border-top: 5px solid #24634d; }
@@ -2148,7 +2148,7 @@ Borra esta nota después de revisar el diseño. */
 .ticket-general-note-button { width: 100%; margin: .35rem 0; padding: .55rem; border: 2px solid #b66a2d; background: #fff7ee; color: #7e3f14; font-weight: 850; }
 .ticket-general-note { margin: .35rem 0 .7rem; padding: .55rem; border-left: 4px solid #b66a2d; background: #fff7ee; color: #653515; font-size: .9rem; }
 .ticket-general-note[hidden] { display: none !important; }
-.internal-live-ticket article .ticket-item-note-button { margin-left: auto; padding-inline: .65rem; background: #fff; color: #174c3a; border: 2px solid #24634d; font-size: .78rem; font-weight: 850; }
+.internal-live-ticket article .ticket-item-note-button { padding-inline: .65rem; background: #fff; color: #174c3a; border: 2px solid #24634d; font-size: .78rem; font-weight: 850; }
 .ticket-note-dialog { width: min(620px, calc(100vw - 2rem)); max-width: none; padding: 0; overflow: hidden; border: 1px solid #cbd8d1; border-radius: 1rem; color: #17231e; background: #fff; box-shadow: 0 24px 65px rgb(12 35 27 / 32%); }
 .ticket-note-dialog::backdrop { background: rgb(11 24 19 / 68%); backdrop-filter: blur(2px); }
 .ticket-note-dialog form { display: grid; width: 100%; }
@@ -11017,5 +11017,70 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
   }
   .internal-live-ticket > .internal-ticket-actions {
     padding-bottom: .6rem !important;
+  }
+}
+
+/* Ticket de Mesas y Pedidos en tablets cortas en horizontal (p. ej. Galaxy Tab A9+
+   1280x800): las acciones secundarias (imprimir, guardar, pago) ya son compactas
+   en celular por ancho; aquí se activan igual según la ALTURA disponible, no un
+   ancho de dispositivo puntual, para que la lista de partidas conserve espacio
+   visible sin importar qué tan ancha sea la tablet. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 900px) {
+  .internal-live-ticket > .ticket-print-actions,
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: .25rem !important;
+  }
+  .internal-live-ticket > .ticket-print-actions a,
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions a {
+    min-width: 0 !important;
+    padding: .38rem .2rem !important;
+    overflow-wrap: anywhere;
+    font-size: .58rem !important;
+    line-height: 1.05 !important;
+  }
+  .internal-live-ticket > .ticket-print-actions .ticket-print-custom,
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions .ticket-print-custom {
+    grid-column: auto !important;
+  }
+  .internal-live-ticket > .internal-ticket-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: .3rem !important;
+    padding-bottom: .4rem !important;
+  }
+  .internal-live-ticket > .internal-ticket-actions button {
+    min-width: 0 !important;
+    min-height: 2.4rem !important;
+    padding: .35rem !important;
+    font-size: .62rem !important;
+    line-height: 1.05 !important;
+  }
+  .internal-live-ticket > .internal-ticket-actions small { grid-column: 1 / -1; font-size: .52rem; }
+  .internal-live-ticket .ticket-payment-control {
+    margin: -.75rem -.75rem .5rem !important;
+    padding: .5rem .65rem !important;
+    gap: .3rem !important;
+  }
+  .internal-live-ticket .ticket-payment-control > strong { font-size: .6rem !important; }
+  .internal-live-ticket .ticket-payment-control button {
+    min-height: 2.15rem !important;
+    padding: .3rem !important;
+    font-size: .65rem !important;
+  }
+  .internal-live-ticket .ticket-general-note-button {
+    margin: .25rem 0 !important;
+    padding: .38rem !important;
+    font-size: .78rem !important;
+  }
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-close-launcher {
+    min-height: 2.6rem !important;
+    padding: .5rem !important;
+    font-size: .8rem !important;
+  }
+  .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-total,
+  .internal-live-ticket > .table-ticket-total {
+    margin-top: .3rem !important;
+    padding-top: .35rem !important;
+    font-size: 1.05rem !important;
   }
 }
