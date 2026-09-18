@@ -197,6 +197,46 @@ class CapturePrintTests(TestCase):
         self.assertIsNone(self.order.cash_tendered)
 
 
+class InternalOrderReservedCategoryTests(TestCase):
+    def setUp(self):
+        self.actor = get_user_model().objects.create_superuser(
+            username="reserved_category_admin", email="reserved@example.test",
+            password="test-password",
+        )
+        category = Category.objects.create(
+            name="Comida por orden", show_on_table_lunch=True,
+        )
+        self.bread = Product.objects.create(
+            category=category, name="Bolillo", price=5,
+            is_available=True, is_sold_individually=True,
+            uses_bread_stock=True,
+        )
+        DailyProductStock.objects.create(
+            date=timezone.localdate(), item_kind=DailyProductStock.ItemKind.BREAD,
+            channel=DailyProductStock.Channel.ORDERS, initial_quantity=20,
+        )
+        self.order = Order.objects.create(
+            daily_number=993, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.PICKUP, source=Order.Source.INTERNAL,
+            status=Order.Status.DRAFT, customer_name="Mostrador", total=0,
+            created_by=self.actor,
+        )
+        self.client.force_login(self.actor)
+        session = self.client.session
+        session["internal_order_menu_mode"] = "lunch"
+        session.save()
+
+    def test_loose_product_in_daily_order_category_is_visible_and_searchable(self):
+        response = self.client.get(reverse("orders:internal_order_edit", args=(self.order.pk,)))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-product-name="bolillo"')
+        self.assertContains(
+            response,
+            reverse("orders:internal_order_product_add", args=(self.order.pk, self.bread.pk)),
+        )
+
+
 class OrderInventoryIntegrationTests(TestCase):
     def setUp(self):
         self.actor = get_user_model().objects.create_user(username="stock_order_taker")

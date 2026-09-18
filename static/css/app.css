@@ -10616,6 +10616,76 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
   }
 }
 
+/* Buscador de Desayunos en Pedidos para tablet horizontal: el campo abierto debe
+   quedar por encima del fondo borroso y disponible para recibir el teclado. */
+@media (min-width: 700px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  body.compact-field-open .compact-search-backdrop:not([hidden]) {
+    position: fixed !important;
+    z-index: 1000 !important;
+    inset: 0 !important;
+    display: block !important;
+  }
+  body.compact-field-open .internal-menu-workspace .catalog-search-box.compact-field-ready.is-compact-field-open {
+    position: fixed !important;
+    z-index: 1002 !important;
+    top: 18dvh !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: 50% !important;
+    display: grid !important;
+    visibility: visible !important;
+    width: min(620px, calc(100vw - 3rem)) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-width: calc(100vw - 3rem) !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: .45rem !important;
+    padding: 1rem !important;
+    overflow: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: translateX(-50%) !important;
+    clip: auto !important;
+    border: 1px solid rgb(255 255 255 / 45%) !important;
+    border-radius: .9rem !important;
+    color: #fff !important;
+    background: #174735 !important;
+    box-shadow: 0 22px 50px rgb(0 0 0 / 38%) !important;
+  }
+  body.compact-field-open .internal-menu-workspace .catalog-search-box.is-compact-field-open > span {
+    position: static !important;
+    display: block !important;
+    visibility: visible !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    clip: auto !important;
+    color: #fff !important;
+  }
+  body.compact-field-open .internal-menu-workspace .catalog-search-box.is-compact-field-open::before {
+    display: none !important;
+  }
+  body.compact-field-open .internal-menu-workspace .catalog-search-box.is-compact-field-open input[data-internal-search] {
+    position: static !important;
+    display: block !important;
+    visibility: visible !important;
+    width: 100% !important;
+    height: 3.4rem !important;
+    min-height: 3.4rem !important;
+    margin: 0 !important;
+    padding: .75rem .9rem !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    clip: auto !important;
+    border: 2px solid #f4c95d !important;
+    border-radius: .7rem !important;
+    color: #17231e !important;
+    background: #fff !important;
+    font-size: 1rem !important;
+    box-sizing: border-box !important;
+  }
+}
+
 /* Fichas de Pedidos en celulares estrechos: los tres controles caben dentro de
    cada tarjeta y Personalizar conserva exactamente el mismo ancho. */
 @media (max-width: 430px) {

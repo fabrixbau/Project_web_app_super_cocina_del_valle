@@ -758,6 +758,7 @@ def internal_order_edit(request, order_id):
     running_meal_products = []
     executive_meal_products = []
     daily_order_products = []
+    daily_order_loose_products = []
     if mode == "lunch" and daily_menu:
         first_second_ids = [pk for pk in (
             daily_menu.chicken_consomme_id, daily_menu.variable_first_course_id,
@@ -777,9 +778,28 @@ def internal_order_edit(request, order_id):
                 eligible_for_executive_meal=True, is_available=True,
             ).order_by("category__name", "name")
         )
+    if mode == "lunch":
+        # Esta categoría se excluye del catálogo normal porque tiene pestaña propia.
+        # Conservamos aquí sus productos sueltos sin tratarlos como tiempos del menú.
+        daily_order_loose_products = filter_products_by_stock(
+            list(Product.objects.filter(
+                category__name="Comida por orden",
+                category__show_on_table_lunch=True,
+                is_available=True,
+                is_sold_individually=True,
+                packaging_kind=Product.PackagingKind.NONE,
+            ).order_by("sort_order", "name")),
+            daily_menu=daily_menu,
+            channel=DailyProductStock.Channel.ORDERS,
+        )
+        daily_product_ids = {product.pk for product in daily_order_products}
+        daily_order_loose_products = [
+            product for product in daily_order_loose_products
+            if product.pk not in daily_product_ids
+        ]
     products = {product.pk: product for category in categories for product in category.capture_products}
     products.update({product.pk: product for product in packaging_products})
-    for product in running_meal_products + executive_meal_products + daily_order_products:
+    for product in running_meal_products + executive_meal_products + daily_order_products + daily_order_loose_products:
         products[product.pk] = product
     selector_records = Product.objects.filter(pk__in=products).prefetch_related("option_groups__options")
     selector_data = {str(product.pk): serialize_product_selector(product) for product in selector_records}
@@ -822,6 +842,7 @@ def internal_order_edit(request, order_id):
         "running_meal_products": running_meal_products,
         "executive_meal_products": executive_meal_products,
         "daily_order_products": daily_order_products,
+        "daily_order_loose_products": daily_order_loose_products,
         "customer_debt_summary": {
             "balance": sum((debt.balance for debt in current_customer_debts), Decimal("0")),
             "count": len(current_customer_debts),

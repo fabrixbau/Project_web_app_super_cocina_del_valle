@@ -13,10 +13,21 @@
   backdrop.hidden = true;
   document.body.append(backdrop);
   let activeLabel = null;
+  let activeOrigin = null;
+
+  const restoreActiveLabel = () => {
+    if (!activeLabel || !activeOrigin) return;
+    const { parent, nextSibling } = activeOrigin;
+    if (!parent?.isConnected) return;
+    if (nextSibling?.parentNode === parent) parent.insertBefore(activeLabel, nextSibling);
+    else parent.append(activeLabel);
+  };
 
   const closeField = () => {
     activeLabel?.classList.remove("is-compact-field-open");
+    restoreActiveLabel();
     activeLabel = null;
+    activeOrigin = null;
     backdrop.hidden = true;
     document.body.classList.remove("compact-field-open");
   };
@@ -42,11 +53,24 @@
       if (isCustomer && !responsiveView.matches) return;
       closeField();
       activeLabel = label;
+      activeOrigin = { parent: label.parentNode, nextSibling: label.nextSibling };
+      // El fondo vive directamente en body. Llevar también el campo abierto a ese
+      // nivel evita que un overflow o contexto de apilado del catálogo lo deje
+      // detrás del fondo borroso en tablets horizontales.
+      document.body.append(label);
       label.classList.add("is-compact-field-open");
       backdrop.hidden = false;
       document.body.classList.add("compact-field-open");
+      input.hidden = false;
+      input.removeAttribute("readonly");
+      input.removeAttribute("inert");
       input.focus({ preventScroll: true });
       input.select?.();
+      window.requestAnimationFrame(() => {
+        if (activeLabel === label && document.activeElement !== input) {
+          input.focus({ preventScroll: true });
+        }
+      });
     });
   });
 
