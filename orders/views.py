@@ -1037,7 +1037,7 @@ def internal_order_daily_product_add(request, order_id, product_id):
     try:
         add_internal_order_product(
             order=order, product=product, actor=request.user, require_individual=False,
-            daily_menu=daily_menu,
+            daily_menu=daily_menu, chicken_piece=request.POST.get("chicken_piece", ""),
             raw_option_ids=(request.POST.getlist("option_ids") if request.POST.get("customization_selected") == "1" else None),
             comment=(request.POST.get("customization_comment", "") if request.POST.get("customization_selected") == "1" else ""),
         )

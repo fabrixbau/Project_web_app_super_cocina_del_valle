@@ -934,17 +934,29 @@
     }
   });
 
+  let pendingChickenForm = null;
+  const chickenDialog = document.querySelector("[data-internal-chicken-dialog]");
+
   document.addEventListener("submit", async (event) => {
     const addForm = event.target.closest("form[data-internal-add]");
     if (!addForm) return;
+    // NOTA TEMPORAL PARA APRENDIZAJE: Comida por orden reutiliza esta misma tarjeta
+    // genérica; si el producto es el guisado de pollo del día, la tarjeta trae el
+    // atributo data-internal-chicken-choice y un input chicken_piece vacío. Sin
+    // pierna/muslo, el backend no encuentra existencia por pieza y rechaza el
+    // producto. Borra esta nota después de leerla.
+    const chickenField = addForm.querySelector("input[name='chicken_piece']");
+    if (addForm.hasAttribute("data-internal-chicken-choice") && chickenField && !chickenField.value) {
+      event.preventDefault();
+      pendingChickenForm = addForm;
+      chickenDialog.showModal();
+      return;
+    }
     event.preventDefault();
     try { await send(addForm.action, new FormData(addForm)); }
     catch (error) { window.alert(error.message); }
     finally { addForm.querySelectorAll("input[data-generated-option]").forEach((input) => input.remove()); delete addForm.dataset.selectionReady; }
   });
-
-  let pendingChickenForm = null;
-  const chickenDialog = document.querySelector("[data-internal-chicken-dialog]");
   document.querySelector("[data-internal-chicken-close]")?.addEventListener("click", () => {
     pendingChickenForm = null; chickenDialog.close();
   });

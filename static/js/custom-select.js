@@ -11,12 +11,47 @@
     wrapper.classList.remove("is-keyboard-ready");
   };
 
+  // NOTA TEMPORAL PARA APRENDIZAJE: el huevo opcional de Corrida/Ejecutiva vive
+  // dentro de un formulario con overflow-y:auto en celular (necesario para su
+  // propio scroll). Ese overflow recorta el menú aunque sus envoltorios internos
+  // digan overflow:visible, porque el recorte ocurre en el formulario, no en
+  // ellos. En vez de tocar ese overflow (saltaría el scroll ya aplicado), este
+  // menú se saca a position:fixed con coordenadas reales del disparador, así
+  // escapa de cualquier contenedor con scroll sin moverlo. Borra esta nota.
+  const clearEscapedPosition = (wrapper) => {
+    wrapper.classList.remove("is-escaped");
+    wrapper.style.removeProperty("--escaped-menu-top");
+    wrapper.style.removeProperty("--escaped-menu-left");
+    wrapper.style.removeProperty("--escaped-menu-width");
+    wrapper.style.removeProperty("--escaped-menu-max-height");
+  };
+
+  const applyEscapedPosition = (wrapper, trigger, menu) => {
+    if (!wrapper.closest(".package-egg-choice")) return;
+    const rect = trigger.getBoundingClientRect();
+    const gap = 6;
+    const edge = 8;
+    const menuWidth = Math.min(Math.max(rect.width, 220), window.innerWidth - edge * 2);
+    const spaceBelow = window.innerHeight - rect.bottom - gap - edge;
+    const spaceAbove = rect.top - gap - edge;
+    const openUpward = spaceBelow < 140 && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(120, Math.min(280, openUpward ? spaceAbove : spaceBelow));
+    const top = openUpward ? rect.top - gap - maxHeight : rect.bottom + gap;
+    const left = Math.min(Math.max(edge, rect.right - menuWidth), window.innerWidth - menuWidth - edge);
+    wrapper.style.setProperty("--escaped-menu-top", `${Math.max(edge, top)}px`);
+    wrapper.style.setProperty("--escaped-menu-left", `${left}px`);
+    wrapper.style.setProperty("--escaped-menu-width", `${menuWidth}px`);
+    wrapper.style.setProperty("--escaped-menu-max-height", `${maxHeight}px`);
+    wrapper.classList.add("is-escaped");
+  };
+
   const closeAll = (except = null) => {
     document.querySelectorAll(".app-select.is-open").forEach((wrapper) => {
       if (wrapper === except) return;
       wrapper.classList.remove("is-open");
       wrapper.querySelector(".app-select-trigger")?.setAttribute("aria-expanded", "false");
       resetCompactTrigger(wrapper);
+      clearEscapedPosition(wrapper);
     });
   };
 
@@ -120,7 +155,12 @@
       closeAll(wrapper);
       wrapper.classList.toggle("is-open", opening);
       trigger.setAttribute("aria-expanded", String(opening));
-      if (opening) menu.querySelector(".is-selected")?.scrollIntoView({ block: "nearest" });
+      if (opening) {
+        applyEscapedPosition(wrapper, trigger, menu);
+        menu.querySelector(".is-selected")?.scrollIntoView({ block: "nearest" });
+      } else {
+        clearEscapedPosition(wrapper);
+      }
     };
     let openedFromPointer = false;
     trigger.addEventListener("pointerdown", (event) => {

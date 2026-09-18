@@ -479,6 +479,28 @@ def table_detail(request, account_id):
             executive_meal_products, daily_menu=daily_menu,
             channel=DailyProductStock.Channel.TABLE,
         )
+    daily_order_loose_products = []
+    if capture_mode == LUNCH_MODE:
+        # NOTA TEMPORAL PARA APRENDIZAJE: la categoría "Comida por orden" se excluyó
+        # arriba del catálogo normal, pero sus productos sueltos (bolillo, tortilla,
+        # consomé preparado, etc.) siguen existiendo y deben venderse por separado,
+        # igual que ya ocurre en Pedidos. Borra esta nota después de leerla.
+        daily_order_loose_products = filter_products_by_stock(
+            list(Product.objects.filter(
+                category__name="Comida por orden",
+                category__show_on_table_lunch=True,
+                is_available=True,
+                is_sold_individually=True,
+                packaging_kind=Product.PackagingKind.NONE,
+            ).order_by("sort_order", "name")),
+            daily_menu=daily_menu,
+            channel=DailyProductStock.Channel.TABLE,
+        )
+        daily_order_product_ids = {product.pk for product in daily_order_products}
+        daily_order_loose_products = [
+            product for product in daily_order_loose_products
+            if product.pk not in daily_order_product_ids
+        ]
     package_options = []
     if daily_menu:
         # NOTA TEMPORAL PARA APRENDIZAJE: igual que Pedidos, Mesas conserva el
@@ -536,6 +558,7 @@ def table_detail(request, account_id):
     selector_products.update({product.pk: product for product in daily_order_products})
     selector_products.update({product.pk: product for product in running_meal_products})
     selector_products.update({product.pk: product for product in executive_meal_products})
+    selector_products.update({product.pk: product for product in daily_order_loose_products})
     selector_product_records = Product.objects.filter(
         pk__in=selector_products,
     ).prefetch_related("option_groups__options")
@@ -548,6 +571,8 @@ def table_detail(request, account_id):
         for product in category.available_products:
             product.has_customization = product.pk in customizable_ids
     for product in daily_order_products:
+        product.has_customization = product.pk in customizable_ids
+    for product in daily_order_loose_products:
         product.has_customization = product.pk in customizable_ids
     catalog_search_products = sorted(selector_products.values(), key=lambda product: product.name.casefold())
     for product in catalog_search_products:
@@ -565,6 +590,7 @@ def table_detail(request, account_id):
         "egg_initials": {str(option["item"].pk): option["item"].egg_product_id for option in package_edit_options},
         "package_edit_options": package_edit_options,
         "daily_order_products": daily_order_products,
+        "daily_order_loose_products": daily_order_loose_products,
         "running_meal_products": running_meal_products,
         "executive_meal_products": executive_meal_products,
         "product_customizations": product_customizations,

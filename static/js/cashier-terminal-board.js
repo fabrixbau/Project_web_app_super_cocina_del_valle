@@ -40,6 +40,12 @@ function updateConsumption(row) {
 function appendBlankFrom(row) {
   if (board.querySelector(".terminal-movement-row.is-new[data-movement-id='']")) return;
   const clone = row.cloneNode(true); clone.dataset.movementId = ""; clone.dataset.savedTotal = "0"; clone.dataset.savedTip = "0"; clone.classList.add("is-new");
+  // NOTA TEMPORAL PARA APRENDIZAJE: cloneNode copia data-saving/data-pending-save tal
+  // cual estén en la fila original en ese instante. Como este clonado ocurre dentro
+  // del try de saveRow, la fila original todavía tiene data-saving="1"; sin este
+  // reinicio, la tarjeta nueva nace "atorada" y su primer guardado nunca se ejecuta.
+  // Borra esta nota después de leerla.
+  delete clone.dataset.saving; delete clone.dataset.pendingSave;
   clone.querySelectorAll(".app-select").forEach((wrapper) => {
     const select = wrapper.querySelector(":scope > select");
     if (!select) return;

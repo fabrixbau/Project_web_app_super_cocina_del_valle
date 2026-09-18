@@ -3,6 +3,7 @@
 import io
 import logging
 import os
+import threading
 import time
 
 import requests
@@ -15,6 +16,52 @@ SERVER = os.environ.get("PRINT_SERVER_URL", "https://supercocina.win").rstrip("/
 TOKEN = os.environ.get("PRINT_AGENT_TOKEN", "")
 PRINTER = os.environ.get("PRINT_PRINTER_NAME", "POS-80 (copy 1)")
 WIDTH_DOTS = 576
+HEARTBEAT_INTERVAL_SECONDS = 10
+
+
+def printer_is_connected():
+    """True si Windows ve la POS-80 instalada y no reporta estar fuera de línea.
+
+    NOTA TEMPORAL PARA APRENDIZAJE: para una impresora térmica USB, Windows
+    marca el estado "Offline" en cuanto se apaga o se desconecta el cable,
+    aunque el controlador siga instalado. Por eso basta con leer ese estado
+    en vez de intentar imprimir algo para probar. Borra esta nota al leerla.
+    """
+    try:
+        handle = win32print.OpenPrinter(PRINTER)
+    except Exception:
+        return False
+    try:
+        info = win32print.GetPrinter(handle, 2)
+        return info.get("Status", 0) & win32print.PRINTER_STATUS_OFFLINE == 0
+    except Exception:
+        return False
+    finally:
+        win32print.ClosePrinter(handle)
+
+
+def heartbeat_loop():
+    """Avisa al servidor cada pocos segundos que el agente sigue vivo.
+
+    NOTA TEMPORAL PARA APRENDIZAJE: corre en su propio hilo, separado del que
+    reclama e imprime trabajos, para que el latido nunca se retrase por estar
+    ocupado imprimiendo o esperando el siguiente trabajo. Usa su propia sesión
+    de requests porque compartir una sesión entre hilos puede comportarse de
+    forma inesperada. El servidor sólo acepta nuevas impresiones si recibió un
+    latido reciente con la impresora conectada. Borra esta nota al leerla.
+    """
+    session = requests.Session()
+    session.headers.update({"Authorization": f"Bearer {TOKEN}"})
+    while True:
+        try:
+            session.post(
+                f"{SERVER}/app/impresion/agente/latido/",
+                json={"printer_available": printer_is_connected()},
+                timeout=10,
+            )
+        except requests.RequestException:
+            logging.warning("No se pudo enviar el latido; reintentando en %s s", HEARTBEAT_INTERVAL_SECONDS)
+        time.sleep(HEARTBEAT_INTERVAL_SECONDS)
 
 
 def render_ticket(html):
@@ -70,6 +117,7 @@ def run():
         raise SystemExit("PRINT_SERVER_URL debe usar HTTPS.")
     session = requests.Session()
     session.headers.update({"Authorization": f"Bearer {TOKEN}"})
+    threading.Thread(target=heartbeat_loop, daemon=True).start()
     logging.info("Escuchando %s para %s", SERVER, PRINTER)
     while True:
         try:
@@ -81,6 +129,11 @@ def run():
                 continue
             logging.info("Trabajo %s: %s", job["id"], job["label"])
             try:
+                # NOTA TEMPORAL PARA APRENDIZAJE: el latido pudo haberse enviado hace
+                # varios segundos; se vuelve a comprobar aquí para no intentar
+                # imprimir con la POS-80 recién desconectada. Borra esta nota.
+                if not printer_is_connected():
+                    raise RuntimeError("La impresora POS-80 está apagada o desconectada.")
                 png = render_ticket(job["html"])
                 print_ticket(png, job["id"])
                 result = {"status": "printed"}

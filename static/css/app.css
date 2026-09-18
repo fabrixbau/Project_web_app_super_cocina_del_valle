@@ -10042,6 +10042,23 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   max-height: min(17rem, 45dvh);
   z-index: 361 !important;
 }
+/* NOTA TEMPORAL PARA APRENDIZAJE: en celular, el formulario del paquete recibe
+   overflow-y:auto (regla de arriba, @media max-width:900px) para poder desplazar
+   su contenido dentro del diálogo. Ese overflow recorta el menú del huevo aunque
+   sus contenedores internos ya tengan overflow:visible, porque el recorte ocurre
+   en el propio formulario, no en ellos. En vez de tocar el overflow del formulario
+   (saltaría el scroll ya aplicado), custom-select.js posiciona este menú como
+   position:fixed usando las coordenadas reales del disparador, así escapa de
+   cualquier contenedor con scroll sin alterar su posición. Borra esta nota.*/
+.package-egg-choice .app-select.is-open.is-escaped .app-select-menu {
+  position: fixed !important;
+  top: var(--escaped-menu-top) !important;
+  left: var(--escaped-menu-left) !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: var(--escaped-menu-width) !important;
+  max-height: var(--escaped-menu-max-height, 280px) !important;
+}
 
 @media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
   .visual-package-dialog form[data-internal-package] > .package-quick-extras {
@@ -11082,5 +11099,77 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     margin-top: .3rem !important;
     padding-top: .35rem !important;
     font-size: 1.05rem !important;
+  }
+}
+
+/* Prioridad definitiva: los extras de Corrida/Ejecutiva (agua, refill, bolillo,
+   huevo, comentario) nunca deben "filtrarse" a la cuadrícula de los tres tiempos
+   en celular. Varias reglas anteriores alternan display:contents/grid y
+   grid-column/grid-row explícitos para distintos anchos, y la última en el
+   archivo gana: si esa última resulta ser display:contents con columnas que ya
+   no corresponden al ancho real, sus hijos (incluido el huevo opcional) terminan
+   colocados sobre "Tercer tiempo" y sus taps nunca llegan al control real. Esta
+   regla es la última del archivo a propósito: fuerza una columna simple y bloque
+   normal, sin importar qué reglas anteriores hayan quedado activas. Borra esta
+   nota después de leerla. */
+@media (max-width: 900px) {
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    gap: .55rem !important;
+  }
+  /* NOTA TEMPORAL PARA APRENDIZAJE: una regla anterior con la misma cantidad de
+     clases (.table-visual-package-dialog .package-visual-groups > .table-package-
+     visual-extras > .package-egg-choice { grid-area: 3/3 !important; }) le gana
+     a un selector universal "> *" aunque ambos usen !important, porque el
+     universal no suma especificidad. Por eso aquí se repite la regla nombrando
+     cada hijo explícitamente, igualando esa especificidad para que la posición
+     de escritura (la última del archivo) sí decida. Borra esta nota. */
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .table-water-choice,
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .table-package-stacked-rules,
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .product-rule-card,
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-egg-choice,
+  .table-visual-package-dialog .package-visual-groups > .table-package-visual-extras > .package-comment-field {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+  }
+  /* NOTA TEMPORAL PARA APRENDIZAJE: Comida ejecutiva tiene sus propias reglas
+     calificadas con form[data-package-form][data-package-kind="executive"], que
+     por llevar dos atributos más pesan más que las reglas genéricas de arriba
+     (incluida la del propio contenedor). Se repiten aquí con esa misma
+     calificación para igualar la especificidad en ambos casos (corrida y
+     ejecutiva) y que gane la última regla del archivo. Borra esta nota. */
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    gap: .55rem !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .table-water-choice,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .table-package-stacked-rules,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .product-rule-card,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .package-egg-choice,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .package-comment-field,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .table-water-choice,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .table-package-stacked-rules,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .product-rule-card,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-egg-choice,
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-comment-field {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules > * {
+    grid-column: 1 !important;
+    grid-row: auto !important;
   }
 }

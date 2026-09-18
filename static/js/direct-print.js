@@ -31,6 +31,10 @@
           notice(`${label}: la Dell reportó un error. Avisa al administrador antes de reintentar.`, true);
           return;
         }
+        if (job.status === "expired") {
+          notice(`${label}: la impresora se desconectó antes de imprimirlo. Vuelve a intentar.`, true);
+          return;
+        }
       } catch (_) {
         return;
       }
