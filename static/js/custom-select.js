@@ -122,13 +122,31 @@
       trigger.setAttribute("aria-expanded", String(opening));
       if (opening) menu.querySelector(".is-selected")?.scrollIntoView({ block: "nearest" });
     };
-    trigger.addEventListener("pointerdown", () => {
-      if (!searchable || !isCompactViewport() || !wrapper.classList.contains("is-open") || !trigger.readOnly) return;
+    let openedFromPointer = false;
+    trigger.addEventListener("pointerdown", (event) => {
+      if (!searchable || !isCompactViewport()) return;
+      if (!wrapper.classList.contains("is-open")) {
+        // En móviles el foco nativo ocurre antes de `click`; cancelarlo aquí evita
+        // que el teclado alcance a aparecer durante el primer toque.
+        event.preventDefault();
+        openedFromPointer = true;
+        toggleMenu();
+        resetCompactTrigger(wrapper);
+        trigger.blur();
+        return;
+      }
+      if (!trigger.readOnly) return;
+      // Segundo toque: ahora sí convertimos la barra en escribible.
       trigger.readOnly = false;
       trigger.inputMode = "search";
       wrapper.classList.add("is-keyboard-ready");
     });
-    trigger.addEventListener("click", () => {
+    trigger.addEventListener("click", (event) => {
+      if (openedFromPointer) {
+        event.preventDefault();
+        openedFromPointer = false;
+        return;
+      }
       if (searchable && isCompactViewport()) {
         if (!wrapper.classList.contains("is-open")) {
           toggleMenu();
@@ -174,8 +192,8 @@
       if (event.key === "Enter" && searchable) {
         event.preventDefault();
         filter(trigger.value);
-        if (isCompactViewport()) wrapper.dataset.preserveMobileFilter = "1";
         trigger.blur();
+        resetCompactTrigger(wrapper);
         return;
       }
       if (!["ArrowDown", "ArrowUp", "Escape"].includes(event.key)) return;
@@ -237,7 +255,7 @@
   const dismissFocusedSearch = () => {
     if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
     document.querySelectorAll(
-      ".compact-search-backdrop:not([hidden]), .menu-search-backdrop:not([hidden]), .delivery-search-backdrop:not([hidden])"
+      ".compact-search-backdrop:not([hidden]), .menu-search-backdrop:not([hidden]), .delivery-search-backdrop:not([hidden]), .customer-field-backdrop:not([hidden])"
     ).forEach((backdrop) => backdrop.click());
   };
   document.addEventListener("keydown", (event) => {

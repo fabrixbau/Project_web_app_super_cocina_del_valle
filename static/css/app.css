@@ -8463,6 +8463,64 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   .internal-live-ticket > .internal-ticket-actions small { grid-column: 1 / -1; font-size: .55rem; }
 }
 
+/* Ticket táctil estable: el encabezado y las acciones permanecen visibles y sólo
+   la lista de partidas consume el espacio flexible, incluso al abrir Efectivo. */
+.internal-live-ticket,
+.table-pos-layout .table-ticket:not(.is-closed-summary) {
+  display: flex !important;
+  flex-direction: column;
+  min-height: 0;
+}
+.internal-live-ticket > .table-ticket-items,
+.table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
+  flex: 1 1 4.5rem;
+  min-height: 0;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+.internal-live-ticket > :not(.table-ticket-items),
+.table-pos-layout .table-ticket:not(.is-closed-summary) > :not(.table-ticket-items) {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .internal-pos-workspace,
+  .internal-pos-workspace.ticket-expanded,
+  .table-pos-layout.has-ticket,
+  .table-pos-layout.has-ticket.ticket-expanded {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .internal-live-ticket,
+  .table-pos-layout .table-ticket:not(.is-closed-summary) {
+    position: relative !important;
+    top: auto !important;
+    width: 100%;
+    height: calc(100dvh - 1rem) !important;
+    max-height: calc(100dvh - 1rem) !important;
+  }
+  .internal-menu-workspace,
+  .internal-menu-workspace .auto-package-options,
+  .internal-menu-workspace .package-egg-choice,
+  .internal-menu-workspace .package-egg-choice .app-select,
+  .internal-menu-workspace .package-egg-choice .app-select-trigger {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+  .internal-menu-workspace .package-egg-choice {
+    position: relative;
+    overflow: visible !important;
+  }
+  .internal-live-ticket .ticket-payment-details {
+    max-width: 100%;
+    min-width: 0;
+  }
+}
+
 /* Prioridad final para controles de las fichas y extras de Ejecutiva en Mesas. */
 .visual-package-dialog .package-choice-card {
   grid-template-rows: minmax(48px, 62px) auto auto !important;
