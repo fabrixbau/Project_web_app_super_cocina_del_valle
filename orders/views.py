@@ -36,7 +36,7 @@ from .coffee_report import coffee_sales_for_date
 from .phones import phone_key as normalize_customer_phone
 from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm, PublicOrderModeForm
 from .models import CoffeeSettlement, Customer, CustomerAddress, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
-from .services import ACTION_LABELS, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, start_internal_order, transition_order, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
+from .services import ACTION_LABELS, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, start_internal_order, transition_order, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
 
 
 INTERNAL_MENU_MODE_KEY = "internal_order_menu_mode"
@@ -485,6 +485,7 @@ def order_list(request):
             user_has_any_role(request.user, (ADMIN,))
             and order.status not in {Order.Status.CANCELED, Order.Status.PICKED_UP, Order.Status.DELIVERED}
         )
+        order.can_edit_payment = can_update_order_payment(order=order, actor=request.user)
     return render(request, "orders/order_list.html", {
         "orders": orders,
         "delivery_orders": [order for order in orders if order.order_type == Order.OrderType.DELIVERY],
@@ -496,7 +497,6 @@ def order_list(request):
         "selected_order_type": order_type,
         "selected_scope": scope,
         "can_capture_internal": user_has_any_role(request.user, (ADMIN, ORDER_TAKER)),
-        "can_edit_payment": user_has_any_role(request.user, (ADMIN, ORDER_TAKER)),
         "can_manage_debts": user_has_any_role(request.user, (ADMIN,)),
     })
 
@@ -2252,7 +2252,7 @@ def cashier_tip_detail(request, source, record_id):
 
 
 @require_POST
-@role_required(ADMIN, ORDER_TAKER)
+@role_required(ADMIN, ORDER_TAKER, WAITER)
 def cashier_payment_update(request, order_id):
     order = get_object_or_404(Order, pk=order_id)
     try:

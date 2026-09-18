@@ -5,15 +5,104 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.roles import ADMIN
+from accounts.roles import ADMIN, ORDER_TAKER, WAITER
 
 from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product, StockMovement
 
 from .models import Order
 from .services import (
     add_internal_order_package, add_internal_order_product, change_internal_order_item,
-    change_internal_order_type, transition_order, update_internal_package_extras,
+    change_internal_order_type, transition_order, update_cashier_payment,
+    update_internal_package_extras,
 )
+
+
+class OrderPaymentPermissionTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.telefonista = user_model.objects.create_user(username="payment_order_taker")
+        self.telefonista.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
+        self.mesero = user_model.objects.create_user(username="payment_waiter")
+        self.mesero.groups.add(Group.objects.get_or_create(name=WAITER)[0])
+        self.admin = user_model.objects.create_user(username="payment_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+
+    def make_order(self, *, order_type, status):
+        return Order.objects.create(
+            daily_number=980 + Order.objects.count(), operating_date=timezone.localdate(),
+            order_type=order_type, source=Order.Source.INTERNAL, status=status,
+            customer_name="Cliente pago", total=100,
+            payment_method=Order.PaymentMethod.CASH,
+        )
+
+    def assert_payment_blocked(self, *, actor, order):
+        with self.assertRaisesMessage(ValidationError, "estado actual"):
+            update_cashier_payment(
+                order=order, payment_method=Order.PaymentMethod.CARD,
+                cash_amount="", actor=actor,
+            )
+        order.refresh_from_db()
+        self.assertEqual(order.payment_method, Order.PaymentMethod.CASH)
+
+    def test_telefonista_cannot_change_delivery_payment_in_delivery_or_delivered(self):
+        for status in (Order.Status.OUT_FOR_DELIVERY, Order.Status.DELIVERED):
+            with self.subTest(status=status):
+                self.assert_payment_blocked(
+                    actor=self.telefonista,
+                    order=self.make_order(order_type=Order.OrderType.DELIVERY, status=status),
+                )
+
+    def test_mesero_cannot_change_delivery_payment_in_delivery_or_delivered(self):
+        for status in (Order.Status.OUT_FOR_DELIVERY, Order.Status.DELIVERED):
+            with self.subTest(status=status):
+                self.assert_payment_blocked(
+                    actor=self.mesero,
+                    order=self.make_order(order_type=Order.OrderType.DELIVERY, status=status),
+                )
+
+    def test_telefonista_and_mesero_cannot_change_picked_up_payment(self):
+        for actor in (self.telefonista, self.mesero):
+            with self.subTest(actor=actor.username):
+                self.assert_payment_blocked(
+                    actor=actor,
+                    order=self.make_order(
+                        order_type=Order.OrderType.PICKUP, status=Order.Status.PICKED_UP,
+                    ),
+                )
+
+    def test_restarted_cycle_allows_telefonista_and_mesero_again(self):
+        for actor in (self.telefonista, self.mesero):
+            with self.subTest(actor=actor.username):
+                order = self.make_order(
+                    order_type=Order.OrderType.DELIVERY, status=Order.Status.PENDING_CONFIRMATION,
+                )
+                update_cashier_payment(
+                    order=order, payment_method=Order.PaymentMethod.CARD,
+                    cash_amount="", actor=actor,
+                )
+                order.refresh_from_db()
+                self.assertEqual(order.payment_method, Order.PaymentMethod.CARD)
+
+    def test_administrator_can_change_payment_in_final_status(self):
+        order = self.make_order(
+            order_type=Order.OrderType.PICKUP, status=Order.Status.PICKED_UP,
+        )
+        update_cashier_payment(
+            order=order, payment_method=Order.PaymentMethod.TRANSFER,
+            cash_amount="", actor=self.admin,
+        )
+        order.refresh_from_db()
+        self.assertEqual(order.payment_method, Order.PaymentMethod.TRANSFER)
+
+    def test_order_list_hides_payment_buttons_when_locked(self):
+        order = self.make_order(
+            order_type=Order.OrderType.PICKUP, status=Order.Status.PICKED_UP,
+        )
+        self.client.force_login(self.mesero)
+        response = self.client.get(reverse("orders:order_list"), {"scope": "completed"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, order.formatted_number)
+        self.assertNotContains(response, "data-order-payment-method")
 
 
 class CapturePrintTests(TestCase):

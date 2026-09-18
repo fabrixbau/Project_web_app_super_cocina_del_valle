@@ -15,7 +15,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, user_has_any_role
+from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, WAITER, user_has_any_role
 from menu.inventory import release_stock, reserve_stock
 from menu.models import DailyMenu, DailyProductStock, MealPackage, Product, StockMovement
 from menu.packaging import selected_packaging_products
@@ -36,6 +36,19 @@ ACTION_LABELS = {
     "complete_delivery": "Marcar como entregado",
     "restart_cycle": "Iniciar nuevo ciclo",
 }
+
+
+def can_update_order_payment(*, order, actor):
+    """Return whether this operator may change the order payment instruction."""
+    if user_has_any_role(actor, (ADMIN,)):
+        return True
+    if not user_has_any_role(actor, (ORDER_TAKER, WAITER)):
+        return False
+    if order.order_type == Order.OrderType.DELIVERY:
+        return order.status not in {Order.Status.OUT_FOR_DELIVERY, Order.Status.DELIVERED}
+    if order.order_type == Order.OrderType.PICKUP:
+        return order.status != Order.Status.PICKED_UP
+    return True
 
 
 def _inventory_channel(order_type):
@@ -220,6 +233,10 @@ def update_cashier_payment(*, order, payment_method, cash_amount, actor):
     # confirmación anterior de cambio. Caja deberá confirmar otra vez el dinero físico
     # porque el importe pudo cambiar. Borra esta nota después de leerla.
     order = Order.objects.select_for_update().get(pk=order.pk)
+    if not can_update_order_payment(order=order, actor=actor):
+        raise ValidationError(
+            "La forma de pago ya no puede modificarse en el estado actual del pedido."
+        )
     if payment_method not in {"", *Order.PaymentMethod.values}:
         raise ValidationError("Selecciona efectivo, terminal o transferencia.")
     order.payment_method = payment_method
