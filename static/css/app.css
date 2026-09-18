@@ -694,10 +694,14 @@ html[data-theme="dark"] .delivery-search-filter { color: #e7efea; background: tr
 html[data-theme="dark"] .delivery-search-filter input { color: #ecf3ef; border-color: #50695c; background: #101a15; }
 html[data-theme="dark"] .delivery-status-filter span,
 html[data-theme="dark"] .delivery-person-filter span,
-html[data-theme="dark"] .delivery-person-buttons button { color: #dce9e2; border-color: #587467; background: #213029; }
+html[data-theme="dark"] .delivery-person-buttons button,
+html[data-theme="dark"] .delivery-payment-buttons button,
+html[data-theme="dark"] .delivery-cash-amount-buttons button { color: #dce9e2; border-color: #587467; background: #213029; }
 html[data-theme="dark"] .delivery-status-filter label:has(input:checked) span,
 html[data-theme="dark"] .delivery-person-filter label:has(input:checked) span,
-html[data-theme="dark"] .delivery-person-buttons button.is-selected { color: #18241e; border-color: #e2ad36; background: #e2ad36; }
+html[data-theme="dark"] .delivery-person-buttons button.is-selected,
+html[data-theme="dark"] .delivery-payment-buttons button.is-selected,
+html[data-theme="dark"] .delivery-cash-amount-buttons button.is-selected { color: #18241e; border-color: #e2ad36; background: #e2ad36; }
 html[data-theme="dark"] .delivery-card { color: #e8f0eb; border-color: #466052; background: #1b2922; }
 html[data-theme="dark"] .delivery-card > section { color: #e5ede8; border-color: #42594d; background: #202f27; }
 html[data-theme="dark"] .delivery-card .delivery-payment { color: #e8f0eb; background: #302919; }
@@ -1270,6 +1274,23 @@ a { color: #285943; }
 .delivery-tip-form > button[type="submit"] { display: none; }
 .delivery-tip-form [data-tip-error] { color: #a92b27; font-weight: 800; }
 .delivery-tip-summary { font-size: .88rem; color: #40584e; }
+.delivery-payment-edit { display: grid; gap: .4rem; margin-top: .65rem; padding-top: .55rem; border-top: 1px solid #d5cec0; }
+.delivery-payment-buttons { display: flex; gap: .25rem; flex-wrap: wrap; }
+.delivery-payment-buttons form { margin: 0; }
+.delivery-payment-buttons button { padding: .4rem .55rem; border: 2px solid #285943; color: #285943; background: #fff; font-weight: 850; }
+.delivery-payment-buttons button.is-selected { color: #172c23; background: #f6c24b; border-color: #f6c24b; }
+.delivery-payment-buttons button:disabled { cursor: wait; opacity: .7; }
+.delivery-payment-edit [data-delivery-payment-error] { color: #a92b27; font-weight: 800; }
+.delivery-cash-options { display: grid; gap: .35rem; margin-top: .1rem; padding-top: .4rem; border-top: 1px dashed #d5cec0; }
+.delivery-cash-options > span { color: #63736b; font-size: .72rem; font-weight: 800; text-transform: uppercase; }
+.delivery-cash-amount-buttons { display: flex; gap: .25rem; flex-wrap: wrap; }
+.delivery-cash-amount-buttons form { margin: 0; }
+.delivery-cash-amount-buttons button { padding: .35rem .5rem; border: 2px solid #285943; color: #285943; background: #fff; font-weight: 850; }
+.delivery-cash-amount-buttons button.is-selected { color: #172c23; background: #f6c24b; border-color: #f6c24b; }
+.delivery-cash-amount-buttons button:disabled { cursor: wait; opacity: .7; }
+.delivery-cash-custom { display: grid; margin: 0; }
+.delivery-cash-custom label { display: grid; grid-template-columns: auto minmax(75px, 1fr); gap: .4rem; align-items: center; }
+.delivery-cash-custom input { min-width: 0; }
 .delivery-page-heading { display: flex; justify-content: space-between; gap: 1.5rem; align-items: end; margin-bottom: 1rem; }
 .delivery-page-heading > div > span,
 .delivery-results-heading span { color: #a17019; font-size: .7rem; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
@@ -3270,9 +3291,13 @@ html[data-theme="dark"] .delivery-card > section { color: #e8f0eb; border-color:
 html[data-theme="dark"] .delivery-search-filter input { color: #eef4f1; background: #101a15; }
 html[data-theme="dark"] .delivery-status-filter span,
 html[data-theme="dark"] .delivery-person-filter span,
-html[data-theme="dark"] .delivery-person-buttons button { color: #e4ece7; border-color: #597568; background: #213129; }
+html[data-theme="dark"] .delivery-person-buttons button,
+html[data-theme="dark"] .delivery-payment-buttons button,
+html[data-theme="dark"] .delivery-cash-amount-buttons button { color: #e4ece7; border-color: #597568; background: #213129; }
 html[data-theme="dark"] .delivery-status-filter label:has(input:checked) span,
 html[data-theme="dark"] .delivery-person-filter label:has(input:checked) span,
+html[data-theme="dark"] .delivery-payment-buttons button.is-selected,
+html[data-theme="dark"] .delivery-cash-amount-buttons button.is-selected,
 html[data-theme="dark"] .delivery-person-buttons button.is-selected { color: #17231d; border-color: #e3ad35; background: #e3ad35; }
 html[data-theme="dark"] .delivery-card .delivery-payment { color: #f0e6ca; background: #312a19; }
 html[data-theme="dark"] .delivery-current-assignee { color: #e5ede8; background: #27382f; }
@@ -6810,6 +6835,9 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   .delivery-tip-form label { grid-template-columns: auto minmax(0, 1fr); }
   .delivery-tip-form input { min-height: 2rem; padding: .25rem; }
   .delivery-tip-summary { font-size: .65rem; line-height: 1.25; }
+  .delivery-payment-edit { gap: .25rem; margin-top: .35rem; padding-top: .3rem; }
+  .delivery-payment-buttons button { padding: .25rem .4rem; font-size: .68rem; }
+  .delivery-cash-amount-buttons button { padding: .25rem .4rem; font-size: .68rem; }
   .delivery-row-action button { min-height: 2.1rem; padding: .3rem; font-size: .68rem; }
 }
 

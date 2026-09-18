@@ -25,6 +25,7 @@ urlpatterns = [
     path("<int:order_id>/editar/autoguardar-cliente/", views.internal_order_customer_autosave, name="internal_order_customer_autosave"),
     path("<int:order_id>/editar/nota/", views.internal_order_note, name="internal_order_note"),
     path("<int:order_id>/editar/partidas/<int:item_id>/nota/", views.internal_order_item_note, name="internal_order_item_note"),
+    path("<int:order_id>/editar/propina/", views.internal_order_tip_update, name="internal_order_tip_update"),
     path("<int:order_id>/editar/cerrar-captura/", views.internal_order_close_capture, name="internal_order_close_capture"),
     path("<int:order_id>/editar/productos/<int:product_id>/agregar/", views.internal_order_product_add, name="internal_order_product_add"),
     path("<int:order_id>/editar/menu-diario/<int:product_id>/agregar/", views.internal_order_daily_product_add, name="internal_order_daily_product_add"),

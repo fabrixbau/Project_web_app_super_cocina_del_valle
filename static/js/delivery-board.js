@@ -177,6 +177,44 @@ document.addEventListener("submit", async (event) => {
 });
 
 document.addEventListener("submit", async (event) => {
+  const form = event.target.closest("[data-delivery-payment]");
+  if (!form) return;
+  event.preventDefault();
+  const group = form.closest("[data-delivery-payment-group]");
+  const errorBox = group.querySelector("[data-delivery-payment-error]");
+  const buttons = group.querySelectorAll("button[type='submit']");
+  buttons.forEach((button) => { button.disabled = true; });
+  try {
+    const response = await fetch(form.getAttribute("action"), {
+      method: "POST", body: new FormData(form),
+      headers: {
+        "X-Requested-With": "XMLHttpRequest",
+        "X-CSRFToken": form.querySelector("input[name='csrfmiddlewaretoken']").value,
+        "Accept": "application/json",
+      },
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "No se pudo cambiar el método de pago.");
+    // NOTA TEMPORAL PARA APRENDIZAJE: el método de pago cambia también la propina
+    // disponible y el texto de cambio/efectivo; recargamos para mantener todo
+    // consistente en vez de repintar cada dato derivado. Borra esta nota.
+    window.location.reload();
+  } catch (error) {
+    errorBox.textContent = error.message;
+    errorBox.hidden = false;
+    buttons.forEach((button) => { button.disabled = false; });
+  }
+});
+
+let deliveryCashTimer = null;
+document.addEventListener("input", (event) => {
+  const input = event.target.closest("[data-delivery-custom-cash]");
+  if (!input) return;
+  window.clearTimeout(deliveryCashTimer);
+  deliveryCashTimer = window.setTimeout(() => input.form.requestSubmit(), 600);
+});
+
+document.addEventListener("submit", async (event) => {
   const form = event.target.closest("[data-delivery-status-form]");
   if (!form) return;
   event.preventDefault();

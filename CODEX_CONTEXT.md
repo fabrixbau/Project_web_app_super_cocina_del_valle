@@ -1034,3 +1034,19 @@ templates/
 - Las existencias del menú diario se editan como tarjetas de dos columnas: Mesas y Pedidos muestran por separado disponible, umbral y cantidad comprometida. Cada tarjeta clasifica visualmente su estado como Disponible, Stock bajo o Agotado y fluye a una columna en pantallas pequeñas.
 - Las existencias del menú diario usan 15 como umbral inicial de alerta, editable por producto y por grupo tanto al crear/editar el menú como desde Control de inventario. Sus notificaciones indican explícitamente `para Mesas` o `para Pedidos`; las alertas opcionales del menú fijo permanecen generales porque comparten existencia.
 - Las existencias del menú diario usan un umbral de alerta predeterminado de 15, editable por producto e independientemente para Mesas y Pedidos tanto al crear el menú como al hacer un recuento. Sus notificaciones nombran el servicio afectado; las del menú fijo sólo indican producto y cantidad porque comparten existencia.
+
+## Actualización: control de Administrador en Repartos (2026-09-18)
+
+- En `/app/repartos/`, sólo Administrador puede corregir la propina de un pedido en cualquier momento. El Repartidor asignado conserva su autocaptura única existente (una sola vez, en Efectivo/Terminal, mientras esté `En reparto`). Telefonista pierde la edición de propina en esta pantalla, aunque conservaba acceso de lectura/asignación limitada previa.
+- La captura interna de pedidos (Telefonista/Administrador en `/app/pedidos/<id>/editar/`) conserva intacta su propia captura de propina para Transferencia, ahora mediante un endpoint separado `orders:internal_order_tip_update`. `deliveries:delivery_tip_update` queda reservado a Repartos (Administrador/Repartidor) y a Caja (sólo Administrador).
+- Se agregó un control de método de pago (Efectivo/Terminal/Transferencia) visible únicamente para Administrador en cada tarjeta de `/app/repartos/`, reutilizando el mismo servicio de Caja (`cashier:payment_update`/`update_cashier_payment`). Antes, el método de pago sólo se mostraba de solo lectura en esta pantalla. Al guardar, la tarjeta recarga para reflejar de forma consistente cambio, propina y demás datos derivados del pago.
+- La asignación de repartidor en Repartos ya era exclusiva de Administrador (decorador `@role_required(ADMIN)` en `delivery_assign`); no se modificó.
+- No se requirió migración. Se ejecutó la suite de `orders` (33 pruebas) sin fallos; no se agregaron pruebas nuevas, siguiendo el patrón habitual del proyecto de validación manual por bloque.
+
+## Corrección: billetes de efectivo en el control de pago de /app/repartos/ (2026-09-18)
+
+- Un primer intento agregó la expansión de billetes de efectivo en `/app/pedidos/`; el desarrollador aclaró que el pedido original era para el control de método de pago recién agregado en `/app/repartos/`. Ese cambio en `order_board_item.html`/`order-list.js` fue revertido por completo (`git checkout`) y no queda rastro en el código.
+- El control de método de pago exclusivo de Administrador en `/app/repartos/` (ver sección "control de Administrador en Repartos") sólo cambiaba Efectivo/Terminal/Transferencia sin permitir elegir con qué billete pagó el cliente.
+- Al elegir Efectivo, la tarjeta ahora despliega los mismos montos que Caja ($20/$50/$100/$200/$500/Exacto) más un campo de monto libre con autoguardado (debounce 600 ms). Cada botón sigue siendo un `<form>` independiente que reutiliza el mismo endpoint `cashier:payment_update`, y guarda recargando la tarjeta para reflejar cambio/"Monto por definir" de forma consistente.
+- `delivery_board` agrega `cash_denominations` ([20, 50, 100, 200, 500]) al contexto; no se tocó `update_cashier_payment` ni ningún otro backend.
+- No se requirió migración. Se ejecutó la suite de `orders` (33 pruebas) sin fallos.

@@ -103,6 +103,27 @@ def _can_edit_delivery_tip(order, user):
     return False
 
 
+def _can_edit_delivery_tip_on_board(order, user):
+    # NOTA TEMPORAL PARA APRENDIZAJE: en Repartos, sólo Administrador puede corregir
+    # libremente la propina; Telefonista pierde esa edición aquí aunque la conserve
+    # durante la captura interna. El Repartidor asignado sigue capturando la suya una
+    # sola vez, igual que antes. Borra esta nota después de leerla.
+    if user_has_any_role(user, (ADMIN,)):
+        return True
+    is_delivery_profile = (
+        user_has_any_role(user, (DELIVERY,))
+        and not user_has_any_role(user, (ADMIN, ORDER_TAKER))
+    )
+    if is_delivery_profile:
+        return (
+            order.status == Order.Status.OUT_FOR_DELIVERY
+            and order.delivery_person_id == user.pk
+            and order.payment_method in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}
+            and order.delivery_tip_updated_at is None
+        )
+    return False
+
+
 def internal_auto_meal_slot(product, daily_menu):
     if product.pk in {daily_menu.chicken_consomme_id, daily_menu.variable_first_course_id}:
         return "first"
@@ -1075,6 +1096,33 @@ def internal_order_item_note(request, order_id, item_id):
 
 @require_POST
 @role_required(ADMIN, ORDER_TAKER)
+def internal_order_tip_update(request, order_id):
+    # NOTA TEMPORAL PARA APRENDIZAJE: esta ruta es exclusiva de la captura interna
+    # (Telefonista/Administrador) para registrar la propina de Transferencia antes de
+    # despachar. Repartos usa su propio endpoint, más restrictivo. Borra esta nota.
+    order = get_object_or_404(Order, pk=order_id)
+    if not _can_edit_delivery_tip(order, request.user):
+        return JsonResponse({
+            "ok": False,
+            "error": "Tu perfil no puede modificar la propina en el estado o método de pago actual.",
+        }, status=403)
+    form = DeliveryTipForm(request.POST)
+    if not form.is_valid():
+        return JsonResponse({"ok": False, "error": "Escribe una propina válida."}, status=400)
+    try:
+        order = update_delivery_tip(
+            order=order, amount=form.cleaned_data["tip_amount"], actor=request.user,
+        )
+    except ValidationError as error:
+        return JsonResponse({"ok": False, "error": error.message}, status=400)
+    return JsonResponse({
+        "ok": True, "tip_amount": f"{order.delivery_tip_amount:.2f}",
+        "total_with_tip": f"{order.total_with_delivery_tip:.2f}",
+    })
+
+
+@require_POST
+@role_required(ADMIN, ORDER_TAKER)
 def internal_order_auto_meal_add(request, order_id, product_id):
     order = get_object_or_404(Order, pk=order_id)
     if _order_locked_for_edit(order, request.user):
@@ -1312,7 +1360,7 @@ def delivery_board(request):
         # decide qué controles se dibujan. Así no ofrecemos botones que el
         # servidor tendría que rechazar cuando el pedido ya salió. Borra esta nota.
         order.is_locked_for_user = _order_locked_for_edit(order, request.user)
-        order.can_edit_delivery_tip = _can_edit_delivery_tip(order, request.user)
+        order.can_edit_delivery_tip = _can_edit_delivery_tip_on_board(order, request.user)
         order.can_assign_delivery = can_assign_any_delivery and not order.is_locked_for_user
         order.can_update_delivery_status = (
             order.status in {Order.Status.READY, Order.Status.OUT_FOR_DELIVERY}
@@ -1323,6 +1371,8 @@ def delivery_board(request):
         "delivery_orders": delivery_orders,
         "repartidores": repartidores,
         "status_choices": Order.Status.choices,
+        "payment_method_choices": Order.PaymentMethod.choices,
+        "cash_denominations": [20, 50, 100, 200, 500],
         "search": search, "selected_statuses": selected_statuses,
         "selected_delivery_person": delivery_person,
         "can_assign_any_delivery": can_assign_any_delivery,
@@ -1370,10 +1420,10 @@ def delivery_assign(request, order_id):
 
 
 @require_POST
-@role_required(ADMIN, ORDER_TAKER, DELIVERY)
+@role_required(ADMIN, DELIVERY)
 def delivery_tip_update(request, order_id):
     order = get_object_or_404(Order, pk=order_id)
-    if not _can_edit_delivery_tip(order, request.user):
+    if not _can_edit_delivery_tip_on_board(order, request.user):
         return JsonResponse({
             "ok": False,
             "error": "Tu perfil no puede modificar la propina en el estado o método de pago actual.",
