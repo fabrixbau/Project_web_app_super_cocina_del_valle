@@ -1,9 +1,15 @@
-/* NOTA TEMPORAL PARA APRENDIZAJE: Al desplegar el cambio de mesero colocamos el foco en el PIN; inputmode numeric solicita el teclado numérico de la tablet. Borra esta nota. */
+/* NOTA TEMPORAL PARA APRENDIZAJE: Ya no hay PIN. Si el mesero preseleccionado
+necesita su contraseña (primera vez hoy), se enfoca ese campo al abrir; si el
+cambio es instantáneo o hay que elegir entre varios, se enfoca el selector o el
+botón. Borra esta nota después de leerla. */
 (() => {
   const dropdown = document.querySelector("[data-quick-switch-dropdown]");
-  const pin = dropdown?.querySelector("[data-quick-switch-pin]");
-  if (!dropdown || !pin) return;
+  if (!dropdown) return;
+  const password = dropdown.querySelector("[data-quick-switch-pin]");
+  const select = dropdown.querySelector("[data-quick-switch-select]");
+  const submit = dropdown.querySelector("[data-quick-switch-submit]");
   dropdown.addEventListener("toggle", () => {
-    if (dropdown.open) window.requestAnimationFrame(() => pin.focus());
+    if (!dropdown.open) return;
+    window.requestAnimationFrame(() => (password || select || submit)?.focus());
   });
 })();

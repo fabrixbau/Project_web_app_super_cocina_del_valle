@@ -1691,9 +1691,7 @@ tarjeta para conservar teclado, validación y envío estándar. Borra esta nota 
 .quick-switch-dropdown label { display: grid; gap: .3rem; color: #fff; font-weight: 800; }
 .quick-switch-dropdown select, .quick-switch-dropdown input { width: 100%; min-height: 2.8rem; padding: .55rem; border: 2px solid #d7dfda; border-radius: .4rem; background: #fff; color: #102d24; font-size: 1rem; }
 .quick-switch-dropdown form button { background: #ffbd2e; border-color: #ffbd2e; color: #102d24; }
-.quick-switch-target { display: grid; gap: .15rem; margin: 0; padding: .65rem; border-radius: .45rem; background: #fff; color: #102d24; }
-.quick-switch-target small { color: #49645b; }
-.quick-access-card, .quick-switch-screen { max-width: 900px; margin: 2rem auto; }
+.quick-switch-screen { max-width: 900px; margin: 2rem auto; }
 .quick-access-card form, .waiter-switch-card form { display: grid; gap: .8rem; }
 .quick-access-card label, .waiter-switch-card label { display: grid; gap: .35rem; font-weight: 700; }
 .quick-access-card input, .waiter-switch-card input { font-size: 1.3rem; padding: .75rem; }

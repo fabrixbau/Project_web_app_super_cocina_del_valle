@@ -1,23 +1,20 @@
 # NOTA TEMPORAL PARA APRENDIZAJE:
-# El cambio rápido autentica realmente al mesero elegido. La tablet debe estar habilitada con
-# contraseña completa antes de aceptar PIN y conserva la URL de trabajo. Borra esta nota.
+# El cambio rápido autentica realmente al mesero elegido, sin PIN: sólo puede
+# recibirse hacia un mesero que ya inició sesión con su contraseña hoy en esta
+# tablet (accounts/quick_switch.py). Conserva la URL de trabajo. Borra esta nota.
 
-from datetime import timedelta
 from urllib.parse import urlencode
 
 from django.contrib import messages
-from django.contrib.auth import get_user_model, login
+from django.contrib.auth import authenticate, get_user_model, login
 from django.contrib.auth.decorators import login_required
-from django.db import transaction
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .forms import EmployeeLoginForm, QuickPinSetupForm, QuickSwitchForm
-from .models import Profile
-from .quick_switch import LOCK_KEY, enable_quick_switch, quick_switch_is_trusted
+from .forms import EmployeeLoginForm, QuickSwitchForm
+from .quick_switch import LOCK_KEY, logged_in_today_ids, restore_daily_logins, snapshot_daily_logins
 from .roles import ADMIN, WAITER, user_has_any_role
 
 
@@ -27,7 +24,11 @@ def login_view(request):
 
     form = EmployeeLoginForm(request.POST or None, request=request)
     if request.method == "POST" and form.is_valid():
-        login(request, form.get_user(), backend="django.contrib.auth.backends.ModelBackend")
+        user = form.get_user()
+        if _can_quick_switch(user):
+            _complete_quick_switch(request, user)
+        else:
+            login(request, user, backend="django.contrib.auth.backends.ModelBackend")
         return redirect(_safe_next(request) if request.POST.get("next") else "internal_portal:dashboard")
 
     role_presentations = {
@@ -46,8 +47,8 @@ def login_view(request):
     return render(request, "registration/login.html", {"form": form, "login_profiles": profiles, "selected_user_id": request.POST.get("user", ""), "next": request.GET.get("next", "")})
 
 
-def _can_use_waiter_pin(user):
-    """El PIN rápido pertenece a meseros, nunca a cuentas administrativas."""
+def _can_quick_switch(user):
+    """El cambio rápido pertenece a meseros, nunca a cuentas administrativas."""
     return user_has_any_role(user, (WAITER,)) and not user_has_any_role(user, (ADMIN,))
 
 
@@ -56,32 +57,27 @@ def _safe_next(request):
     return next_url if url_has_allowed_host_and_scheme(next_url, {request.get_host()}) else reverse("tables:table_map")
 
 
-@login_required
-def quick_pin_setup(request):
-    if not _can_use_waiter_pin(request.user):
-        messages.error(request, "El cambio rápido está disponible solamente para meseros.")
-        return redirect("internal_portal:dashboard")
-    form = QuickPinSetupForm(request.POST or None, user=request.user)
-    if request.method == "POST" and form.is_valid():
-        profile, _ = Profile.objects.get_or_create(user=request.user)
-        if form.cleaned_data.get("pin"):
-            profile.set_quick_pin(form.cleaned_data["pin"])
-            profile.save(update_fields=("quick_pin_hash", "pin_failed_attempts", "pin_locked_until"))
-        enable_quick_switch(request.session)
-        messages.success(request, "Esta tablet tiene cambio rápido habilitado por 12 horas.")
-        return redirect(_safe_next(request))
-    return render(request, "accounts/quick_pin_setup.html", {"form": form, "next": _safe_next(request), "has_existing_pin": form.has_existing_pin})
+def _complete_quick_switch(request, waiter):
+    snapshot = snapshot_daily_logins(request.session)
+    login(request, waiter, backend="django.contrib.auth.backends.ModelBackend")
+    restore_daily_logins(request.session, snapshot, user_id=waiter.pk)
 
 
 @login_required
 def quick_switch(request):
-    if not _can_use_waiter_pin(request.user):
+    # NOTA TEMPORAL PARA APRENDIZAJE: cambiar hacia un mesero que ya inició sesión
+    # hoy en esta tablet es instantáneo, sin pedir nada. Cambiar hacia uno que
+    # todavía no lo ha hecho pide su contraseña real (nunca un PIN) como su único
+    # inicio de sesión del día; a partir de ahí también queda "sin PIN" el resto
+    # del día. Esta misma pantalla aparece sola cuando la tablet se bloquea por
+    # inactividad. Borra esta nota después de leerla.
+    if not _can_quick_switch(request.user):
         messages.error(request, "El cambio rápido está disponible solamente para meseros.")
         return redirect("internal_portal:dashboard")
-    if not quick_switch_is_trusted(request.session):
-        messages.error(request, "Primero configura tu PIN para habilitar esta tablet.")
-        return redirect("accounts:quick_pin_setup")
-    waiters = get_user_model().objects.filter(is_active=True, groups__name=WAITER).select_related("profile").distinct().order_by("first_name", "username")
+    today_ids = logged_in_today_ids(request.session)
+    waiters = get_user_model().objects.filter(
+        is_active=True, groups__name=WAITER,
+    ).order_by("first_name", "username")
     form = QuickSwitchForm(request.POST or None)
     next_url = _safe_next(request)
     inline_request = request.POST.get("inline") == "1"
@@ -89,28 +85,20 @@ def quick_switch(request):
         waiter = waiters.filter(pk=form.cleaned_data["waiter_id"]).first()
         if not waiter:
             form.add_error(None, "El mesero seleccionado ya no está disponible.")
+        elif waiter.pk in today_ids:
+            _complete_quick_switch(request, waiter)
+            messages.success(request, f"Ahora está operando {waiter.get_full_name() or waiter.username}.")
+            return redirect(next_url)
         else:
-            with transaction.atomic():
-                profile, _ = Profile.objects.select_for_update().get_or_create(user=waiter)
-                if not profile.has_quick_pin:
-                    form.add_error("pin", "Este mesero todavía no ha configurado su PIN.")
-                if profile.pin_is_locked:
-                    form.add_error("pin", "Este perfil está bloqueado temporalmente por varios intentos.")
-                elif not profile.check_quick_pin(form.cleaned_data["pin"]):
-                    profile.pin_failed_attempts += 1
-                    if profile.pin_failed_attempts >= 5:
-                        profile.pin_locked_until = timezone.now() + timedelta(minutes=5)
-                        profile.pin_failed_attempts = 0
-                    profile.save(update_fields=("pin_failed_attempts", "pin_locked_until"))
-                    form.add_error("pin", "PIN incorrecto.")
-                else:
-                    profile.pin_failed_attempts = 0
-                    profile.pin_locked_until = None
-                    profile.save(update_fields=("pin_failed_attempts", "pin_locked_until"))
-                    login(request, waiter, backend="django.contrib.auth.backends.ModelBackend")
-                    enable_quick_switch(request.session)
-                    messages.success(request, f"Ahora está operando {waiter.get_full_name() or waiter.username}.")
-                    return redirect(next_url)
+            password = form.cleaned_data.get("password")
+            if not password:
+                form.add_error("password", "Escribe tu contraseña; es tu primer inicio de sesión de hoy en esta tablet.")
+            elif authenticate(request, username=waiter.username, password=password) is None:
+                form.add_error("password", "La contraseña no es correcta.")
+            else:
+                _complete_quick_switch(request, waiter)
+                messages.success(request, f"Ahora está operando {waiter.get_full_name() or waiter.username}.")
+                return redirect(next_url)
     if request.method == "POST" and inline_request:
         errors = [
             error["message"]
@@ -119,16 +107,17 @@ def quick_switch(request):
         ]
         messages.error(request, " ".join(errors) or "No fue posible cambiar de mesero.")
         return redirect(next_url)
-    return render(request, "accounts/quick_switch.html", {"form": form, "waiters": waiters, "next": next_url})
+    return render(request, "accounts/quick_switch.html", {
+        "form": form, "waiters": waiters, "next": next_url, "today_ids": today_ids,
+    })
 
 
 @require_POST
 @login_required
 def quick_lock(request):
-    if not _can_use_waiter_pin(request.user):
-        messages.error(request, "El bloqueo por PIN está disponible solamente para meseros.")
+    if not _can_quick_switch(request.user):
+        messages.error(request, "El bloqueo de tablet está disponible solamente para meseros.")
         return redirect("internal_portal:dashboard")
-    if quick_switch_is_trusted(request.session):
-        request.session[LOCK_KEY] = True
-        request.session.modified = True
+    request.session[LOCK_KEY] = True
+    request.session.modified = True
     return redirect(f"{reverse('accounts:quick_switch')}?{urlencode({'next': _safe_next(request)})}")
