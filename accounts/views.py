@@ -87,7 +87,6 @@ def quick_switch(request):
             form.add_error(None, "El mesero seleccionado ya no está disponible.")
         elif waiter.pk in today_ids:
             _complete_quick_switch(request, waiter)
-            messages.success(request, f"Ahora está operando {waiter.get_full_name() or waiter.username}.")
             return redirect(next_url)
         else:
             password = form.cleaned_data.get("password")
@@ -97,7 +96,6 @@ def quick_switch(request):
                 form.add_error("password", "La contraseña no es correcta.")
             else:
                 _complete_quick_switch(request, waiter)
-                messages.success(request, f"Ahora está operando {waiter.get_full_name() or waiter.username}.")
                 return redirect(next_url)
     if request.method == "POST" and inline_request:
         errors = [

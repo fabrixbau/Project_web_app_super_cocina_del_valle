@@ -10246,6 +10246,60 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
   }
 }
 
+/* Prioridad definitiva: en celulares angostos, "Recoger"/"Entrega a domicilio"
+   (296px los dos juntos) le dejaban muy poco espacio a "Pedidos" en su columna
+   de al lado, y aunque la caja del título se reportaba angosta, su texto se
+   seguía dibujando por encima (visualmente, no en su propia caja) y quedaba
+   debajo de los botones por orden de pintado.
+   NOTA TEMPORAL PARA APRENDIZAJE: un primer intento bajó estos botones a su
+   propia fila completa, pero el desarrollador pidió que los 4 elementos
+   (regreso, "Pedidos", Recoger, Entrega a domicilio) quepan en una sola fila,
+   igual que se hizo para el encabezado de captura de un pedido individual. Se
+   comprimen los botones a sólo ícono (sin el texto "Recoger"/"Entrega a
+   domicilio") para que siempre quepan. Borra esta nota después de leerla. */
+@media (max-width: 480px) {
+  main:has(.order-board-columns) > .page-heading {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: .35rem !important;
+  }
+  main:has(.order-board-columns) > .page-heading > div:first-child {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    gap: .35rem !important;
+  }
+  main:has(.order-board-columns) > .page-heading > div:first-child > a:first-child {
+    flex: 0 0 auto !important;
+  }
+  main:has(.order-board-columns) > .page-heading h1 {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  main:has(.order-board-columns) > .page-heading .new-order-type-actions {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    display: flex !important;
+    gap: .3rem !important;
+  }
+  main:has(.order-board-columns) > .page-heading .new-order-type-actions form {
+    min-width: 0 !important;
+  }
+  main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-type-action {
+    width: auto !important;
+    min-width: 0 !important;
+    padding: .3rem !important;
+    gap: 0 !important;
+  }
+  main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-type-action > span:last-child {
+    display: none !important;
+  }
+}
+
 /* Mesas: el estado no ocupa espacio en la cabecera operativa. */
 .table-operation-header .ticket-heading-actions > .status-badge { display: none !important; }
 .package-packaging-options article { cursor: pointer; }
@@ -11181,5 +11235,206 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
   .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules > * {
     grid-column: 1 !important;
     grid-row: auto !important;
+  }
+}
+
+/* Prioridad definitiva: "Estado y seguimiento" + el switch de modo comida/
+   desayuno de Pedidos se salían del ancho de la pantalla en iPhone 12/SE.
+   NOTA TEMPORAL PARA APRENDIZAJE: .internal-capture-heading es una rejilla con
+   6 columnas implícitas (una por cada elemento: flecha, título, modalidad,
+   cliente, "Estado y seguimiento", switch de modo), pensada para escritorio.
+   Ninguna de las muchas reglas anteriores para celular llega a reducir ese
+   número de columnas — sólo ajustan tamaños de fuente/relleno — así que las
+   6 siguen intentando caber en una sola fila y la última (el switch de modo)
+   termina fuera del contenedor. En vez de pelear columna por columna, aquí se
+   saca ese grupo de la rejilla de 6 columnas y se le da su propia fila con su
+   propio acomodo interno (flex), que sí cabe siempre en el ancho real. Borra
+   esta nota después de leerla. */
+/* Prioridad definitiva: encabezado de Pedidos en una sola fila en celular.
+   NOTA TEMPORAL PARA APRENDIZAJE: JavaScript (internal-order-form.js) mueve en
+   vivo los botones de "Modalidad" (Recoger/Domicilio) y "Cliente" adentro de
+   .internal-capture-heading, justo antes de .capture-heading-actions — así que
+   en pantalla el encabezado termina con 4 hijos (regreso+título, modalidad,
+   cliente, estado+switch), no los 2 que muestra la plantilla estática. El
+   intento anterior sólo sacaba "estado y seguimiento" + el switch a su propia
+   fila; el desarrollador pidió que los 6 elementos (regreso, título, recoger,
+   domicilio, cliente, estado y seguimiento, switch) quepan en una sola fila
+   sin bajar a una segunda. Aquí se comprime cada uno a lo mínimo indispensable
+   (iconos sin texto donde el texto no es indispensable, textos largos con
+   elipsis y un ancho máximo) para que siempre quepan, sin importar qué tan
+   largo sea el nombre del cliente. Borra esta nota después de leerla. */
+@media (max-width: 900px) {
+  .internal-capture-heading {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: .3rem !important;
+  }
+  .internal-capture-heading > div:first-child {
+    display: flex !important;
+    align-items: center !important;
+    gap: .3rem !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+  .internal-capture-heading > div:first-child > a {
+    flex: 0 0 auto !important;
+  }
+  .internal-capture-heading > div:first-child > a > span {
+    display: none !important;
+  }
+  .internal-capture-heading > div:first-child > h1 {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: .85rem !important;
+    margin: 0 !important;
+    align-self: center !important;
+    grid-row: auto !important;
+  }
+  .internal-capture-heading > div:first-child > p {
+    display: none !important;
+  }
+  .internal-capture-heading > .command-group:not(.customer-command) {
+    flex: 0 0 auto !important;
+  }
+  .internal-capture-heading > .command-group:not(.customer-command) > strong {
+    display: none !important;
+  }
+  .internal-capture-heading > .customer-command {
+    flex: 0 1 auto !important;
+    min-width: 0 !important;
+    max-width: 4.5rem !important;
+  }
+  .internal-capture-heading > .customer-command > strong {
+    display: none !important;
+  }
+  .internal-capture-heading > .customer-command .customer-panel-trigger {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+  .internal-capture-heading > .customer-command .customer-panel-trigger span {
+    display: block !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .internal-capture-heading > .customer-command .customer-panel-trigger small {
+    display: none !important;
+  }
+  .internal-capture-heading > .capture-heading-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    flex: 0 0 auto !important;
+    align-items: center !important;
+    gap: .3rem !important;
+    margin-top: 0 !important;
+  }
+  .internal-capture-heading > .capture-heading-actions > .capture-status-link {
+    width: auto !important;
+    flex: 0 1 auto !important;
+    max-width: 3.75rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: .6rem !important;
+    padding: .3rem .35rem !important;
+  }
+  .internal-capture-heading > .capture-heading-actions > .capture-mode-switch {
+    width: auto !important;
+    flex: 0 0 auto !important;
+  }
+}
+
+/* Nueva distribución en celular para Agua/Refill+Bolillo/Huevo de Comida
+   corrida y Comida ejecutiva (Mesas): 3 columnas iguales (agua, refill+bolillo
+   apilados, huevo) y el comentario abajo a todo el ancho, en vez de 5 tarjetas
+   apiladas una tras otra a ancho completo (que era difícil de escanear).
+   NOTA TEMPORAL PARA APRENDIZAJE: .table-package-refill-bread-group es una
+   clase nueva sin ninguna otra regla en el archivo (Comida ejecutiva conserva
+   además su clase histórica .table-package-stacked-rules para no perder su
+   comportamiento ya existente en otros anchos); se usó una clase nueva en vez
+   de reutilizar .table-package-stacked-rules para esta regla porque esa clase
+   ya tiene más de 20 reglas específicas de Comida ejecutiva en este archivo y
+   reutilizarla aquí arriesgaba pelear con alguna de ellas. Borra esta nota
+   después de leerla. */
+@media (max-width: 900px) {
+  .table-visual-package-dialog.table-visual-package-dialog .package-visual-groups > .table-package-visual-extras,
+  .table-visual-package-dialog.table-visual-package-dialog form[data-package-form][data-package-kind="running"] .package-visual-groups > .table-package-visual-extras,
+  .table-visual-package-dialog.table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .table-package-visual-extras {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-rows: auto auto !important;
+    gap: .5rem !important;
+  }
+  .table-visual-package-dialog.table-visual-package-dialog .table-package-visual-extras > .table-water-choice,
+  .table-visual-package-dialog.table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .table-water-choice,
+  .table-visual-package-dialog.table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .table-water-choice {
+    grid-column: 1 !important;
+    grid-row: 1 / span 2 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    align-self: stretch !important;
+  }
+  .table-visual-package-dialog.table-visual-package-dialog .table-package-visual-extras > .table-package-refill-bread-group,
+  .table-visual-package-dialog.table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .table-package-refill-bread-group,
+  .table-visual-package-dialog.table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .table-package-refill-bread-group {
+    grid-column: 2 !important;
+    grid-row: 1 / span 2 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    align-self: stretch !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: 1fr 1fr !important;
+    gap: .4rem !important;
+  }
+  .table-visual-package-dialog.table-visual-package-dialog .table-package-visual-extras > .table-package-refill-bread-group > .product-rule-card,
+  .table-visual-package-dialog.table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .table-package-refill-bread-group > .product-rule-card,
+  .table-visual-package-dialog.table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .table-package-refill-bread-group > .product-rule-card {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 2.75rem !important;
+    padding: .5rem !important;
+  }
+  .table-visual-package-dialog.table-visual-package-dialog .table-package-visual-extras > .package-egg-choice,
+  .table-visual-package-dialog.table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .package-egg-choice,
+  .table-visual-package-dialog.table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-egg-choice {
+    grid-column: 3 !important;
+    grid-row: 1 / span 2 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    align-self: stretch !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+  }
+  .table-visual-package-dialog.table-visual-package-dialog .table-package-visual-extras > .package-comment-field,
+  .table-visual-package-dialog.table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras > .package-comment-field,
+  .table-visual-package-dialog.table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-comment-field {
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .table-visual-package-dialog.table-visual-package-dialog .table-package-visual-extras .product-rule-card small,
+  .table-visual-package-dialog.table-visual-package-dialog .table-package-visual-extras .table-water-choice-copy small {
+    display: none !important;
   }
 }
