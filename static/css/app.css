@@ -247,18 +247,27 @@ html[data-theme="dark"] .active-operator { color: #102d24; background: #f4f0e5; 
 }
 
 /* Ticket de Mesas coherente en todos los tamaños: las acciones quedan dentro del
-   panel y sólo la lista de productos adquiere scroll cuando deja de caber. */
+   panel y sólo la lista de productos adquiere scroll cuando deja de caber.
+   NOTA TEMPORAL PARA APRENDIZAJE: esta regla forzaba con !important su propia
+   altura del panel (max-height: calc(100dvh - 18rem), ~512px en una tablet de
+   800px de alto) y un flex:0 1 auto en la lista de artículos (sin crecimiento).
+   Eso le ganaba por !important a la regla unificada de más abajo en este mismo
+   archivo (la que sí usan tanto Mesas como Pedidos, con height:calc(100dvh-2rem)
+   y flex:1 1 4.5rem para que la lista crezca y use el alto real disponible), así
+   que el panel de Mesas siempre se encogía a su contenido mínimo mientras el de
+   Pedidos (que nunca tuvo esta regla propia) sí aprovechaba el alto completo —
+   por eso en Tab A9+ horizontal Pedidos mostraba varias líneas y Mesas sólo una.
+   Se quitan aquí el alto y el flex propios para que la regla unificada mande en
+   ambos; se conservan el resto de propiedades (grid de la lista, overflow) que
+   no compiten con nada. Borra esta nota después de leerla. */
 .table-pos-layout .table-ticket:not(.is-closed-summary) {
   display: flex !important;
-  height: auto !important;
   min-height: 0 !important;
-  max-height: calc(100dvh - 18rem) !important;
   flex-direction: column;
   overflow: hidden !important;
 }
 .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
   display: grid !important;
-  flex: 0 1 auto !important;
   min-height: 0 !important;
   max-height: none !important;
   grid-auto-rows: max-content;
@@ -10602,18 +10611,21 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
   }
 }
 
-/* Prioridad final del ticket de Mesas para celular, tablet y ordenador. */
+/* Prioridad final del ticket de Mesas para celular, tablet y ordenador.
+   NOTA TEMPORAL PARA APRENDIZAJE: esta era una TERCERA copia (¡la "definitiva"!)
+   del mismo max-height/flex propios que ya se quitaron más arriba en este
+   archivo por la misma razón: le ganaban por !important a la regla unificada
+   que comparten Mesas y Pedidos, encogiendo el panel de Mesas a su contenido
+   mínimo en vez de usar el alto real del viewport. Se quitan aquí también.
+   Borra esta nota después de leerla. */
 .table-pos-layout .table-ticket:not(.is-closed-summary) {
   display: flex !important;
-  height: auto !important;
   min-height: 0 !important;
-  max-height: calc(100dvh - 18rem) !important;
   flex-direction: column !important;
   overflow: hidden !important;
 }
 .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
   display: grid !important;
-  flex: 0 1 auto !important;
   min-height: 0 !important;
   max-height: none !important;
   grid-auto-rows: max-content !important;
