@@ -11438,3 +11438,17 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     display: none !important;
   }
 }
+
+/* Pedidos, escritorio: "Otra cantidad" del panel de efectivo (el que vive
+   adentro del ticket, .ticket-payment-details) quedaba apretado en una de las
+   3 columnas iguales de ese panel (regla sin media query en la línea ~6079,
+   pensada para el sidebar angosto del ticket), dejando la etiqueta partida en
+   dos líneas y el campo de captura casi invisible. Sólo se le da su propia
+   fila a todo lo ancho; el resto del panel (los montos rápidos y "Pago
+   exacto") no se toca. Acotado a escritorio (min-width: 901px) a propósito,
+   para no mover nada del comportamiento en celular/tablet que ya funciona. */
+@media (min-width: 901px) {
+  .internal-live-ticket .ticket-payment-details .cash-custom-choice {
+    grid-column: 1 / -1 !important;
+  }
+}
