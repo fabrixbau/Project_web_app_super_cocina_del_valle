@@ -99,6 +99,13 @@ body { margin: 0; background: #f6f3eb; }
 .auto-package-options > .auto-extra-group:first-child { width: 138px; justify-self: start; }
 .auto-package-options > .auto-extra-group:first-child > button { min-width: 0; padding-inline: .45rem; }
 @media (max-width: 1080px) { .auto-package-options { grid-template-columns: 138px minmax(280px, 1fr) 150px; } .auto-package-options .auto-package-comment { grid-column: 1 / -1; } }
+/* .auto-package-options sólo existe en Pedidos, donde el ticket siempre ocupa
+   parte del ancho de pantalla — 1080px de ancho TOTAL de viewport no alcanza a
+   cubrir tablets como la Tab A9+ (1280px totales), porque a esa columna sólo
+   le quedan ~830px reales una vez descontado el ticket, menos que el mínimo
+   que exigen las 4 columnas (866px), y el huevo opcional se derramaba sobre
+   el ticket. Se extiende el mismo compactado de 3 columnas hasta 1300px. */
+@media (min-width: 1081px) and (max-width: 1300px) { .auto-package-options { grid-template-columns: 138px minmax(280px, 1fr) 150px !important; } .auto-package-options .auto-package-comment { grid-column: 1 / -1 !important; } }
 @media (max-width: 720px) { .auto-package-options { grid-template-columns: 1fr 1fr; } .auto-package-options > .auto-extra-group:first-child { width: auto; justify-self: stretch; } .auto-package-options .auto-extra-group:nth-child(2), .auto-package-options .auto-package-comment { grid-column: 1 / -1; } }
 
 /* Tema oscuro del panel interno. */
@@ -6798,12 +6805,18 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 @media (max-width: 900px) {
   .delivery-page-heading {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: .7rem;
     margin-bottom: .65rem;
   }
-  .delivery-page-heading > div { grid-column: 1; grid-row: 1; align-self: center; }
-  .delivery-page-heading .menu-back-link { grid-column: 2; grid-row: 1; align-self: center; }
+  .delivery-page-heading > div { grid-column: 1; grid-row: 1; align-self: center; min-width: 0; }
+  .delivery-page-heading .menu-back-link {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
   .delivery-page-heading h1 { margin: 0; font-size: 1.35rem; line-height: 1.05; }
   .delivery-page-heading > div > span { font-size: .58rem; }
   .delivery-page-heading p { margin-top: .2rem; font-size: .72rem; line-height: 1.25; }
@@ -6981,7 +6994,7 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 }
 
 /* Repartos: buscador compacto con foco y filtros en una sola fila. */
-.delivery-filter-row { display: flex; gap: .4rem; align-items: stretch; }
+.delivery-filter-row { display: flex !important; gap: .4rem; align-items: stretch; }
 .delivery-filter-row .delivery-search-filter {
   display: block;
   flex: 0 0 7rem;
@@ -7133,10 +7146,10 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 /* Repartos: controles de filtro de altura mínima. */
 @media (max-width: 900px) {
   .delivery-filter-row .delivery-search-filter {
-    flex: 0 0 2.15rem;
+    flex: 0 0 20%;
   }
   .delivery-search-filter > button {
-    width: 2.15rem;
+    width: 100%;
     min-height: 2.05rem;
     padding: .25rem;
   }
@@ -11152,6 +11165,27 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     margin: .25rem 0 !important;
     padding: .38rem !important;
     font-size: .78rem !important;
+  }
+  .internal-live-ticket > .table-ticket-items {
+    min-height: 7.5rem !important;
+  }
+  .internal-live-ticket .ticket-payment-details {
+    max-height: 36dvh !important;
+    overflow-y: auto !important;
+    flex-shrink: 0 !important;
+  }
+  .internal-live-ticket .ticket-payment-details .cash-command-buttons > button,
+  .internal-live-ticket .ticket-payment-details .cash-exact-choice,
+  .internal-live-ticket .ticket-payment-details .cash-custom-choice {
+    min-height: 2.1rem !important;
+    padding: .3rem !important;
+    font-size: .68rem !important;
+  }
+  .internal-live-ticket .ticket-payment-details .cash-command-panel > strong {
+    font-size: .68rem !important;
+  }
+  .internal-live-ticket .ticket-payment-details .cash-command-panel > small {
+    font-size: .58rem !important;
   }
   .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-close-launcher {
     min-height: 2.6rem !important;

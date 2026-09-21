@@ -4,7 +4,7 @@
 {% block content %}
   <header class="delivery-page-heading">
     <div><span>Operación de entregas</span><h1>Repartos</h1><p>{% if is_delivery_profile %}Consulta los pedidos que te fueron asignados y registra su propina una sola vez.{% else %}Consulta, asigna y administra los pedidos de reparto.{% endif %}</p></div>
-    <a class="menu-back-link" href="{% url 'internal_portal:dashboard' %}">← Volver al panel</a>
+    <a class="menu-back-link" href="{% url 'internal_portal:dashboard' %}">Volver al panel</a>
   </header>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
   <p class="message" data-delivery-feedback hidden></p>
