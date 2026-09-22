@@ -13,6 +13,8 @@ Borra esta nota después de leerla. -->
     <button class="order-filter-toggle" type="button" aria-expanded="false" aria-controls="order-filter-fields" data-order-filter-toggle><span>Buscar</span><span aria-hidden="true">⌄</span></button>
     <form method="get" class="filters" id="order-filter-fields" data-order-filters>
     <label>Buscar <input name="q" value="{{ search }}" placeholder="Folio, cliente o teléfono"></label>
+    <label>Desde <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}"></label>
+    <label>Hasta <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}"></label>
     <label>Mostrar <select name="scope"><option value="active" {% if selected_scope == 'active' %}selected{% endif %}>Activos</option><option value="completed" {% if selected_scope == 'completed' %}selected{% endif %}>Entregados y recogidos</option><option value="all" {% if selected_scope == 'all' %}selected{% endif %}>Todos</option></select></label>
     <label>Estado <select name="status"><option value="">Todos</option>{% for value, label in status_choices %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
     <label>Tipo <select name="order_type"><option value="">Todos</option>{% for value, label in order_type_choices %}<option value="{{ value }}" {% if selected_order_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
@@ -23,5 +25,14 @@ Borra esta nota después de leerla. -->
     <section class="card order-type-board"><header><div><small>Pedidos</small><h2>Entrega a domicilio</h2></div><strong>{{ delivery_orders|length }}</strong></header><div class="order-type-list">{% for order in delivery_orders %}{% include "orders/includes/order_board_item.html" %}{% empty %}<p>No hay entregas que coincidan.</p>{% endfor %}</div></section>
     <section class="card order-type-board"><header><div><small>Pedidos</small><h2>Recoger</h2></div><strong>{{ pickup_orders|length }}</strong></header><div class="order-type-list">{% for order in pickup_orders %}{% include "orders/includes/order_board_item.html" %}{% empty %}<p>No hay pedidos para recoger que coincidan.</p>{% endfor %}</div></section>
   </section>
+  {% if pending_today is not None %}
+    <section class="card order-pending-today-summary">
+      {% if pending_today %}
+        <p><strong>{{ pending_today|length }} pedido{{ pending_today|pluralize }} de hoy sin cerrar</strong> (aún no llegan a Entregado, Recogido o Cancelado): {% for order in pending_today %}<span>#{{ order.formatted_number }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}.</p>
+      {% else %}
+        <p><strong>Todos los pedidos de hoy están cerrados.</strong> No hay entregas ni recolecciones pendientes.</p>
+      {% endif %}
+    </section>
+  {% endif %}
 {% endblock %}
 {% block extra_js %}<script src="{% static 'js/order-list.js' %}?v=11"></script>{% endblock %}

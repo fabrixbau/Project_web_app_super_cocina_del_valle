@@ -955,7 +955,11 @@
     event.preventDefault();
     try { await send(addForm.action, new FormData(addForm)); }
     catch (error) { window.alert(error.message); }
-    finally { addForm.querySelectorAll("input[data-generated-option]").forEach((input) => input.remove()); delete addForm.dataset.selectionReady; }
+    finally {
+      addForm.querySelectorAll("input[data-generated-option]").forEach((input) => input.remove());
+      delete addForm.dataset.selectionReady;
+      if (chickenField) chickenField.value = "";
+    }
   });
   document.querySelector("[data-internal-chicken-close]")?.addEventListener("click", () => {
     pendingChickenForm = null; chickenDialog.close();

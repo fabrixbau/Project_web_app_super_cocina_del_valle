@@ -286,7 +286,7 @@ document.addEventListener("submit", async (event) => {
 });
 
 const filters = document.querySelector("[data-cashier-filters]");
-if (filters) { let timer; filters.querySelectorAll("select").forEach((field) => field.addEventListener("change", () => filters.requestSubmit())); filters.querySelector("input").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => filters.requestSubmit(), 450); }); }
+if (filters) { let timer; filters.querySelectorAll("select, input[type='date']").forEach((field) => field.addEventListener("change", () => filters.requestSubmit())); filters.querySelector("input[name='q']").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => filters.requestSubmit(), 450); }); }
 
 const cashierTools = document.querySelector(".cashier-tools");
 const unpaidQuick = document.querySelector(".cashier-unpaid-quick");

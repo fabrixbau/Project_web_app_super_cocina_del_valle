@@ -51,7 +51,7 @@ if (deliveryFilters) {
     window.sessionStorage.setItem(scrollStorageKey, String(window.scrollY));
   });
   let timer = null;
-  deliveryFilters.querySelectorAll("select").forEach((field) => field.addEventListener("change", () => deliveryFilters.requestSubmit()));
+  deliveryFilters.querySelectorAll("select, input[type='date']").forEach((field) => field.addEventListener("change", () => deliveryFilters.requestSubmit()));
   deliveryFilters.querySelectorAll("input[name='delivery_person']").forEach((field) => field.addEventListener("change", () => deliveryFilters.requestSubmit()));
   deliveryFilters.querySelectorAll("input[name='status']").forEach((field) => field.addEventListener("change", () => deliveryFilters.requestSubmit()));
   deliveryFilters.querySelector("input[name='q']")?.addEventListener("input", () => {

@@ -14,7 +14,13 @@ from .models import InternalNotification, StockAlert, StockAlertDismissal
 @role_required(*OPERATIONAL_ROLES)
 def notification_list(request):
     show = request.GET.get("show", "unread")
-    notifications = InternalNotification.objects.select_related("order", "read_by")
+    # NOTA TEMPORAL PARA APRENDIZAJE: esta bandeja siempre muestra sólo el día que se
+    # está operando — una alerta de un pedido de hace una semana ya no tiene sentido
+    # aquí. El filtro de leída/no leída sigue funcionando dentro de hoy. Borra esta
+    # nota después de leerla.
+    notifications = InternalNotification.objects.filter(
+        created_at__date=timezone.localdate(),
+    ).select_related("order", "read_by")
     if not user_has_any_role(request.user, (ADMIN, ORDER_TAKER)):
         notifications = notifications.none()
     if show != "all":

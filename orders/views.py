@@ -461,6 +461,12 @@ def order_list(request):
     orders = Order.objects.select_related(
         "delivery_person", "agenda_customer", "customer_debt",
     ).prefetch_related("items")
+    today = timezone.localdate()
+    date_from = _report_date(request.GET.get("date_from"), today)
+    date_to = _report_date(request.GET.get("date_to"), today)
+    if date_from > date_to:
+        date_from, date_to = date_to, date_from
+    orders = orders.filter(operating_date__range=(date_from, date_to))
     search = request.GET.get("q", "").strip()
     status = request.GET.get("status", "").strip()
     order_type = request.GET.get("order_type", "").strip()
@@ -488,6 +494,16 @@ def order_list(request):
     if order_type in Order.OrderType.values:
         orders = orders.filter(order_type=order_type)
     orders = list(orders)
+    # NOTA TEMPORAL PARA APRENDIZAJE: este aviso es independiente del filtro de fecha
+    # de arriba (que puede estar mostrando otro día) — siempre revisa el día de hoy,
+    # para que un administrador sepa de un vistazo si quedó algo por cerrar sin tener
+    # que cambiar su filtro. Sólo se calcula para Administrador. Borra esta nota.
+    pending_today = None
+    if user_has_any_role(request.user, (ADMIN,)):
+        pending_today = list(
+            Order.objects.filter(operating_date=today).exclude(status__in=inactive_statuses)
+            .order_by("daily_number")
+        )
     # NOTA TEMPORAL PARA APRENDIZAJE: preparamos textos cortos para que la plantilla
     # sea sólo presentación. La acción rápida omite Cancelar para evitar un clic
     # destructivo accidental desde el tablero. Borra esta nota después de leerla.
@@ -519,6 +535,9 @@ def order_list(request):
         "selected_status": status,
         "selected_order_type": order_type,
         "selected_scope": scope,
+        "date_from": date_from,
+        "date_to": date_to,
+        "pending_today": pending_today,
         "can_capture_internal": user_has_any_role(request.user, (ADMIN, ORDER_TAKER)),
         "can_manage_debts": user_has_any_role(request.user, (ADMIN,)),
     })
@@ -1324,8 +1343,14 @@ def delivery_board(request):
     # vista general, pero sólo Administrador podrá asignar a terceros. Borra esta nota.
     can_assign_any_delivery = user_has_any_role(request.user, (ADMIN,))
     is_delivery_profile = user_has_any_role(request.user, (DELIVERY,)) and not can_assign_any_delivery
+    today = timezone.localdate()
+    date_from = _report_date(request.GET.get("date_from"), today)
+    date_to = _report_date(request.GET.get("date_to"), today)
+    if date_from > date_to:
+        date_from, date_to = date_to, date_from
     delivery_orders = Order.objects.filter(
         order_type=Order.OrderType.DELIVERY,
+        operating_date__range=(date_from, date_to),
     ).select_related(
         "delivery_person", "delivery_assigned_by", "delivery_tip_recipient",
         "delivery_tip_updated_by",
@@ -1377,6 +1402,8 @@ def delivery_board(request):
         "selected_delivery_person": delivery_person,
         "can_assign_any_delivery": can_assign_any_delivery,
         "is_delivery_profile": is_delivery_profile,
+        "date_from": date_from,
+        "date_to": date_to,
     })
 
 
@@ -1573,6 +1600,18 @@ def cashier_debt_board(request):
     search = request.GET.get("q", "").strip()
     customer_id = request.GET.get("customer", "").strip()
     scope = request.GET.get("scope", "active")
+    # NOTA TEMPORAL PARA APRENDIZAJE: a diferencia de Pedidos/Repartos/Caja, aquí el
+    # default de fecha es "todas" (un adeudo puede llevar semanas sin resolverse y no
+    # queremos que desaparezca de la vista sólo por no ser de hoy). Si el operador sí
+    # captura una fecha, se respeta. Borra esta nota después de leerla.
+    date_from = _report_date(request.GET.get("date_from"), None)
+    date_to = _report_date(request.GET.get("date_to"), None)
+    if date_from and date_to and date_from > date_to:
+        date_from, date_to = date_to, date_from
+    if date_from:
+        debts = debts.filter(order__operating_date__gte=date_from)
+    if date_to:
+        debts = debts.filter(order__operating_date__lte=date_to)
     if search:
         debt_search = (
             Q(customer__name__icontains=search) | Q(customer__phone__icontains=search)
@@ -1600,6 +1639,7 @@ def cashier_debt_board(request):
     debts = list(debts)
     return render(request, "orders/cashier_debt_board.html", {
         "debts": debts, "search": search, "selected_scope": scope,
+        "date_from": date_from, "date_to": date_to,
         "can_manage_debts": user_has_any_role(request.user, (ADMIN,)),
         "payment_method_choices": Order.PaymentMethod.choices,
         "original_total": sum((debt.original_amount for debt in debts), Decimal("0")),
@@ -1697,7 +1737,23 @@ def cashier_board(request):
         Order.Status.PENDING_CONFIRMATION, Order.Status.CONFIRMED, Order.Status.SCHEDULED,
         Order.Status.PREPARING, Order.Status.READY, Order.Status.OUT_FOR_DELIVERY,
     )
-    queryset = Order.objects.filter(status__in=active_statuses, cashier_released_at__isnull=True).select_related(
+    # NOTA TEMPORAL PARA APRENDIZAJE: "Todos" no significa "todo el historial" aquí,
+    # sino "todos los estados del día que se está operando" — la fecha (hoy por
+    # defecto) siempre manda primero; el alcance sólo decide si además se exige que
+    # sigan activos y sin liberar de caja. Borra esta nota después de leerla.
+    today = timezone.localdate()
+    date_from = _report_date(request.GET.get("date_from"), today)
+    date_to = _report_date(request.GET.get("date_to"), today)
+    if date_from > date_to:
+        date_from, date_to = date_to, date_from
+    scope = request.GET.get("scope", "active").strip()
+    queryset = Order.objects.filter(operating_date__range=(date_from, date_to))
+    if scope == "all":
+        pass
+    else:
+        scope = "active"
+        queryset = queryset.filter(status__in=active_statuses, cashier_released_at__isnull=True)
+    queryset = queryset.select_related(
         "delivery_person", "cash_settlement_by",
     ).prefetch_related("items").order_by("order_type", "requested_for", "created_at")
     search = request.GET.get("q", "").strip()
@@ -1742,6 +1798,9 @@ def cashier_board(request):
         "selected_delivery_person": delivery_person,
         "selected_payment_method": payment_method,
         "payment_method_choices": Order.PaymentMethod.choices,
+        "selected_scope": scope,
+        "date_from": date_from,
+        "date_to": date_to,
     })
 
 

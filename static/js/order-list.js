@@ -26,7 +26,7 @@ if (filterForm && filterToggle) {
 }
 if (filterForm) {
   let searchTimer = null;
-  filterForm.querySelectorAll("select").forEach((field) => {
+  filterForm.querySelectorAll("select, input[type='date']").forEach((field) => {
     field.addEventListener("change", () => filterForm.requestSubmit());
   });
   filterForm.querySelector("input[name='q']")?.addEventListener("input", () => {
