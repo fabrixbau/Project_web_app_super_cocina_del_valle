@@ -1145,6 +1145,13 @@ a { color: #285943; }
 .order-timing { margin-top: .2rem; font-weight: 800; color: #285943 !important; }
 .order-timing.is-scheduled { color: #8a4b16 !important; }
 .order-row-actions { display: grid; gap: .35rem; }
+/* .order-board-primary > section / .order-board-secondary > section (más abajo en el archivo) le pone
+overflow:hidden a cualquier <section> hijo directo, pensado para las tarjetitas de Folio/Total/Modalidad
+que necesitan recortar texto largo — pero .order-row-actions también es un <section> ahí y ese overflow
+le recorta el menú de "•••" (Cancelar pedido), que necesita salirse de su caja para mostrarse. Se le
+devuelve overflow:visible sólo a esta sección. Borra esta nota al leerla. */
+.order-board-primary > .order-row-actions,
+.order-board-secondary > .order-row-actions { overflow: visible; }
 .order-row-actions form, .order-row-actions button { width: 100%; margin: 0; }
 .order-row-actions button { min-height: 44px; font-weight: 850; }
 .order-more-actions { position: relative; justify-self: end; }
