@@ -9075,6 +9075,22 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   }
 }
 
+/* El panel de "¿Con cuánto paga?" (Efectivo) en Pedidos, en escritorio (mouse, pantalla ancha),
+no tenía ningún límite de altura y podía crecer hasta dejar la lista de artículos en 0px de
+alto. Ya existía un arreglo equivalente solo para tablet/táctil (más abajo); este es el mismo
+patrón mínimo, pero acotado a escritorio, y exclusivo de Pedidos: Mesas no lo necesita porque
+ahí el método de pago no se muestra durante la captura. Borra esta nota al leerla. */
+@media (min-width: 901px) and (pointer: fine) {
+  .internal-live-ticket > .table-ticket-items {
+    min-height: 8rem !important;
+  }
+  .internal-live-ticket .ticket-payment-details {
+    max-height: 40vh !important;
+    overflow-y: auto !important;
+    flex-shrink: 0 !important;
+  }
+}
+
 /* Prioridad final para controles de las fichas y extras de Ejecutiva en Mesas. */
 .visual-package-dialog .package-choice-card {
   grid-template-rows: minmax(48px, 62px) auto auto !important;

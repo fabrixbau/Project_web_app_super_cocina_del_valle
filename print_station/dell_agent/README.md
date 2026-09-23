@@ -7,8 +7,21 @@ Los botones normales de cocina y cobro y la selección de cocina modificada crea
 1. En el servidor, crear un secreto aleatorio diferente de `DJANGO_SECRET_KEY` y añadir `PRINT_AGENT_TOKEN=<secreto>` al `.env` privado. Reiniciar `super-cocina` después. No incluir el secreto en Git ni enviarlo por chat.
 2. En la Dell, confirmar que Edge, Python 3.12 y la impresora `POS-80 (copy 1)` funcionan bajo el usuario de Windows que ejecutará el agente.
 3. Crear un entorno virtual exclusivo en la Dell, instalar `pip install -r requirements.txt` de esta carpeta. Playwright usa Edge instalado; no se requiere descargar Chromium aparte.
-4. Configurar las variables de entorno de **ese usuario** (con `[Environment]::SetEnvironmentVariable(...,"User")` en PowerShell, o desde "Editar las variables de entorno del sistema"): `PRINT_AGENT_TOKEN` con el mismo secreto, `PRINT_SERVER_URL=https://supercocina.win` y, si cambia el nombre, `PRINT_PRINTER_NAME=POS-80 (copy 1)`.
-5. Crear la Tarea Programada para que el agente arranque solo al iniciar sesión en Windows, sin volver a tocar PowerShell después. Desde PowerShell **como administrador**:
+4. Configurar las variables de entorno **de Usuario** para la cuenta que usará la Dell (con `[Environment]::SetEnvironmentVariable(...,"User")` en PowerShell, o desde "Editar las variables de entorno del sistema"): `PRINT_AGENT_TOKEN` con el mismo secreto, `PRINT_SERVER_URL=https://supercocina.win` y, si cambia el nombre, `PRINT_PRINTER_NAME=POS-80 (copy 1)`.
+5. Configurar el **auto-inicio de sesión de Windows** para esa cuenta, para que la Dell entre sola al escritorio sin que nadie toque el teclado. En PowerShell **como administrador**:
+
+   ```powershell
+   $user = "lleva"
+   $securePassword = Read-Host -Prompt "Contraseña de Windows de esa cuenta" -AsSecureString
+   $password = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword))
+   $winlogon = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
+   Set-ItemProperty -Path $winlogon -Name "AutoAdminLogon" -Value "1"
+   Set-ItemProperty -Path $winlogon -Name "DefaultUserName" -Value $user
+   Set-ItemProperty -Path $winlogon -Name "DefaultPassword" -Value $password
+   Set-ItemProperty -Path $winlogon -Name "DefaultDomainName" -Value $env:COMPUTERNAME
+   ```
+
+6. Crear la Tarea Programada para que el agente arranque solo al iniciar sesión en Windows (que ahora ocurre sola, gracias al paso anterior), sin volver a tocar PowerShell después. Desde PowerShell **como administrador**, con esa cuenta ya con la sesión iniciada:
 
    ```powershell
    $action = New-ScheduledTaskAction `
@@ -30,12 +43,16 @@ Los botones normales de cocina y cobro y la selección de cocina modificada crea
 
    Ajusta las rutas si tu instalación no vive en `C:\SuperCocina\print-agent\dell_agent`.
 
+   **Nota (2026-09-23)**: el 2026-09-22 se probó correr esto como `-AtStartup` bajo la cuenta `SYSTEM`, para no depender de ningún inicio de sesión. Se revirtió al día siguiente: el agente usa Playwright para renderizar el ticket con Edge antes de imprimir, y Chromium/Edge no arranca de forma confiable corriendo como `SYSTEM` (esa cuenta no tiene una sesión de escritorio interactiva real — aislamiento de Sesión 0 de Windows). El trabajo se reclamaba pero fallaba silenciosamente al momento de imprimir. El auto-inicio de sesión (paso 5) logra el mismo resultado práctico — nadie necesita tocar el teclado al prender la Dell — pero corriendo en una sesión de usuario real donde Edge sí funciona.
+
 ## Operación diaria (después de la preparación)
 
 ```text
 Prender la Dell
      ↓
-Windows inicia sesión → la Tarea Programada arranca agent.py solo
+Windows inicia sesión solo (auto-inicio de sesión, sin que nadie toque el teclado)
+     ↓
+La Tarea Programada arranca agent.py solo
      ↓
 El agente manda un latido cada 10 segundos al servidor, indicando si ve la POS-80
      ↓
@@ -46,7 +63,7 @@ El siguiente latido reporta la impresora conectada → el servidor la marca en l
 Cualquier celular, tablet o computadora ya puede imprimir
 ```
 
-No hace falta abrir PowerShell, activar el entorno virtual ni ejecutar `python agent.py` a mano en el uso diario; eso solo se hizo una vez durante la preparación. Si alguna vez reinstalas Windows o mueves la carpeta, repite el paso 5.
+No hace falta abrir PowerShell, activar el entorno virtual ni ejecutar `python agent.py` a mano en el uso diario; eso solo se hizo una vez durante la preparación. Si alguna vez reinstalas Windows o mueves la carpeta, repite los pasos 4 a 6.
 
 ## Qué pasa si algo está apagado o desconectado
 
