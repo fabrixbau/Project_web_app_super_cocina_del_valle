@@ -9079,13 +9079,23 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 no tenía ningún límite de altura y podía crecer hasta dejar la lista de artículos en 0px de
 alto. Ya existía un arreglo equivalente solo para tablet/táctil (más abajo); este es el mismo
 patrón mínimo, pero acotado a escritorio, y exclusivo de Pedidos: Mesas no lo necesita porque
-ahí el método de pago no se muestra durante la captura. Borra esta nota al leerla. */
+ahí el método de pago no se muestra durante la captura. Borra esta nota al leerla.
+NOTA (revisión posterior): con 3 líneas garantizadas de artículos + el panel de Efectivo abierto,
+la suma de todo el contenido del ticket supera la altura fija del panel (calc(100dvh - 2rem))
+incluso si el panel de Efectivo se reduce casi a nada — no caben ambas cosas completas a la vez
+en pantallas de ~900px de alto. En vez de exprimir el panel de Efectivo hasta volverlo inusable,
+se le permite al panel del ticket desplazarse como cualquier barra lateral (sólo en escritorio;
+mobile/tablet ya tienen su propio manejo abajo) para que los botones de guardar/cerrar sigan
+siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un tamaño ilegible. */
 @media (min-width: 901px) and (pointer: fine) {
+  .internal-live-ticket {
+    overflow-y: auto !important;
+  }
   .internal-live-ticket > .table-ticket-items {
-    min-height: 8rem !important;
+    min-height: 16.5rem !important;
   }
   .internal-live-ticket .ticket-payment-details {
-    max-height: 40vh !important;
+    max-height: 12rem !important;
     overflow-y: auto !important;
     flex-shrink: 0 !important;
   }
