@@ -1966,7 +1966,13 @@ usa color y texto, no sólo color, para que sea inequívoca. Borra esta nota al 
 .terminal-cut-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: center; margin-bottom: .7rem; }
 .terminal-cut-heading h2 { margin: .35rem 0; }
 .terminal-movement-list { overflow-x: auto; }
-.terminal-movement-list > header, .terminal-movement-row { display: grid; grid-template-columns: .75fr .7fr .75fr 1fr 1.25fr 2fr 42px; gap: .55rem; align-items: center; min-width: 1120px; }
+.terminal-movement-list > header, .terminal-movement-row { display: grid; grid-template-columns: 2rem .75fr .7fr .75fr 1fr 1.25fr 2fr 42px; gap: .55rem; align-items: center; min-width: 1150px; }
+/* NOTA TEMPORAL PARA APRENDIZAJE: la celda de número vive al final del HTML de cada
+fila (después del botón de eliminar) para no correr el nth-child de las demás columnas
+en la vista de teléfono, que las etiqueta por posición. `order: -1` la reubica al
+principio sólo visualmente en la rejilla, sin tocar el orden real del DOM. Borra esta
+nota después de leerla. */
+.terminal-number-heading, .terminal-row-number { order: -1; text-align: center; font-weight: 800; color: #526b60; }
 .terminal-movement-list > header { padding: .4rem .5rem; color: #315747; font-size: .78rem; font-weight: 900; text-transform: uppercase; }
 .terminal-movement-row { position: relative; padding: .65rem .5rem 1.2rem; border-top: 1px solid #d8d2c6; }
 .terminal-movement-row label { display: flex; gap: .25rem; align-items: center; font-weight: 800; }
@@ -8126,11 +8132,11 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 
 /* Terminales: la acción de eliminar vive en la esquina de cada ficha. */
 .terminal-movement-list > header {
-  grid-template-columns: .75fr .7fr .75fr 1fr 1.25fr 2fr;
+  grid-template-columns: 2rem .75fr .7fr .75fr 1fr 1.25fr 2fr;
 }
 .terminal-movement-list > header > :last-child { display: none; }
 .terminal-movement-row {
-  grid-template-columns: .75fr .7fr .75fr 1fr 1.25fr 2fr;
+  grid-template-columns: 2rem .75fr .7fr .75fr 1fr 1.25fr 2fr;
   padding-right: 3.35rem;
 }
 .terminal-movement-row .terminal-delete {

@@ -38,7 +38,7 @@ exclusivamente las propinas ya capturadas en los tres apartados. Borra esta nota
 <p class="message" data-terminal-feedback hidden></p>
 
 <section class="card terminal-movement-list" data-terminal-board data-save-url="{% url 'cashier:terminal_movement_save' %}" data-delete-template="{% url 'cashier:terminal_movement_delete' 0 %}" data-cut-id="{{ cut.id }}" data-cut-open="{% if cut.status == 'open' %}1{% else %}0{% endif %}" data-table-group-label="Mesas con {{ expected_payment_label }}">
-  <header><span>Total cobrado</span><span>Propina</span><span>Consumo</span><span>Nombre/referencia</span><span>Vincular</span><span>Propina para</span><span></span></header>
+  <header><span class="terminal-number-heading">#</span><span>Total cobrado</span><span>Propina</span><span>Consumo</span><span>Nombre/referencia</span><span>Vincular</span><span>Propina para</span><span></span></header>
   {% for movement in movements %}<article class="terminal-movement-row" data-movement-id="{{ movement.id }}" data-saved-total="{{ movement.total_amount }}" data-saved-tip="{{ movement.tip_amount }}">
     <label data-column="Total">$<input type="number" min="0.01" step="0.01" name="total_amount" value="{{ movement.total_amount }}" {% if cut.status == 'closed' %}disabled{% endif %}></label>
     <label data-column="Propina">$<input type="number" min="0" step="0.01" name="tip_amount" value="{{ movement.tip_amount }}" {% if cut.status == 'closed' %}disabled{% endif %}></label>
@@ -47,9 +47,11 @@ exclusivamente las propinas ya capturadas en los tres apartados. Borra esta nota
     <div class="terminal-link-field"><span>Vincular</span><input type="hidden" name="linked_record" value="{% if movement.order_id %}order:{{ movement.order_id }}{% elif movement.table_account_id %}table:{{ movement.table_account_id }}{% endif %}"><button type="button" class="terminal-link-trigger" data-link-trigger {% if cut.status == 'closed' %}disabled{% endif %}>{% if movement.order %}{{ movement.order.formatted_number }} · {{ movement.order.customer_name }}{% elif movement.table_account %}{{ movement.table_account.table.name }}{% else %}Vincular{% endif %}</button></div>
     <div class="terminal-recipient-buttons" data-recipient-buttons><input type="hidden" name="tip_recipient" value="{{ movement.tip_recipient_id|default:'' }}">{% for person in employees %}<button type="button" data-recipient-id="{{ person.id }}" class="{% if movement.tip_recipient_id == person.id %}is-selected{% endif %}" {% if cut.status == 'closed' %}disabled{% endif %}>{{ person.get_full_name|default:person.username }}</button>{% endfor %}</div>
     <button type="button" class="danger terminal-delete" data-delete-movement {% if cut.status == 'closed' %}disabled{% endif %}>×</button><small data-row-save-state></small>
+    <strong class="terminal-row-number">{{ forloop.counter }}</strong>
   </article>{% endfor %}
   {% if cut.status == 'open' %}<article class="terminal-movement-row is-new" data-movement-id="">
     <label data-column="Total">$<input type="number" min="0.01" step="0.01" name="total_amount" placeholder="0.00"></label><label data-column="Propina">$<input type="number" min="0" step="0.01" name="tip_amount" value="0"></label><strong data-column="Consumo" data-consumption>$0.00</strong><label class="terminal-reference-field"><span>Nombre/referencia</span><input name="terminal_name_reference" placeholder="Nombre visible (opcional)"></label><div class="terminal-link-field"><span>Vincular</span><input type="hidden" name="linked_record"><button type="button" class="terminal-link-trigger" data-link-trigger>Vincular</button></div><div class="terminal-recipient-buttons" data-recipient-buttons><input type="hidden" name="tip_recipient">{% for person in employees %}<button type="button" data-recipient-id="{{ person.id }}">{{ person.get_full_name|default:person.username }}</button>{% endfor %}</div><button type="button" class="danger terminal-delete" data-delete-movement hidden>×</button><small data-row-save-state>Selecciona un ticket o escribe el total.</small>
+    <strong class="terminal-row-number"></strong>
   </article>{% endif %}
 </section>
 
@@ -71,4 +73,4 @@ exclusivamente las propinas ya capturadas en los tres apartados. Borra esta nota
 <section class="card terminal-person-summary"><h2>Conciliación de propinas por persona</h2><div class="terminal-person-head"><span>Persona</span><span>Terminales</span><span>Aplicación</span><span>Diferencia</span></div>{% for row in person_summary %}<div><strong>{{ row.person.get_full_name|default:row.person.username }}</strong><span>${{ row.actual|floatformat:2 }}</span><span>${{ row.expected|floatformat:2 }}</span><strong class="{% if row.difference %}text-danger{% endif %}">${{ row.difference|floatformat:2 }}</strong></div>{% empty %}<p>No hay personas que coincidan.</p>{% endfor %}</section>
 {% endif %}
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/cashier-terminal-board.js' %}?v=8"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/cashier-terminal-board.js' %}?v=9"></script>{% endblock %}

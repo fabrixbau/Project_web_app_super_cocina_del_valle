@@ -73,12 +73,37 @@ async function saveRow(row) {
     row.dataset.movementId = result.movement.id; row.dataset.savedTotal = result.movement.total; row.dataset.savedTip = result.movement.tip; row.classList.remove("is-new"); row.querySelector("[data-delete-movement]").hidden = false; state.textContent = "Guardado";
     setNumber("[data-selected-total]", numberFrom("[data-selected-total]") - previousTotal + Number(result.movement.total)); setNumber("[data-selected-tip]", numberFrom("[data-selected-tip]") - previousTip + Number(result.movement.tip));
     if (wasNew) appendBlankFrom(row);
+    scheduleSummaryRefresh();
     state.classList.remove("text-danger");
   } catch (error) { state.textContent = error.message; state.classList.add("text-danger"); }
   finally { row.dataset.saving = "0"; if (row.dataset.pendingSave === "1") { row.dataset.pendingSave = "0"; saveRow(row); } }
 }
 
 function scheduleSave(row, immediate = false) { window.clearTimeout(timers.get(row)); updateConsumption(row); const state = row.querySelector("[data-row-save-state]"); state.textContent = "Pendiente de guardar…"; state.classList.remove("text-danger"); timers.set(row, window.setTimeout(() => saveRow(row), immediate ? 0 : 450)); }
+
+let summaryRefreshTimer = null;
+// NOTA TEMPORAL PARA APRENDIZAJE: "Conciliación de propinas por persona" (y las
+// tarjetas de Aplicación/Diferencia arriba) se calculan en el servidor a partir de
+// TODOS los movimientos del corte, no sólo el que acaba de guardarse — reconstruir esa
+// cuenta en JS duplicaría la lógica de negocio. En vez de eso, tras cada guardado o
+// borrado exitoso se vuelve a pedir la misma página (con los mismos filtros activos) y
+// se reemplaza esa sección con la versión fresca. El debounce evita pedir la página una
+// vez por cada guardado si varias filas se guardan casi al mismo tiempo. Borra esta
+// nota después de leerla.
+async function refreshPersonSummary() {
+  try {
+    const response = await fetch(window.location.href, {credentials: "same-origin", headers: {"X-Requested-With": "XMLHttpRequest"}, cache: "no-store"});
+    if (!response.ok) return;
+    const doc = new DOMParser().parseFromString(await response.text(), "text/html");
+    const freshSummary = doc.querySelector(".terminal-person-summary");
+    const currentSummary = document.querySelector(".terminal-person-summary");
+    if (freshSummary && currentSummary) currentSummary.replaceWith(freshSummary);
+    const freshGrid = doc.querySelector(".terminal-reconciliation-grid");
+    const currentGrid = document.querySelector(".terminal-reconciliation-grid");
+    if (freshGrid && currentGrid) currentGrid.replaceWith(freshGrid);
+  } catch (_) { /* deja la sección como estaba si falla la actualización en segundo plano */ }
+}
+function scheduleSummaryRefresh() { window.clearTimeout(summaryRefreshTimer); summaryRefreshTimer = window.setTimeout(refreshPersonSummary, 400); }
 
 board?.addEventListener("input", (event) => { const row = event.target.closest("[data-movement-id]"); if (row) scheduleSave(row); });
 board?.addEventListener("click", async (event) => {
@@ -88,7 +113,7 @@ board?.addEventListener("click", async (event) => {
   if (linkTrigger) { openLinkDialog(linkTrigger.closest("[data-movement-id]")); return; }
   const deleteButton = event.target.closest("[data-delete-movement]"); if (!deleteButton || deleteButton.hidden) return;
   const row = deleteButton.closest("[data-movement-id]"); deleteButton.disabled = true;
-  try { const body = new FormData(); body.append("csrfmiddlewaretoken", document.querySelector("input[name='csrfmiddlewaretoken']").value); const url = board.dataset.deleteTemplate.replace("/0/", `/${row.dataset.movementId}/`); const response = await fetch(url, {method: "POST", body, headers: {"X-Requested-With": "XMLHttpRequest", Accept: "application/json"}}); const result = await response.json(); if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo eliminar."); setNumber("[data-selected-total]", numberFrom("[data-selected-total]") - Number(row.dataset.savedTotal || 0)); setNumber("[data-selected-tip]", numberFrom("[data-selected-tip]") - Number(row.dataset.savedTip || 0)); row.remove(); } catch (error) { row.querySelector("[data-row-save-state]").textContent = error.message; deleteButton.disabled = false; }
+  try { const body = new FormData(); body.append("csrfmiddlewaretoken", document.querySelector("input[name='csrfmiddlewaretoken']").value); const url = board.dataset.deleteTemplate.replace("/0/", `/${row.dataset.movementId}/`); const response = await fetch(url, {method: "POST", body, headers: {"X-Requested-With": "XMLHttpRequest", Accept: "application/json"}}); const result = await response.json(); if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo eliminar."); setNumber("[data-selected-total]", numberFrom("[data-selected-total]") - Number(row.dataset.savedTotal || 0)); setNumber("[data-selected-tip]", numberFrom("[data-selected-tip]") - Number(row.dataset.savedTip || 0)); row.remove(); scheduleSummaryRefresh(); } catch (error) { row.querySelector("[data-row-save-state]").textContent = error.message; deleteButton.disabled = false; }
 });
 
 document.querySelector("[data-cut-status-form]")?.addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = form.querySelector("button"); button.disabled = true; try { const response = await fetch(form.action, {method: "POST", body: new FormData(form), headers: {"X-Requested-With": "XMLHttpRequest", Accept: "application/json"}}); const result = await response.json(); if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo cambiar el corte."); window.location.reload(); } catch (error) { feedback.textContent = error.message; feedback.className = "message error"; feedback.hidden = false; button.disabled = false; } });
