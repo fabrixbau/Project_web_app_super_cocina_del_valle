@@ -37,6 +37,20 @@ function updateConsumption(row) {
   row.querySelector("[data-consumption]").textContent = `$${money(total - tip)}`;
 }
 
+function renumberRows() {
+  // NOTA TEMPORAL PARA APRENDIZAJE: la columna "#" se numera aquí en el cliente cada vez
+  // que cambia el número de filas guardadas (se agrega una nueva o se borra una) — el
+  // servidor sólo numera correctamente en la carga inicial de la página; sin esto, un
+  // movimiento nuevo se guardaba con la celda de número vacía y se quedaba así hasta
+  // recargar. Borra esta nota después de leerla.
+  let count = 0;
+  board.querySelectorAll(".terminal-movement-row:not(.is-new)").forEach((row) => {
+    count += 1;
+    const cell = row.querySelector(".terminal-row-number");
+    if (cell) cell.textContent = count;
+  });
+}
+
 function appendBlankFrom(row) {
   if (board.querySelector(".terminal-movement-row.is-new[data-movement-id='']")) return;
   const clone = row.cloneNode(true); clone.dataset.movementId = ""; clone.dataset.savedTotal = "0"; clone.dataset.savedTip = "0"; clone.classList.add("is-new");
@@ -80,7 +94,7 @@ async function saveRow(row) {
     const wasNew = !row.dataset.movementId; const previousTotal = Number(row.dataset.savedTotal || 0); const previousTip = Number(row.dataset.savedTip || 0);
     row.dataset.movementId = result.movement.id; row.dataset.savedTotal = result.movement.total; row.dataset.savedTip = result.movement.tip; row.classList.remove("is-new"); row.querySelector("[data-delete-movement]").hidden = false; state.textContent = "Guardado";
     setNumber("[data-selected-total]", numberFrom("[data-selected-total]") - previousTotal + Number(result.movement.total)); setNumber("[data-selected-tip]", numberFrom("[data-selected-tip]") - previousTip + Number(result.movement.tip));
-    if (wasNew) appendBlankFrom(row);
+    if (wasNew) { appendBlankFrom(row); renumberRows(); }
     scheduleSummaryRefresh();
     state.classList.remove("text-danger");
   } catch (error) { state.textContent = error.message; state.classList.add("text-danger"); }
@@ -121,7 +135,7 @@ board?.addEventListener("click", async (event) => {
   if (linkTrigger) { openLinkDialog(linkTrigger.closest("[data-movement-id]")); return; }
   const deleteButton = event.target.closest("[data-delete-movement]"); if (!deleteButton || deleteButton.hidden) return;
   const row = deleteButton.closest("[data-movement-id]"); deleteButton.disabled = true;
-  try { const body = new FormData(); body.append("csrfmiddlewaretoken", document.querySelector("input[name='csrfmiddlewaretoken']").value); const url = board.dataset.deleteTemplate.replace("/0/", `/${row.dataset.movementId}/`); const response = await fetch(url, {method: "POST", body, headers: {"X-Requested-With": "XMLHttpRequest", Accept: "application/json"}}); const result = await response.json(); if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo eliminar."); setNumber("[data-selected-total]", numberFrom("[data-selected-total]") - Number(row.dataset.savedTotal || 0)); setNumber("[data-selected-tip]", numberFrom("[data-selected-tip]") - Number(row.dataset.savedTip || 0)); row.remove(); scheduleSummaryRefresh(); } catch (error) { row.querySelector("[data-row-save-state]").textContent = error.message; deleteButton.disabled = false; }
+  try { const body = new FormData(); body.append("csrfmiddlewaretoken", document.querySelector("input[name='csrfmiddlewaretoken']").value); const url = board.dataset.deleteTemplate.replace("/0/", `/${row.dataset.movementId}/`); const response = await fetch(url, {method: "POST", body, headers: {"X-Requested-With": "XMLHttpRequest", Accept: "application/json"}}); const result = await response.json(); if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo eliminar."); setNumber("[data-selected-total]", numberFrom("[data-selected-total]") - Number(row.dataset.savedTotal || 0)); setNumber("[data-selected-tip]", numberFrom("[data-selected-tip]") - Number(row.dataset.savedTip || 0)); row.remove(); renumberRows(); scheduleSummaryRefresh(); } catch (error) { row.querySelector("[data-row-save-state]").textContent = error.message; deleteButton.disabled = false; }
 });
 
 document.querySelector("[data-cut-status-form]")?.addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = form.querySelector("button"); button.disabled = true; try { const response = await fetch(form.action, {method: "POST", body: new FormData(form), headers: {"X-Requested-With": "XMLHttpRequest", Accept: "application/json"}}); const result = await response.json(); if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo cambiar el corte."); window.location.reload(); } catch (error) { feedback.textContent = error.message; feedback.className = "message error"; feedback.hidden = false; button.disabled = false; } });
