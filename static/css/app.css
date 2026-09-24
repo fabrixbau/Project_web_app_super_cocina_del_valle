@@ -1955,13 +1955,44 @@ usa color y texto, no sólo color, para que sea inequívoca. Borra esta nota al 
 .terminal-movement-list > header { padding: .4rem .5rem; color: #315747; font-size: .78rem; font-weight: 900; text-transform: uppercase; }
 .terminal-movement-row { position: relative; padding: .65rem .5rem 1.2rem; border-top: 1px solid #d8d2c6; }
 .terminal-movement-row label { display: flex; gap: .25rem; align-items: center; font-weight: 800; }
-.terminal-movement-row input, .terminal-movement-row select { min-width: 0; }
+.terminal-movement-row input { min-width: 0; }
 .terminal-movement-row [data-row-save-state] { position: absolute; right: .5rem; bottom: .1rem; color: #527064; }
 .terminal-recipient-buttons { display: flex; flex-wrap: wrap; gap: .3rem; }
 .terminal-recipient-buttons input { display: none; }
 .terminal-recipient-buttons button { padding: .42rem .55rem; border: 2px solid #285943; color: #214f3d; background: #fff; }
 .terminal-recipient-buttons button.is-selected { color: #172c23; background: #f6c24b; }
 .terminal-delete { padding: .55rem; }
+.terminal-link-field { display: flex; gap: .25rem; align-items: center; font-weight: 800; }
+.terminal-link-trigger { min-height: 3rem; padding: .5rem .7rem; border: 1px solid #c9d1cc; border-radius: .68rem; color: #17231e; background: #fbfcfb; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.terminal-link-trigger:hover { border-color: #8ca598; background: #fff; }
+.terminal-link-trigger:disabled { color: #8a9089; cursor: not-allowed; }
+
+/* NOTA TEMPORAL PARA APRENDIZAJE: es un <dialog> nativo a propósito, con su propio
+CSS chico y aislado, en vez de otro overlay hecho a mano dentro del cascade gigante de
+este archivo — así no hereda ni choca con reglas viejas de otras pantallas. Borra esta
+nota después de leerla. */
+.terminal-link-dialog { padding: 0; border: none; border-radius: .9rem; width: min(30rem, 92vw); max-height: 85vh; box-shadow: 0 12px 32px rgb(23 35 30 / 22%); }
+.terminal-link-dialog::backdrop { background: rgb(15 25 20 / 55%); }
+.terminal-link-dialog-header { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: 1rem 1.15rem; border-bottom: 1px solid #e1e6e0; }
+.terminal-link-dialog-header h3 { margin: 0; }
+.terminal-link-dialog-close { min-height: 2.2rem; min-width: 2.2rem; padding: 0; border: none; border-radius: .55rem; color: #17231e; background: #f0f2ef; font-size: 1.1rem; line-height: 1; cursor: pointer; }
+.terminal-link-dialog-body { padding: 1rem 1.15rem; overflow-y: auto; max-height: 68vh; }
+.terminal-link-candidate-group { margin: 0 0 .4rem; color: #526b60; font-size: .72rem; font-weight: 900; text-transform: uppercase; }
+.terminal-link-candidate-group:not(:first-child) { margin-top: .9rem; }
+.terminal-link-candidate { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .3rem .75rem; width: 100%; margin-bottom: .5rem; padding: .6rem .75rem; border: 2px solid #d8d2c6; border-radius: .65rem; color: #17231e; background: #fff; font: inherit; text-align: left; cursor: pointer; }
+.terminal-link-candidate:hover { border-color: #285943; }
+.terminal-link-candidate.is-match { border-color: #2c7b4d; }
+.terminal-link-candidate.is-mismatch { border-color: #d99a2b; }
+.terminal-link-candidate strong { flex: 1 1 auto; }
+.terminal-link-candidate small { color: #647069; }
+.terminal-link-candidate-empty { margin: 0 0 .5rem; color: #647069; }
+.terminal-link-diff-table { width: 100%; margin-bottom: 1rem; border-collapse: collapse; }
+.terminal-link-diff-table th, .terminal-link-diff-table td { padding: .45rem .5rem; border-bottom: 1px solid #e1e6e0; text-align: left; font-size: .85rem; }
+.terminal-link-dialog-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.terminal-link-dialog-actions button { flex: 1 1 9rem; min-height: 2.9rem; padding: .5rem; border-radius: .65rem; border: 1px solid #c9d1cc; font: inherit; font-weight: 800; cursor: pointer; }
+.terminal-link-dialog-actions [data-link-conflict-overwrite] { border-color: #285943; background: #285943; color: #fff; }
+.terminal-link-dialog-actions [data-link-conflict-new] { color: #17231e; background: #fbfcfb; }
+.terminal-link-dialog-actions [data-link-conflict-cancel] { border-color: #d99a2b; color: #8a5a10; background: #fff8ec; }
 .terminal-person-summary { margin-top: 1rem; overflow-x: auto; }
 .terminal-person-summary > div { display: grid; grid-template-columns: 2fr repeat(3, 1fr); gap: .75rem; min-width: 620px; padding: .65rem; border-top: 1px solid #ddd6ca; }
 .terminal-person-head { color: #315747; font-size: .78rem; font-weight: 900; text-transform: uppercase; }
@@ -6954,13 +6985,11 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   .terminal-movement-row > label,
   .terminal-movement-row > strong,
   .terminal-movement-row > input,
-  .terminal-movement-row > select,
   .terminal-movement-row > div { min-width: 0; }
   .terminal-movement-row > label { display: grid; grid-template-columns: auto minmax(0, 1fr); }
   .terminal-movement-row > label::before,
   .terminal-movement-row > strong::before,
   .terminal-movement-row > input::before,
-  .terminal-movement-row > select::before,
   .terminal-movement-row > .terminal-recipient-buttons::before {
     display: block;
     grid-column: 1 / -1;
@@ -6980,8 +7009,7 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   .terminal-movement-row > .terminal-recipient-buttons::before { content: "Propina para"; }
   .terminal-recipient-buttons { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .25rem; }
   .terminal-recipient-buttons button { min-width: 0; padding: .3rem .2rem; overflow: hidden; text-overflow: ellipsis; font-size: .62rem; }
-  .terminal-movement-row input,
-  .terminal-movement-row select { width: 100%; min-height: 2.25rem; padding: .3rem; font-size: .68rem; }
+  .terminal-movement-row input { width: 100%; min-height: 2.25rem; padding: .3rem; font-size: .68rem; }
   .terminal-movement-row .terminal-delete { width: 2.25rem; min-width: 2.25rem; min-height: 2.25rem; padding: 0; }
   .terminal-movement-row [data-row-save-state] {
     position: static;
@@ -7076,7 +7104,7 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 .terminal-reference-field > span,
 .terminal-link-field > span { display: none; }
 .terminal-reference-field > input,
-.terminal-link-field > select { width: 100%; min-width: 0; }
+.terminal-link-field > .terminal-link-trigger { width: 100%; min-width: 0; }
 .change-mobile-tools,
 .change-filter-toggle { display: none; }
 

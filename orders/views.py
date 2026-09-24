@@ -2220,27 +2220,23 @@ def cashier_terminal_board(request):
     used_table_links = dict(TerminalMovement.objects.filter(
         table_account_id__in=linked_tables.values("id"), table_account_id__isnull=False,
     ).values_list("table_account_id", "id"))
-    link_orders = [{
-        "value": f"order:{row.id}", "label": f"{row.formatted_number} · {row.customer_name}",
+    link_candidates = [{
+        "kind": "order", "value": f"order:{row.id}", "label": f"{row.formatted_number} · {row.customer_name}",
         "total": row.total_with_delivery_tip, "tip": row.delivery_tip_amount,
         "recipient_id": row.delivery_tip_recipient_id or row.delivery_person_id or "",
         "movement_id": used_order_links.get(row.id),
-    } for row in linked_orders]
-    link_tables = [{
-        "value": f"table:{row.id}", "label": f"{row.table.name} · ${row.total_paid}",
+    } for row in linked_orders] + [{
+        "kind": "table", "value": f"table:{row.id}", "label": f"{row.table.name} · ${row.total_paid}",
         "total": row.total_paid or Decimal("0"), "tip": row.tip_amount,
         "recipient_id": row.tip_recipient_id or row.assigned_waiter_id or "",
         "movement_id": used_table_links.get(row.id),
     } for row in linked_tables]
-    # NOTA TEMPORAL PARA APRENDIZAJE: construimos las opciones por fila para que un
-    # pedido o mesa ya vinculado en otro movimiento desaparezca de la lista, salvo
-    # para la fila propietaria (que conserva su opción para poder verla o cambiarla).
-    # Borra esta nota.
-    for movement in movements:
-        movement.available_link_orders = [option for option in link_orders if not option["movement_id"] or option["movement_id"] == movement.id]
-        movement.available_link_tables = [option for option in link_tables if not option["movement_id"] or option["movement_id"] == movement.id]
-    available_link_orders = [option for option in link_orders if not option["movement_id"]]
-    available_link_tables = [option for option in link_tables if not option["movement_id"]]
+    # NOTA TEMPORAL PARA APRENDIZAJE: ya no filtramos "disponibles" por renglón en el
+    # servidor — se manda la lista completa (con su movement_id, si ya está vinculado a
+    # alguno) al frontend vía json_script, y el diálogo de "Vincular" hace el filtro ahí
+    # mismo al abrirse, comparando contra el vínculo actual de cada renglón en pantalla.
+    # Así no hace falta recargar la página para que un vínculo recién usado desaparezca
+    # de los demás renglones. Borra esta nota después de leerla.
     return render(request, "orders/cashier_terminal_board.html", {
         "cut": cut, "cuts": cuts, "movements": movements,
         "provider_tabs": provider_tabs,
@@ -2251,8 +2247,7 @@ def cashier_terminal_board(request):
         "reconciliation_label": "Transferencias" if is_transfer_provider else "Clover + Mercado Pago",
         "expected_payment_label": "Transferencia" if is_transfer_provider else "Terminal",
         "selected_person": person_id,
-        "employees": employees, "available_link_orders": available_link_orders,
-        "available_link_tables": available_link_tables,
+        "employees": employees, "link_candidates": link_candidates,
         "selected_total": sum((row.total_amount for row in movements), Decimal("0")),
         "selected_tip": sum((row.tip_amount for row in movements), Decimal("0")),
         "actual_total": actual_total, "actual_tip": actual_tip,

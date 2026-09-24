@@ -46,25 +46,11 @@ function appendBlankFrom(row) {
   // reinicio, la tarjeta nueva nace "atorada" y su primer guardado nunca se ejecuta.
   // Borra esta nota después de leerla.
   delete clone.dataset.saving; delete clone.dataset.pendingSave;
-  clone.querySelectorAll(".app-select").forEach((wrapper) => {
-    const select = wrapper.querySelector(":scope > select");
-    if (!select) return;
-    select.classList.remove("app-select-native");
-    wrapper.replaceWith(select);
-  });
   clone.querySelector("[name='total_amount']").value = ""; clone.querySelector("[name='tip_amount']").value = "0";
   clone.querySelector("[name='terminal_name_reference']").value = ""; clone.querySelector("[name='linked_record']").value = ""; clone.querySelector("[name='tip_recipient']").value = "";
+  clone.querySelector("[data-link-trigger]").textContent = "Vincular";
   clone.querySelectorAll("[data-recipient-id]").forEach((button) => button.classList.remove("is-selected")); clone.querySelector("[data-consumption]").textContent = "$0.00";
   clone.querySelector("[data-delete-movement]").hidden = true; clone.querySelector("[data-row-save-state]").textContent = "Escribe el total para crear el movimiento."; board.append(clone);
-  refreshLinkedOptions();
-}
-
-function refreshLinkedOptions() {
-  const selected = new Map();
-  board?.querySelectorAll("[data-movement-id]").forEach((row) => { const value = row.querySelector("[name='linked_record']")?.value; if (value) selected.set(value, row); });
-  board?.querySelectorAll("[data-movement-id]").forEach((row) => row.querySelectorAll("[name='linked_record'] option[value]").forEach((option) => {
-    if (!option.value) return; const owner = selected.get(option.value); if (owner && owner !== row) option.remove();
-  }));
 }
 
 async function saveRow(row) {
@@ -78,9 +64,8 @@ async function saveRow(row) {
     const response = await fetch(board.dataset.saveUrl, {method: "POST", body, headers: {"X-Requested-With": "XMLHttpRequest", Accept: "application/json"}}); const result = await response.json();
     if (!response.ok || !result.ok) {
       if (result.code === "link_already_used") {
-        const select = row.querySelector("[name='linked_record']");
-        select?.selectedOptions[0]?.remove();
-        if (select) select.value = "";
+        row.querySelector("[name='linked_record']").value = "";
+        row.querySelector("[data-link-trigger]").textContent = "Vincular";
       }
       throw new Error(result.error || "No se pudo guardar el movimiento.");
     } if (versions.get(row) !== version) return;
@@ -88,7 +73,6 @@ async function saveRow(row) {
     row.dataset.movementId = result.movement.id; row.dataset.savedTotal = result.movement.total; row.dataset.savedTip = result.movement.tip; row.classList.remove("is-new"); row.querySelector("[data-delete-movement]").hidden = false; state.textContent = "Guardado";
     setNumber("[data-selected-total]", numberFrom("[data-selected-total]") - previousTotal + Number(result.movement.total)); setNumber("[data-selected-tip]", numberFrom("[data-selected-tip]") - previousTip + Number(result.movement.tip));
     if (wasNew) appendBlankFrom(row);
-    refreshLinkedOptions();
     state.classList.remove("text-danger");
   } catch (error) { state.textContent = error.message; state.classList.add("text-danger"); }
   finally { row.dataset.saving = "0"; if (row.dataset.pendingSave === "1") { row.dataset.pendingSave = "0"; saveRow(row); } }
@@ -97,15 +81,150 @@ async function saveRow(row) {
 function scheduleSave(row, immediate = false) { window.clearTimeout(timers.get(row)); updateConsumption(row); const state = row.querySelector("[data-row-save-state]"); state.textContent = "Pendiente de guardar…"; state.classList.remove("text-danger"); timers.set(row, window.setTimeout(() => saveRow(row), immediate ? 0 : 450)); }
 
 board?.addEventListener("input", (event) => { const row = event.target.closest("[data-movement-id]"); if (row) scheduleSave(row); });
-board?.addEventListener("change", (event) => { const row = event.target.closest("[data-movement-id]"); if (!row) return; if (event.target.matches("[name='linked_record']")) { if (event.target.value) { const option = event.target.selectedOptions[0]; row.querySelector("[name='total_amount']").value = option.dataset.linkTotal || ""; row.querySelector("[name='tip_amount']").value = option.dataset.linkTip || "0"; const recipient = option.dataset.linkRecipient || ""; row.querySelector("[name='tip_recipient']").value = recipient; row.querySelectorAll("[data-recipient-id]").forEach((button) => button.classList.toggle("is-selected", button.dataset.recipientId === recipient)); } } scheduleSave(row, true); });
 board?.addEventListener("click", async (event) => {
   const recipientButton = event.target.closest("[data-recipient-id]");
   if (recipientButton) { const row = recipientButton.closest("[data-movement-id]"); const hidden = row.querySelector("[name='tip_recipient']"); const deselect = hidden.value === recipientButton.dataset.recipientId; hidden.value = deselect ? "" : recipientButton.dataset.recipientId; row.querySelectorAll("[data-recipient-id]").forEach((button) => button.classList.toggle("is-selected", !deselect && button === recipientButton)); scheduleSave(row, true); return; }
+  const linkTrigger = event.target.closest("[data-link-trigger]");
+  if (linkTrigger) { openLinkDialog(linkTrigger.closest("[data-movement-id]")); return; }
   const deleteButton = event.target.closest("[data-delete-movement]"); if (!deleteButton || deleteButton.hidden) return;
   const row = deleteButton.closest("[data-movement-id]"); deleteButton.disabled = true;
-  try { const body = new FormData(); body.append("csrfmiddlewaretoken", document.querySelector("input[name='csrfmiddlewaretoken']").value); const url = board.dataset.deleteTemplate.replace("/0/", `/${row.dataset.movementId}/`); const response = await fetch(url, {method: "POST", body, headers: {"X-Requested-With": "XMLHttpRequest", Accept: "application/json"}}); const result = await response.json(); if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo eliminar."); setNumber("[data-selected-total]", numberFrom("[data-selected-total]") - Number(row.dataset.savedTotal || 0)); setNumber("[data-selected-tip]", numberFrom("[data-selected-tip]") - Number(row.dataset.savedTip || 0)); row.remove(); refreshLinkedOptions(); } catch (error) { row.querySelector("[data-row-save-state]").textContent = error.message; deleteButton.disabled = false; }
+  try { const body = new FormData(); body.append("csrfmiddlewaretoken", document.querySelector("input[name='csrfmiddlewaretoken']").value); const url = board.dataset.deleteTemplate.replace("/0/", `/${row.dataset.movementId}/`); const response = await fetch(url, {method: "POST", body, headers: {"X-Requested-With": "XMLHttpRequest", Accept: "application/json"}}); const result = await response.json(); if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo eliminar."); setNumber("[data-selected-total]", numberFrom("[data-selected-total]") - Number(row.dataset.savedTotal || 0)); setNumber("[data-selected-tip]", numberFrom("[data-selected-tip]") - Number(row.dataset.savedTip || 0)); row.remove(); } catch (error) { row.querySelector("[data-row-save-state]").textContent = error.message; deleteButton.disabled = false; }
 });
 
 document.querySelector("[data-cut-status-form]")?.addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = form.querySelector("button"); button.disabled = true; try { const response = await fetch(form.action, {method: "POST", body: new FormData(form), headers: {"X-Requested-With": "XMLHttpRequest", Accept: "application/json"}}); const result = await response.json(); if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo cambiar el corte."); window.location.reload(); } catch (error) { feedback.textContent = error.message; feedback.className = "message error"; feedback.hidden = false; button.disabled = false; } });
-refreshLinkedOptions();
+
+/* NOTA TEMPORAL PARA APRENDIZAJE: el diálogo de Vincular es uno solo, compartido por
+todas las filas; se llena de nuevo cada vez que se abre leyendo en ese instante el
+vínculo actual de las demás filas (para no ofrecer un pedido/mesa ya tomado) y
+comparando Total/Propina/Propina-para de la fila contra los del candidato. Si la fila
+está vacía o todo coincide, se vincula de una vez; si algo no coincide, se detiene y
+pide Sobrescribir/Guardar como nuevo/Cancelar. Borra esta nota después de leerla. */
+const linkDialog = document.querySelector("[data-link-dialog]");
+const linkDialogList = linkDialog?.querySelector("[data-link-dialog-list]");
+const linkDialogConflict = linkDialog?.querySelector("[data-link-dialog-conflict]");
+const linkDialogDiff = linkDialog?.querySelector("[data-link-dialog-diff]");
+const linkCandidatesData = JSON.parse(document.getElementById("terminal-link-candidates")?.textContent || "[]");
+const tableGroupLabel = board?.dataset.tableGroupLabel || "Mesas";
+let activeLinkRow = null;
+let pendingCandidate = null;
+
+function recipientLabel(id) {
+  if (!id) return "Sin asignar";
+  const button = board.querySelector(`[data-recipient-id="${CSS.escape(String(id))}"]`);
+  return button ? button.textContent : "Sin asignar";
+}
+
+function rowHasTypedData(row) {
+  const total = Number(row.querySelector("[name='total_amount']").value || 0);
+  const tip = Number(row.querySelector("[name='tip_amount']").value || 0);
+  const recipient = row.querySelector("[name='tip_recipient']").value || "";
+  return total > 0 || tip > 0 || Boolean(recipient);
+}
+
+function fieldsMatch(row, candidate) {
+  const total = Number(row.querySelector("[name='total_amount']").value || 0);
+  const tip = Number(row.querySelector("[name='tip_amount']").value || 0);
+  const recipient = row.querySelector("[name='tip_recipient']").value || "";
+  return {
+    total: total.toFixed(2) === Number(candidate.total).toFixed(2),
+    tip: tip.toFixed(2) === Number(candidate.tip).toFixed(2),
+    recipient: recipient === String(candidate.recipient_id || ""),
+  };
+}
+
+function applyCandidateToRow(row, candidate) {
+  row.querySelector("[name='linked_record']").value = candidate ? candidate.value : "";
+  if (candidate) {
+    row.querySelector("[name='total_amount']").value = Number(candidate.total).toFixed(2);
+    row.querySelector("[name='tip_amount']").value = Number(candidate.tip).toFixed(2);
+    const recipient = candidate.recipient_id ? String(candidate.recipient_id) : "";
+    row.querySelector("[name='tip_recipient']").value = recipient;
+    row.querySelectorAll("[data-recipient-id]").forEach((button) => button.classList.toggle("is-selected", button.dataset.recipientId === recipient));
+    row.querySelector("[data-link-trigger]").textContent = candidate.label;
+  } else {
+    row.querySelector("[data-link-trigger]").textContent = "Vincular";
+  }
+  scheduleSave(row, true);
+}
+
+function renderCandidateList(row) {
+  const takenElsewhere = new Set();
+  board.querySelectorAll("[data-movement-id]").forEach((otherRow) => {
+    if (otherRow === row) return;
+    const value = otherRow.querySelector("[name='linked_record']").value;
+    if (value) takenElsewhere.add(value);
+  });
+  const available = linkCandidatesData.filter((candidate) => !takenElsewhere.has(candidate.value));
+  linkDialogList.innerHTML = "";
+  const unlinkButton = document.createElement("button");
+  unlinkButton.type = "button"; unlinkButton.className = "terminal-link-candidate"; unlinkButton.textContent = "Sin vincular";
+  unlinkButton.addEventListener("click", () => { applyCandidateToRow(row, null); closeLinkDialog(); });
+  linkDialogList.append(unlinkButton);
+  const groups = [["order", "Entregas a domicilio"], ["table", tableGroupLabel]];
+  let anyCandidate = false;
+  groups.forEach(([kind, label]) => {
+    const items = available.filter((candidate) => candidate.kind === kind);
+    if (!items.length) return;
+    anyCandidate = true;
+    const heading = document.createElement("p");
+    heading.className = "terminal-link-candidate-group"; heading.textContent = label;
+    linkDialogList.append(heading);
+    items.forEach((candidate) => {
+      const match = fieldsMatch(row, candidate);
+      const isMatch = match.total && match.tip && match.recipient;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `terminal-link-candidate ${isMatch ? "is-match" : "is-mismatch"}`;
+      button.innerHTML = `<strong>${candidate.label}</strong><small>${isMatch ? "✓ Coincide" : "⚠ No coincide"} · $${Number(candidate.total).toFixed(2)} · propina $${Number(candidate.tip).toFixed(2)} · ${recipientLabel(candidate.recipient_id)}</small>`;
+      button.addEventListener("click", () => handleCandidateClick(row, candidate));
+      linkDialogList.append(button);
+    });
+  });
+  if (!anyCandidate) {
+    const empty = document.createElement("p");
+    empty.className = "terminal-link-candidate-empty"; empty.textContent = "No hay pedidos ni mesas disponibles para vincular.";
+    linkDialogList.append(empty);
+  }
+}
+
+function handleCandidateClick(row, candidate) {
+  if (!rowHasTypedData(row)) { applyCandidateToRow(row, candidate); closeLinkDialog(); return; }
+  const match = fieldsMatch(row, candidate);
+  if (match.total && match.tip && match.recipient) { applyCandidateToRow(row, candidate); closeLinkDialog(); return; }
+  showConflict(row, candidate, match);
+}
+
+function showConflict(row, candidate, match) {
+  pendingCandidate = candidate;
+  linkDialogList.hidden = true;
+  linkDialogConflict.hidden = false;
+  const rows = [];
+  if (!match.total) rows.push(["Total cobrado", `$${Number(row.querySelector("[name='total_amount']").value || 0).toFixed(2)}`, `$${Number(candidate.total).toFixed(2)}`]);
+  if (!match.tip) rows.push(["Propina", `$${Number(row.querySelector("[name='tip_amount']").value || 0).toFixed(2)}`, `$${Number(candidate.tip).toFixed(2)}`]);
+  if (!match.recipient) rows.push(["Propina para", recipientLabel(row.querySelector("[name='tip_recipient']").value), recipientLabel(candidate.recipient_id)]);
+  linkDialogDiff.innerHTML = "<tr><th>Campo</th><th>Ya escrito</th><th>Del pedido/mesa</th></tr>"
+    + rows.map(([field, before, after]) => `<tr><td>${field}</td><td>${before}</td><td>${after}</td></tr>`).join("");
+}
+
+function openLinkDialog(row) {
+  if (!linkDialog || row.querySelector("[data-link-trigger]").disabled) return;
+  activeLinkRow = row; pendingCandidate = null;
+  linkDialogList.hidden = false; linkDialogConflict.hidden = true;
+  renderCandidateList(row);
+  linkDialog.showModal();
+}
+
+function closeLinkDialog() { linkDialog?.close(); activeLinkRow = null; pendingCandidate = null; }
+
+linkDialog?.querySelector("[data-link-dialog-close]")?.addEventListener("click", closeLinkDialog);
+linkDialog?.querySelector("[data-link-conflict-cancel]")?.addEventListener("click", closeLinkDialog);
+linkDialog?.querySelector("[data-link-conflict-overwrite]")?.addEventListener("click", () => {
+  if (activeLinkRow && pendingCandidate) applyCandidateToRow(activeLinkRow, pendingCandidate);
+  closeLinkDialog();
+});
+linkDialog?.querySelector("[data-link-conflict-new]")?.addEventListener("click", () => {
+  const blankRow = board.querySelector(".terminal-movement-row.is-new[data-movement-id='']");
+  if (blankRow && pendingCandidate) applyCandidateToRow(blankRow, pendingCandidate);
+  closeLinkDialog();
+});
 })();
