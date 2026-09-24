@@ -87,6 +87,21 @@ class TablePackageForm(PackageSelectionForm):
         return total
 
 
+class HiddenRequiredSelect(forms.Select):
+    # NOTA TEMPORAL PARA APRENDIZAJE: este <select> vive dentro de un contenedor con
+    # el atributo `hidden` (los botones de arriba son la interfaz real; el <select> sólo
+    # guarda el valor). Django le pone `required` en el HTML porque el campo es
+    # obligatorio, pero un `<select>` oculto con `required` deja la validación nativa del
+    # navegador en un estado raro: a veces bloquea el envío sin mostrar ningún aviso,
+    # porque no puede anclar la burbuja de validación a un elemento sin tamaño visible.
+    # Aquí se quita sólo el atributo HTML `required` (el campo sigue siendo obligatorio
+    # en Django y en la validación de JavaScript del formulario) para que la única
+    # validación real sea la nuestra, que sí siempre muestra un aviso visible. Borra esta
+    # nota después de leerla.
+    def use_required_attribute(self, initial):
+        return False
+
+
 class TableAccountCloseForm(forms.Form):
     payment_method = forms.ChoiceField(
         label="Forma de pago", choices=(
@@ -108,6 +123,7 @@ class TableAccountCloseForm(forms.Form):
     responsible_waiter = forms.ModelChoiceField(
         label="¿A nombre de quién se queda la mesa?",
         queryset=get_user_model().objects.none(),
+        widget=HiddenRequiredSelect,
         error_messages={"required": "Selecciona quién se queda como responsable de la mesa."},
     )
 

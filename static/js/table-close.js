@@ -159,10 +159,12 @@ adicional del navegador. Borra esta nota al terminar. */
     });
   });
   form.addEventListener("submit", (event) => {
-    if (!responsibleWaiterSelect.value) {
+    if (!responsibleWaiterSelect || !responsibleWaiterSelect.value) {
       event.preventDefault();
-      responsibleWaiterError.hidden = false;
-      responsibleWaiterError.scrollIntoView({block: "center"});
+      if (responsibleWaiterError) {
+        responsibleWaiterError.hidden = false;
+        responsibleWaiterError.scrollIntoView({block: "center"});
+      }
     }
   });
 
