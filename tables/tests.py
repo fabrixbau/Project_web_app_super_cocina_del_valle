@@ -255,3 +255,48 @@ class TableSplitCloseTests(TestCase):
             ]), content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
+
+
+class TableLooseProductVisibilityTests(TestCase):
+    def setUp(self):
+        self.waiter = get_user_model().objects.create_user(
+            username="mesero_bolillo", password="test-password",
+        )
+        self.waiter.groups.add(Group.objects.get(name=WAITER))
+        category = Category.objects.create(
+            name="Comida por orden", show_on_table_lunch=True,
+        )
+        self.bread = Product.objects.create(
+            category=category, name="Bolillo", price=5,
+            is_available=True, is_sold_individually=True,
+            uses_bread_stock=True,
+        )
+        DailyProductStock.objects.create(
+            date=timezone.localdate(), item_kind=DailyProductStock.ItemKind.BREAD,
+            channel=DailyProductStock.Channel.TABLE, initial_quantity=20,
+        )
+        table = DiningTable.objects.create(name="Mesa bolillo", display_order=103)
+        self.account = TableAccount.objects.create(
+            table=table, assigned_waiter=self.waiter, opened_by=self.waiter,
+        )
+        self.client.force_login(self.waiter)
+
+    def test_loose_product_is_visible_in_lunch_mode(self):
+        session = self.client.session
+        session["table_capture_mode"] = "lunch"
+        session.save()
+
+        response = self.client.get(reverse("tables:table_detail", args=(self.account.pk,)))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.bread, response.context["daily_order_loose_products"])
+
+    def test_loose_product_is_also_visible_in_breakfast_mode(self):
+        session = self.client.session
+        session["table_capture_mode"] = "breakfast"
+        session.save()
+
+        response = self.client.get(reverse("tables:table_detail", args=(self.account.pk,)))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.bread, response.context["daily_order_loose_products"])

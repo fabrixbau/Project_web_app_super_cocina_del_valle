@@ -480,28 +480,22 @@ def table_detail(request, account_id):
             executive_meal_products, daily_menu=daily_menu,
             channel=DailyProductStock.Channel.TABLE,
         )
-    daily_order_loose_products = []
-    if capture_mode == LUNCH_MODE:
-        # NOTA TEMPORAL PARA APRENDIZAJE: la categoría "Comida por orden" se excluyó
-        # arriba del catálogo normal, pero sus productos sueltos (bolillo, tortilla,
-        # consomé preparado, etc.) siguen existiendo y deben venderse por separado,
-        # igual que ya ocurre en Pedidos. Borra esta nota después de leerla.
-        daily_order_loose_products = filter_products_by_stock(
-            list(Product.objects.filter(
-                category__name="Comida por orden",
-                category__show_on_table_lunch=True,
-                is_available=True,
-                is_sold_individually=True,
-                packaging_kind=Product.PackagingKind.NONE,
-            ).order_by("sort_order", "name")),
-            daily_menu=daily_menu,
-            channel=DailyProductStock.Channel.TABLE,
-        )
-        daily_order_product_ids = {product.pk for product in daily_order_products}
-        daily_order_loose_products = [
-            product for product in daily_order_loose_products
-            if product.pk not in daily_order_product_ids
-        ]
+    daily_order_loose_products = filter_products_by_stock(
+        list(Product.objects.filter(
+            category__name="Comida por orden",
+            category__show_on_table_lunch=True,
+            is_available=True,
+            is_sold_individually=True,
+            packaging_kind=Product.PackagingKind.NONE,
+        ).order_by("sort_order", "name")),
+        daily_menu=daily_menu,
+        channel=DailyProductStock.Channel.TABLE,
+    )
+    daily_order_product_ids = {product.pk for product in daily_order_products}
+    daily_order_loose_products = [
+        product for product in daily_order_loose_products
+        if product.pk not in daily_order_product_ids
+    ]
     package_options = []
     if daily_menu:
         # NOTA TEMPORAL PARA APRENDIZAJE: igual que Pedidos, Mesas conserva el

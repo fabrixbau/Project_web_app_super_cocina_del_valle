@@ -531,6 +531,16 @@ class InternalOrderReservedCategoryTests(TestCase):
             reverse("orders:internal_order_product_add", args=(self.order.pk, self.bread.pk)),
         )
 
+    def test_loose_product_is_also_visible_in_breakfast_mode(self):
+        session = self.client.session
+        session["internal_order_menu_mode"] = "breakfast"
+        session.save()
+
+        response = self.client.get(reverse("orders:internal_order_edit", args=(self.order.pk,)))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-product-name="bolillo"')
+
 
 class OrderInventoryIntegrationTests(TestCase):
     def setUp(self):
