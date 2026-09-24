@@ -113,7 +113,7 @@ oculta el catálogo para conservar ticket y pago como historial. Borra esta nota
       </section>
       <section class="table-split-items">
         <strong>Asigna cada artículo a una cuenta</strong>
-        <div class="table-split-items-list" data-split-items-list>{% for item in ticket.items %}<div class="table-split-item" data-split-item data-item-id="{{ item.id }}" data-item-subtotal="{{ item.subtotal }}"><span class="table-split-item-name">{{ item.name }}</span><span class="table-split-item-price">${{ item.subtotal }}</span><div class="table-split-item-buttons" data-split-item-buttons></div></div>{% endfor %}</div>
+        <div class="table-split-items-list" data-split-items-list>{% for item in ticket.items %}<div class="table-split-item" data-split-item data-item-id="{{ item.item_id }}" data-item-subtotal="{{ item.subtotal }}"><span class="table-split-item-name">{{ item.name }}</span><span class="table-split-item-price">${{ item.subtotal }}</span><div class="table-split-item-buttons" data-split-item-buttons></div></div>{% endfor %}</div>
         <p class="cash-selection-error" data-split-items-error hidden>Asigna todos los artículos a alguna cuenta antes de continuar.</p>
       </section>
       <section class="table-split-accounts" data-split-accounts></section>

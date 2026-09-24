@@ -146,6 +146,15 @@ class TableSplitCloseTests(TestCase):
         )
         self.client.force_login(self.waiter)
 
+    def test_split_dialog_renders_real_item_ids(self):
+        # NOTA: ticket_summary() arma diccionarios con la clave "item_id", no "id" — si la
+        # plantilla usa {{ item.id }} por error, Django lo renderiza vacío y el panel de
+        # dividir termina mandando el mismo id (0) para todos los artículos. Esta prueba
+        # evita que ese error vuelva a colarse sin que ningún otro test lo note.
+        response = self.client.get(reverse("tables:table_detail", args=(self.account.pk,)))
+        self.assertContains(response, f'data-item-id="{self.item_a.pk}"')
+        self.assertContains(response, f'data-item-id="{self.item_b.pk}"')
+
     def split_payload(self, **overrides):
         payload = {
             "responsible_waiter": self.waiter.pk,
