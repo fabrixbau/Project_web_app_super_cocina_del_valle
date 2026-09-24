@@ -190,13 +190,28 @@ function applyCandidateToRow(row, candidate) {
 }
 
 function renderCandidateList(row) {
+  // NOTA TEMPORAL PARA APRENDIZAJE: un candidato puede estar tomado de dos formas
+  // distintas. (1) `candidate.movement_id` viene del servidor y cubre cualquier
+  // movimiento YA GUARDADO, sin importar si es de este mismo corte/proveedor o de
+  // otro (p. ej. un pedido vinculado en Mercado Pago antes de cambiarle el método de
+  // pago a Transferencia); antes esto se ignoraba por completo y sólo se miraban las
+  // filas visibles EN ESTA MISMA pestaña, así que un vínculo de otra pestaña nunca se
+  // detectaba aquí y el guardado fallaba una y otra vez con "ya se usó". (2)
+  // `takenElsewhere` cubre el caso más reciente: otra fila de esta misma página que
+  // acaba de aplicar un candidato de forma optimista pero cuyo guardado todavía no se
+  // confirma, así que el `movement_id` embebido en la página (tomado en la carga) aún
+  // no lo refleja. Se necesitan los dos. Borra esta nota después de leerla.
+  const currentMovementId = row.dataset.movementId ? Number(row.dataset.movementId) : null;
   const takenElsewhere = new Set();
   board.querySelectorAll("[data-movement-id]").forEach((otherRow) => {
     if (otherRow === row) return;
     const value = otherRow.querySelector("[name='linked_record']").value;
     if (value) takenElsewhere.add(value);
   });
-  const available = linkCandidatesData.filter((candidate) => !takenElsewhere.has(candidate.value));
+  const available = linkCandidatesData.filter((candidate) => {
+    if (candidate.movement_id && candidate.movement_id !== currentMovementId) return false;
+    return !takenElsewhere.has(candidate.value);
+  });
   linkDialogList.innerHTML = "";
   const unlinkButton = document.createElement("button");
   unlinkButton.type = "button"; unlinkButton.className = "terminal-link-candidate"; unlinkButton.textContent = "Sin vincular";

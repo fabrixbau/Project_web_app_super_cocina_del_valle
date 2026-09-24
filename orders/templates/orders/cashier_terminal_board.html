@@ -73,4 +73,4 @@ exclusivamente las propinas ya capturadas en los tres apartados. Borra esta nota
 <section class="card terminal-person-summary"><h2>Conciliación de propinas por persona</h2><div class="terminal-person-head"><span>Persona</span><span>Terminales</span><span>Aplicación</span><span>Diferencia</span></div>{% for row in person_summary %}<div><strong>{{ row.person.get_full_name|default:row.person.username }}</strong><span>${{ row.actual|floatformat:2 }}</span><span>${{ row.expected|floatformat:2 }}</span><strong class="{% if row.difference %}text-danger{% endif %}">${{ row.difference|floatformat:2 }}</strong></div>{% empty %}<p>No hay personas que coincidan.</p>{% endfor %}</section>
 {% endif %}
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/cashier-terminal-board.js' %}?v=10"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/cashier-terminal-board.js' %}?v=11"></script>{% endblock %}
