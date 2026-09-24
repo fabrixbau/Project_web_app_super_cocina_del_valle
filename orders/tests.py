@@ -459,6 +459,39 @@ class CapturePrintTests(TestCase):
         self.assertIsNone(self.order.cash_tendered)
 
 
+class KitchenTicketPrintTests(TestCase):
+    def setUp(self):
+        self.actor = get_user_model().objects.create_superuser(
+            username="kitchen_ticket_admin", email="kitchen@example.test", password="test-password",
+        )
+        self.client.force_login(self.actor)
+
+    def test_delivery_ticket_shows_requested_for_and_bold_customer_name(self):
+        requested_for = timezone.now() + timezone.timedelta(hours=2)
+        order = Order.objects.create(
+            daily_number=970, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.DRAFT, customer_name="Familia Torres", total=100,
+            created_by=self.actor, requested_for=requested_for,
+        )
+        response = self.client.get(reverse("orders:order_kitchen_print", args=(order.pk,)))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<strong>Entrega:</strong>")
+        self.assertContains(response, "<strong>Cliente:</strong> <strong>Familia Torres</strong>")
+
+    def test_pickup_ticket_without_requested_for_hides_the_delivery_field(self):
+        order = Order.objects.create(
+            daily_number=971, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.PICKUP, source=Order.Source.INTERNAL,
+            status=Order.Status.DRAFT, customer_name="Mostrador", total=50,
+            created_by=self.actor,
+        )
+        response = self.client.get(reverse("orders:order_kitchen_print", args=(order.pk,)))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "<strong>Entrega:</strong>")
+        self.assertContains(response, "<strong>Cliente:</strong> <strong>Mostrador</strong>")
+
+
 class InternalOrderReservedCategoryTests(TestCase):
     def setUp(self):
         self.actor = get_user_model().objects.create_superuser(
