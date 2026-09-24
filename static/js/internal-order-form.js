@@ -91,7 +91,16 @@
   }));
   paymentChoices.forEach((button) => button.addEventListener("click", async () => {
     const field = form.querySelector(`input[name='payment_method'][value='${button.dataset.paymentChoice}']`);
-    if (field) field.checked = true;
+    const orderType = form.querySelector("input[name='order_type']:checked")?.value || "pickup";
+    // NOTA TEMPORAL PARA APRENDIZAJE: sólo en Recoger, tocar el método de pago que ya
+    // estaba seleccionado lo apaga (vuelve a quedar sin método de pago) en vez de
+    // simplemente re-marcarlo. En Entrega el comportamiento normal de radio se
+    // mantiene igual que antes. Borra esta nota después de leerla.
+    if (orderType === "pickup" && field?.checked) {
+      field.checked = false;
+    } else if (field) {
+      field.checked = true;
+    }
     // NOTA TEMPORAL PARA APRENDIZAJE: al pasar al pago cerramos Cliente para que
     // ambos paneles no compitan por espacio. Efectivo muestra sus billetes mediante
     // refresh() en la siguiente línea. Borra esta nota después de leerla.
