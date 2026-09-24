@@ -14,8 +14,8 @@ from tables.models import DiningTable, TableAccount
 from .models import Order, TerminalCut, TerminalMovement
 from .services import (
     add_internal_order_package, add_internal_order_product, change_internal_order_item,
-    change_internal_order_type, transition_order, update_cashier_payment, update_delivery_tip,
-    update_internal_package_extras,
+    change_internal_order_type, set_cashier_release, transition_order, update_cashier_payment,
+    update_delivery_tip, update_internal_package_extras,
 )
 
 
@@ -233,6 +233,40 @@ class DeliveryProfileRestrictionTests(TestCase):
         self.assertIsNone(cash_order.delivery_tip_updated_at)
 
 
+class CashierReleaseCashDefaultTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="release_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.today = timezone.localdate()
+
+    def make_pickup_order(self, *, payment_method, cash_tendered=None, needs_change=False):
+        return Order.objects.create(
+            daily_number=940, operating_date=self.today,
+            order_type=Order.OrderType.PICKUP, source=Order.Source.INTERNAL,
+            status=Order.Status.READY, customer_name="Recoger caja", total=150,
+            payment_method=payment_method, cash_tendered=cash_tendered, needs_change=needs_change,
+        )
+
+    def test_releasing_a_pickup_order_with_cash_and_no_amount_assumes_exact_payment(self):
+        order = self.make_pickup_order(payment_method=Order.PaymentMethod.CASH)
+        order = set_cashier_release(order=order, actor=self.admin, released=True)
+        self.assertEqual(order.cash_tendered, order.total)
+        self.assertFalse(order.needs_change)
+        self.assertEqual(order.status, Order.Status.PICKED_UP)
+
+    def test_releasing_a_pickup_order_keeps_an_already_defined_cash_amount(self):
+        order = self.make_pickup_order(payment_method=Order.PaymentMethod.CASH, cash_tendered=200, needs_change=True)
+        order = set_cashier_release(order=order, actor=self.admin, released=True)
+        self.assertEqual(order.cash_tendered, 200)
+        self.assertTrue(order.needs_change)
+
+    def test_releasing_a_pickup_order_does_not_touch_non_cash_payment(self):
+        order = self.make_pickup_order(payment_method=Order.PaymentMethod.CARD)
+        order = set_cashier_release(order=order, actor=self.admin, released=True)
+        self.assertIsNone(order.cash_tendered)
+        self.assertFalse(order.needs_change)
+
+
 class TerminalMovementLinkingRulesTests(TestCase):
     def setUp(self):
         self.admin = get_user_model().objects.create_user(username="terminal_admin")
@@ -326,7 +360,7 @@ class TerminalMovementLinkingRulesTests(TestCase):
         cut, _ = TerminalCut.objects.get_or_create(operating_date=self.today, provider=TerminalCut.Provider.TRANSFER)
         response = self.client.get(f"{reverse('cashier:terminal_board')}?provider=transfer")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["available_link_orders"], [])
+        self.assertEqual(response.context["link_candidates"], [])
 
 
 class CapturePrintTests(TestCase):

@@ -316,6 +316,18 @@ def set_cashier_release(*, order, actor, released=True):
     if released:
         if not order.payment_method:
             raise ValidationError("Selecciona la forma de pago antes de liberar el pedido.")
+        # NOTA TEMPORAL PARA APRENDIZAJE: si Caja marca Efectivo en un pedido de Recoger
+        # pero nunca definió el billete/otra cantidad ni pago exacto, y aun así libera el
+        # pedido, se asume pago exacto en vez de dejar el monto sin definir. Sólo aplica
+        # a Recoger; Entregas siguen su propio flujo de propina/cambio. Borra esta nota.
+        if (
+            order.order_type == Order.OrderType.PICKUP
+            and order.payment_method == Order.PaymentMethod.CASH
+            and order.cash_tendered is None
+        ):
+            order.cash_tendered = order.total
+            order.needs_change = False
+            order.save(update_fields=("cash_tendered", "needs_change", "updated_at"))
         if order.order_type == Order.OrderType.DELIVERY and not order.delivery_person_id:
             raise ValidationError("Asigna un repartidor antes de liberar la entrega.")
         # NOTA TEMPORAL PARA APRENDIZAJE: liberar en Caja completa de una vez las
