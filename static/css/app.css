@@ -1630,6 +1630,17 @@ tarjeta para conservar teclado, validación y envío estándar. Borra esta nota 
   .table-package-dialog form[data-package-form] .table-package-field ul { grid-template-columns: 1fr; }
 }
 .table-ticket { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; }
+/* NOTA TEMPORAL PARA APRENDIZAJE: el panel de Ticket (Mesas y Pedidos) debe quedar
+oculto mientras no tenga artículos — el JS ya le pone el atributo `hidden` cuando la
+lista se vacía. El problema es que este archivo tiene muchas reglas dispersas en
+distintos breakpoints que fuerzan `display: grid/flex !important` sobre estos mismos
+paneles (`.table-ticket` dentro de `.table-pos-layout`, `.internal-live-ticket`), y esas
+reglas le ganaban al `[hidden]` nativo del navegador. En vez de tocar cada una de esas
+reglas repetidas, esta regla gana siempre por especificidad (el atributo `[hidden]`
+cuenta como una clase más), sin importar el orden ni el breakpoint. Borra esta nota
+después de leerla. */
+.table-pos-layout .table-ticket[data-ticket-panel][hidden],
+.internal-live-ticket[hidden] { display: none !important; }
 .table-ticket-items { display: grid; gap: .65rem; }
 .table-ticket-item { display: grid; grid-template-columns: 1fr auto; gap: .5rem; padding-bottom: .7rem; border-bottom: 1px solid #d9d4c7; }
 .table-ticket-item small { display: block; color: #52685e; }
@@ -1764,6 +1775,10 @@ tarjeta para conservar teclado, validación y envío estándar. Borra esta nota 
 .internal-capture-heading p { margin: 0; color: #5b6b64; }
 .internal-pos-workspace { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(320px, .8fr); gap: 1rem; align-items: start; }
 .internal-pos-workspace.ticket-expanded { grid-template-columns: minmax(220px, .42fr) minmax(540px, 1.58fr); }
+/* NOTA TEMPORAL PARA APRENDIZAJE: mientras el ticket no tiene artículos, no reservamos
+la segunda columna del grid para que no quede un hueco vacío donde estaría. Borra esta
+nota después de leerla. */
+.internal-pos-workspace.is-ticket-empty { display: block; }
 .table-pos-layout, .internal-pos-workspace { transition: grid-template-columns .22s ease; }
 .ticket-expandable { transition: border-color .22s ease, box-shadow .22s ease; }
 .ticket-expandable.is-expanded { position: sticky; z-index: 101; border-color: #24634d; box-shadow: 0 12px 30px rgb(20 56 43 / 30%); }

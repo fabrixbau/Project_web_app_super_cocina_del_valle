@@ -585,6 +585,9 @@
     }
     ticketTotal.textContent = currency.format(Number(ticket.total));
     ticketCount.textContent = ticket.count;
+    const hasItems = ticket.items.length > 0;
+    if (ticketBox) ticketBox.hidden = !hasItems;
+    capture.classList.toggle("is-ticket-empty", !hasItems);
     if (printActions) {
       printActions.classList.toggle("is-disabled", !ticket.items.length);
       printActions.inert = !ticket.items.length;
