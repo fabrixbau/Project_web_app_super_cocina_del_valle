@@ -570,15 +570,12 @@ def change_item_in_ticket(*, account, item, action, changed_by):
     record_activity(account=account, actor=changed_by, action=event, description=description, quantity_delta=1 if action == "increase" else -1)
 
 
-@transaction.atomic
-def close_table_account(*, account, cleaned_data, closed_by):
-    account = TableAccount.objects.select_for_update().get(pk=account.pk)
-    if account.status != TableAccount.Status.OPEN:
-        raise ValidationError("La cuenta ya fue cerrada.")
-    items = list(account.items.select_for_update().only(
-        "subtotal", "item_type", "is_complete", "is_package_candidate", "product_name_snapshot",
-    ))
-    if not items:
+def _validate_items_closeable(items, *, allow_empty=False):
+    # NOTA TEMPORAL PARA APRENDIZAJE: esta validación se comparte entre el cierre normal
+    # (todos los artículos de la cuenta) y cada cuenta dividida (sólo sus artículos
+    # asignados) — ambas necesitan la misma regla de "nada incompleto ni pendiente".
+    # Borra esta nota después de leerla.
+    if not items and not allow_empty:
         raise ValidationError("No puedes cerrar una cuenta sin consumos.")
     incomplete_items = [
         item.product_name_snapshot for item in items
@@ -599,26 +596,30 @@ def close_table_account(*, account, cleaned_data, closed_by):
             "No se puede cerrar la cuenta porque hay selecciones de paquete pendientes: "
             f"{', '.join(pending_components)}. Completa el paquete o elimina esas partidas."
         )
+
+
+def _finalize_account_close(*, account, items, payment_method, tip_amount, cash_tendered, responsible_waiter, closed_by):
+    # NOTA TEMPORAL PARA APRENDIZAJE: hace el cierre real de UNA cuenta (la normal, o una
+    # de las varias en que se dividió la mesa) ya con sus artículos decididos. No
+    # selecciona ni valida artículos por sí sola — eso lo hace quien la llama, porque en
+    # una división cada cuenta sólo ve el subconjunto que le tocó. Borra esta nota.
+    _validate_items_closeable(items)
     subtotal = sum((item.subtotal for item in items), start=Decimal("0"))
-    tip = cleaned_data["tip_amount"]
-    total = subtotal + tip
-    method = cleaned_data["payment_method"]
-    cash_tendered = cleaned_data.get("cash_tendered")
-    if method == TableAccount.PaymentMethod.CASH:
+    total = subtotal + tip_amount
+    if payment_method == TableAccount.PaymentMethod.CASH:
         if cash_tendered is None or cash_tendered < total:
             raise ValidationError("El efectivo recibido no cubre el total actualizado.")
         change = cash_tendered - total
     else:
         cash_tendered = None
         change = None
-    responsible_waiter = cleaned_data["responsible_waiter"]
     validate_waiter(responsible_waiter)
     account.status = TableAccount.Status.CLOSED
     account.closed_at = timezone.now()
     account.closed_by = closed_by
-    account.payment_method = method
+    account.payment_method = payment_method
     account.subtotal_closed = subtotal
-    account.tip_amount = tip
+    account.tip_amount = tip_amount
     # NOTA TEMPORAL PARA APRENDIZAJE: antes `tip_recipient` se copiaba en automático de
     # `assigned_waiter` (quien fuera que abrió la mesa o la tuviera asignada por el login),
     # sin confirmarlo. Ahora quien cierra debe elegir explícitamente a quién se queda la
@@ -638,5 +639,68 @@ def close_table_account(*, account, cleaned_data, closed_by):
         reference_id__in=[item.pk for item in items],
         reason=StockMovement.Reason.RESERVATION,
     ).update(reason=StockMovement.Reason.CONSUMPTION)
-    record_activity(account=account, actor=closed_by, action=TableActivity.Action.CLOSE, description=f"{account.get_payment_method_display()} · ${total}", metadata={"tip": str(tip), "responsible_waiter_id": account.assigned_waiter_id})
+    record_activity(account=account, actor=closed_by, action=TableActivity.Action.CLOSE, description=f"{account.get_payment_method_display()} · ${total}", metadata={"tip": str(tip_amount), "responsible_waiter_id": account.assigned_waiter_id})
     return account
+
+
+@transaction.atomic
+def close_table_account(*, account, cleaned_data, closed_by):
+    account = TableAccount.objects.select_for_update().get(pk=account.pk)
+    if account.status != TableAccount.Status.OPEN:
+        raise ValidationError("La cuenta ya fue cerrada.")
+    items = list(account.items.select_for_update().only(
+        "subtotal", "item_type", "is_complete", "is_package_candidate", "product_name_snapshot",
+    ))
+    return _finalize_account_close(
+        account=account, items=items,
+        payment_method=cleaned_data["payment_method"], tip_amount=cleaned_data["tip_amount"],
+        cash_tendered=cleaned_data.get("cash_tendered"), responsible_waiter=cleaned_data["responsible_waiter"],
+        closed_by=closed_by,
+    )
+
+
+@transaction.atomic
+def split_and_close_table_account(*, account, splits, responsible_waiter, closed_by):
+    # NOTA TEMPORAL PARA APRENDIZAJE: `splits` es una lista de dicts ya validados por la
+    # vista: [{"items": [TableAccountItem, ...], "payment_method": ..., "tip_amount": ...,
+    # "cash_tendered": ...}, ...]. La primera cuenta reutiliza la cuenta ya abierta; el
+    # resto se crea como cuentas nuevas de la misma mesa. Un solo mesero se acredita en
+    # todas (así se confirmó con el desarrollador) — sólo cambian método de pago, propina
+    # y efectivo por cuenta. Todo o nada: si una sola división falla su validación,
+    # ninguna se cierra. Borra esta nota después de leerla.
+    account = TableAccount.objects.select_for_update().get(pk=account.pk)
+    if account.status != TableAccount.Status.OPEN:
+        raise ValidationError("La cuenta ya fue cerrada.")
+    if len(splits) < 2:
+        raise ValidationError("Divide la cuenta en al menos dos partes.")
+    all_items = list(account.items.select_for_update().only(
+        "subtotal", "item_type", "is_complete", "is_package_candidate", "product_name_snapshot",
+    ))
+    _validate_items_closeable(all_items)
+    assigned_ids = set()
+    for split in splits:
+        for item in split["items"]:
+            if item.pk in assigned_ids:
+                raise ValidationError("Un artículo no puede pertenecer a más de una cuenta dividida.")
+            assigned_ids.add(item.pk)
+    if assigned_ids != {item.pk for item in all_items}:
+        raise ValidationError("Todos los artículos del ticket deben quedar asignados a alguna cuenta antes de dividir.")
+    validate_waiter(responsible_waiter)
+    closed_accounts = []
+    for index, split in enumerate(splits):
+        target_account = account if index == 0 else TableAccount.objects.create(
+            table=account.table, assigned_waiter=responsible_waiter, opened_by=account.opened_by,
+        )
+        if index > 0:
+            TableAccountItem.objects.filter(pk__in=[item.pk for item in split["items"]]).update(account=target_account)
+            record_activity(
+                account=target_account, actor=closed_by, action=TableActivity.Action.OPEN,
+                description=f"Cuenta dividida de {account.table.name}",
+            )
+        closed_accounts.append(_finalize_account_close(
+            account=target_account, items=split["items"],
+            payment_method=split["payment_method"], tip_amount=split["tip_amount"],
+            cash_tendered=split.get("cash_tendered"), responsible_waiter=responsible_waiter,
+            closed_by=closed_by,
+        ))
+    return closed_accounts

@@ -1672,6 +1672,41 @@ después de leerla. */
 .table-close-launcher, .confirm-close-button { width: 100%; margin-top: 1rem; padding: .9rem; font-weight: 800; }
 .table-close-dialog { width: min(580px, calc(100% - 2rem)); max-height: 90vh; padding: 1.25rem; border: 0; border-radius: 1rem; overflow: auto; }
 .table-close-dialog::backdrop { background: rgb(20 25 21 / 65%); }
+
+/* NOTA TEMPORAL PARA APRENDIZAJE: Dividir cuenta vive en su propio <dialog>, grande y
+aislado a propósito, para no pelear con el layout ya delicado del diálogo de cobro
+normal. Reutiliza las clases de botones de método de pago/efectivo/propina que ya
+existen (.cashier-payment-buttons, .cash-quick-buttons, .tip-quick-buttons,
+.cash-selection-error) en vez de duplicar esos estilos. Borra esta nota después de leerla. */
+.table-split-launcher { width: 100%; margin-top: .6rem; padding: .7rem; font-weight: 800; color: #16513d; background: #fff; border: 2px solid #16513d; }
+.table-split-launcher:hover { background: #eef6f1; }
+.table-split-dialog { width: min(1100px, calc(100% - 2rem)); max-height: 92vh; padding: 1.5rem; border: 0; border-radius: 1rem; overflow-y: auto; }
+.table-split-dialog::backdrop { background: rgb(20 25 21 / 72%); }
+.table-split-count { display: flex; align-items: center; gap: 1rem; margin: 1rem 0; }
+.table-split-count-controls { display: flex; align-items: center; gap: .6rem; }
+.table-split-count-controls button { width: 2.6rem; height: 2.6rem; padding: 0; font-size: 1.3rem; }
+.table-split-count-controls span { min-width: 2rem; text-align: center; font-size: 1.3rem; font-weight: 900; }
+.table-split-items { margin: 1rem 0; }
+.table-split-items-list { display: grid; gap: .5rem; margin-top: .5rem; }
+.table-split-item { display: grid; grid-template-columns: 1fr auto auto; gap: .75rem; align-items: center; padding: .6rem .75rem; border: 1px solid #d9d4c7; border-radius: .65rem; background: #fff; }
+.table-split-item-name { font-weight: 700; }
+.table-split-item-price { color: #52685e; }
+.table-split-item-buttons { display: flex; gap: .35rem; }
+.table-split-item-buttons button { width: 2.1rem; height: 2.1rem; padding: 0; border: 2px solid #c9d1cc; color: #17231e; background: #fbfcfb; font-weight: 800; }
+.table-split-item-buttons button.is-selected { border-color: #16513d; background: #16513d; color: #fff; }
+.table-split-accounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin: 1rem 0; }
+.table-split-account-card { padding: 1rem; border: 2px solid #d9d4c7; border-radius: .8rem; background: #fbfcfb; }
+.table-split-account-card h3 { margin: 0 0 .5rem; }
+.table-split-cash-fields { margin-top: .5rem; }
+.table-split-tip-field { display: grid; gap: .3rem; margin-top: .6rem; font-weight: 700; }
+.table-split-tip-field input { min-height: 2.6rem; padding: .5rem; border: 1px solid #c9d1cc; border-radius: .5rem; }
+.table-split-footer { display: flex; gap: .75rem; margin-top: 1rem; }
+.table-split-footer button { flex: 1; min-height: 3rem; }
+@media (max-width: 700px) {
+  .table-split-dialog { width: calc(100% - 1rem); padding: 1rem; }
+  .table-split-accounts { grid-template-columns: 1fr; }
+  .table-split-item { grid-template-columns: 1fr; }
+}
 .table-close-dialog .dialog-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: start; }
 .table-close-dialog .dialog-heading h2 { margin: 0; }
 .table-payment-field { margin: 1rem 0; }

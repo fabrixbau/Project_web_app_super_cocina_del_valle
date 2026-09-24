@@ -20,8 +20,9 @@
 # Corrida, Ejecutiva y Por orden son nombres reservados: se excluyen del catálogo normal
 # en ambos modos y solo se construyen con el menú diario dentro de Modo comida. Borra esta nota.
 
+import json
 from datetime import time, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -46,7 +47,7 @@ from menu.selection import resolve_product_selection, serialize_product_selector
 
 from .forms import TableAccountCloseForm, TablePackageForm
 from .models import DiningTable, TableAccount, TableAccountItem, TableActivity
-from .services import add_auto_meal_component, add_daily_menu_product_to_table, add_package_to_table, add_product_to_table, change_item_in_ticket, close_table_account, open_table_account, product_is_available_now, reassign_table_account, record_activity, update_table_package
+from .services import add_auto_meal_component, add_daily_menu_product_to_table, add_package_to_table, add_product_to_table, change_item_in_ticket, close_table_account, open_table_account, product_is_available_now, reassign_table_account, record_activity, split_and_close_table_account, update_table_package
 
 
 CAPTURE_MODE_SESSION_KEY = "table_capture_mode"
@@ -914,6 +915,82 @@ def table_close(request, account_id):
         messages.warning(request, f"La cuenta quedó cerrada, pero no se pudo enviar el ticket de cobro a imprimir: {error}")
         return redirect("tables:table_detail", account_id=account.pk)
     return redirect(f"{reverse('tables:table_detail', args=(account.pk,))}?printed_job={job.pk}")
+
+
+@require_POST
+@role_required(*SECTION_ROLE_MATRIX["tables"])
+def table_split_close(request, account_id):
+    # NOTA TEMPORAL PARA APRENDIZAJE: esto viaja como JSON (no un <form> normal) porque el
+    # número de cuentas divididas y de artículos por cuenta es variable — un formulario
+    # Django de campos fijos no encaja bien aquí. El servicio vuelve a validar todo lo
+    # importante (artículos completos, efectivo suficiente, mesero válido); esta vista sólo
+    # se encarga de convertir el JSON del cliente en la forma que el servicio espera y de
+    # dar mensajes de error entendibles si el JSON viene mal armado. Borra esta nota.
+    account = get_object_or_404(TableAccount, pk=account_id)
+    try:
+        payload = json.loads(request.body)
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "Solicitud inválida."}, status=400)
+    responsible_waiter_id = payload.get("responsible_waiter")
+    responsible_waiter = None
+    if isinstance(responsible_waiter_id, (int, str)) and str(responsible_waiter_id).isdigit():
+        responsible_waiter = get_user_model().objects.filter(
+            pk=responsible_waiter_id, is_active=True, groups__name=WAITER,
+        ).distinct().first()
+    if not responsible_waiter:
+        return JsonResponse({"ok": False, "error": "Selecciona quién se queda como responsable de la mesa."}, status=400)
+    raw_splits = payload.get("splits")
+    if not isinstance(raw_splits, list) or len(raw_splits) < 2:
+        return JsonResponse({"ok": False, "error": "Divide la cuenta en al menos dos partes."}, status=400)
+    valid_methods = {
+        TableAccount.PaymentMethod.CASH, TableAccount.PaymentMethod.CARD, TableAccount.PaymentMethod.TRANSFER,
+    }
+    splits = []
+    try:
+        for raw in raw_splits:
+            item_ids = raw.get("item_ids") or []
+            if not item_ids:
+                return JsonResponse({"ok": False, "error": "Cada cuenta dividida debe tener al menos un artículo."}, status=400)
+            items = list(TableAccountItem.objects.filter(pk__in=item_ids, account=account))
+            if len(items) != len(set(item_ids)):
+                return JsonResponse({"ok": False, "error": "Alguno de los artículos ya no pertenece a esta cuenta."}, status=400)
+            payment_method = raw.get("payment_method")
+            if payment_method not in valid_methods:
+                return JsonResponse({"ok": False, "error": "Selecciona la forma de pago de cada cuenta dividida."}, status=400)
+            tip_amount = Decimal(str(raw.get("tip_amount") or "0"))
+            if tip_amount < 0:
+                raise InvalidOperation("La propina no puede ser negativa.")
+            cash_tendered = None
+            if payment_method == TableAccount.PaymentMethod.CASH and raw.get("cash_tendered") not in (None, ""):
+                cash_tendered = Decimal(str(raw.get("cash_tendered")))
+            splits.append({
+                "items": items, "payment_method": payment_method,
+                "tip_amount": tip_amount, "cash_tendered": cash_tendered,
+            })
+    except (InvalidOperation, TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "Revisa los montos capturados en cada cuenta dividida."}, status=400)
+    try:
+        closed_accounts = split_and_close_table_account(
+            account=account, splits=splits, responsible_waiter=responsible_waiter, closed_by=request.user,
+        )
+    except ValidationError as error:
+        return JsonResponse({"ok": False, "error": error.message}, status=400)
+    printed = 0
+    for split_account in closed_accounts:
+        try:
+            queue_ticket(
+                source_type="table", source=split_account, ticket_type="payment",
+                items=[printable_item(item) for item in split_account.items.all()], user=request.user,
+            )
+            printed += 1
+        except ValueError:
+            pass
+    warning = "" if printed == len(closed_accounts) else " Algunos tickets de cobro no se pudieron enviar a imprimir; revisa la impresora."
+    messages.success(
+        request,
+        f"La cuenta de {account.table.name} quedó dividida en {len(closed_accounts)} cuentas y la mesa está disponible.{warning}",
+    )
+    return JsonResponse({"ok": True, "redirect_url": reverse("tables:table_map")})
 
 
 @role_required(ADMIN, WAITER, ORDER_TAKER)
