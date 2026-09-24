@@ -173,6 +173,17 @@ propina y el efectivo cambian por cuenta. Borra esta nota después de leerla. */
     recalcSplitCard(card);
   });
 
+  // NOTA TEMPORAL PARA APRENDIZAJE: igual que en el diálogo de cobro normal, al enfocar
+  // un campo de propina que sigue en "0" se borra para escribir directo; si lo dejan
+  // vacío al salir, vuelve a "0". Se delega en el contenedor porque las tarjetas de
+  // cuenta se crean dinámicamente. Borra esta nota después de leerla.
+  accountsContainer.addEventListener("focusin", (event) => {
+    if (event.target.matches("[data-split-tip]") && event.target.value === "0") event.target.value = "";
+  });
+  accountsContainer.addEventListener("focusout", (event) => {
+    if (event.target.matches("[data-split-tip]") && event.target.value === "") event.target.value = "0";
+  });
+
   responsibleButtons.forEach((button) => {
     button.addEventListener("click", () => {
       responsibleWaiterId = button.dataset.splitResponsible;

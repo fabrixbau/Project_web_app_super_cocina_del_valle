@@ -1678,8 +1678,9 @@ aislado a propósito, para no pelear con el layout ya delicado del diálogo de c
 normal. Reutiliza las clases de botones de método de pago/efectivo/propina que ya
 existen (.cashier-payment-buttons, .cash-quick-buttons, .tip-quick-buttons,
 .cash-selection-error) en vez de duplicar esos estilos. Borra esta nota después de leerla. */
-.table-split-launcher { width: 100%; margin-top: .6rem; padding: .7rem; font-weight: 800; color: #16513d; background: #fff; border: 2px solid #16513d; }
-.table-split-launcher:hover { background: #eef6f1; }
+.table-split-launcher { width: 100%; min-height: 68px; margin-top: .6rem; padding: .65rem .8rem; border: 2px solid #b8cbbf; border-radius: .8rem; color: #174c3a; background: #fff; font-weight: 800; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
+.table-split-launcher:hover { border-color: #28644e; background: #eef6f1; transform: translateY(-1px); }
+.table-split-account-card .cash-quick-buttons { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .table-split-dialog { width: min(1100px, calc(100% - 2rem)); max-height: 92vh; padding: 1.5rem; border: 0; border-radius: 1rem; overflow-y: auto; }
 .table-split-dialog::backdrop { background: rgb(20 25 21 / 72%); }
 .table-split-count { display: flex; align-items: center; gap: 1rem; margin: 1rem 0; }

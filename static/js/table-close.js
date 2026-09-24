@@ -123,6 +123,11 @@ adicional del navegador. Borra esta nota al terminar. */
   methodInputs.forEach((input) => input.addEventListener("change", updatePaymentFields));
   exactInput.addEventListener("change", updatePaymentFields);
   tipInput.addEventListener("input", calculate);
+  // NOTA TEMPORAL PARA APRENDIZAJE: al enfocar un campo de propina que sigue en "0", se
+  // borra ese 0 para que se pueda escribir directo sin tener que borrarlo a mano primero;
+  // si lo dejan vacío al salir, vuelve a poner "0". Borra esta nota después de leerla.
+  tipInput.addEventListener("focus", () => { if (tipInput.value === "0") tipInput.value = ""; });
+  tipInput.addEventListener("blur", () => { if (tipInput.value === "") tipInput.value = "0"; });
   cashInput.addEventListener("input", () => {
     form.querySelectorAll("[data-cash-amount]").forEach((button) => button.classList.remove("is-selected"));
     calculate();
