@@ -19,6 +19,14 @@ const packageLauncher = document.querySelector("[data-package-launcher]");
 const chickenChoiceDialog = document.querySelector("[data-chicken-choice-dialog]");
 const standardQuantitiesNode = document.querySelector("#table-standard-quantities");
 const candidateQuantitiesNode = document.querySelector("#table-candidate-quantities");
+// NOTA TEMPORAL PARA APRENDIZAJE: Dividir cuenta (table-split.js) necesita la lista de
+// artículos del ticket tal cual está AHORA, no la que se dibujó cuando cargó la página —
+// aquí se agregan/quitan productos por AJAX sin recargar. Se expone en window para que
+// ese otro archivo, cargado aparte, siempre pueda leer el estado más reciente. Se
+// inicializa con lo que ya trae la página y se actualiza cada vez que renderTicket
+// vuelve a dibujar el ticket. Borra esta nota después de leerla.
+const ticketItemsDataNode = document.querySelector("#table-ticket-items-data");
+window.__tableTicketItems = ticketItemsDataNode ? JSON.parse(ticketItemsDataNode.textContent) : [];
 const catalogSearch = document.querySelector("[data-catalog-search]");
 const catalogSearchResults = document.querySelector("[data-catalog-search-results]");
 const catalogSearchEmpty = document.querySelector("[data-catalog-search-empty]");
@@ -385,6 +393,7 @@ function packageEditButton(item) {
 }
 
 function renderTicket(ticket) {
+  window.__tableTicketItems = ticket.items;
   ticketItems.replaceChildren();
   ticket.items.forEach((item) => {
     const row = document.createElement("article");

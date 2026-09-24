@@ -1,3 +1,5 @@
+import json
+import re
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -146,14 +148,22 @@ class TableSplitCloseTests(TestCase):
         )
         self.client.force_login(self.waiter)
 
-    def test_split_dialog_renders_real_item_ids(self):
-        # NOTA: ticket_summary() arma diccionarios con la clave "item_id", no "id" — si la
-        # plantilla usa {{ item.id }} por error, Django lo renderiza vacío y el panel de
-        # dividir termina mandando el mismo id (0) para todos los artículos. Esta prueba
-        # evita que ese error vuelva a colarse sin que ningún otro test lo note.
+    def test_split_dialog_item_data_has_real_item_ids(self):
+        # NOTA: el panel de dividir arma su lista de artículos en el cliente (JS) a partir
+        # de este json_script, para que refleje el ticket real incluso si se agregaron o
+        # quitaron artículos por AJAX después de cargar la página — no una foto congelada
+        # del momento de la carga. ticket_summary() usa la clave "item_id", no "id"; esta
+        # prueba evita que ese nombre de campo se rompa otra vez sin que nadie lo note.
         response = self.client.get(reverse("tables:table_detail", args=(self.account.pk,)))
-        self.assertContains(response, f'data-item-id="{self.item_a.pk}"')
-        self.assertContains(response, f'data-item-id="{self.item_b.pk}"')
+        self.assertEqual(response.status_code, 200)
+        match = re.search(
+            r'<script id="table-ticket-items-data"[^>]*>(.*?)</script>',
+            response.content.decode(), re.S,
+        )
+        self.assertIsNotNone(match, "No se encontró el json_script de artículos del ticket.")
+        items = json.loads(match.group(1))
+        item_ids = {item["item_id"] for item in items}
+        self.assertEqual(item_ids, {self.item_a.pk, self.item_b.pk})
 
     def split_payload(self, **overrides):
         payload = {

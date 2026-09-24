@@ -26,6 +26,37 @@ propina y el efectivo cambian por cuenta. Borra esta nota después de leerla. */
   const submitButton = splitDialog.querySelector("[data-split-submit]");
   let responsibleWaiterId = "";
 
+  function renderItemRows() {
+    // NOTA TEMPORAL PARA APRENDIZAJE: antes esta lista se armaba una sola vez en el
+    // servidor al cargar la página; si se agregaban o quitaban artículos por AJAX
+    // después (sin recargar, que es como funciona el resto de Mesas), el panel de
+    // dividir se quedaba con una foto vieja del ticket — hasta vacía si se abrió con la
+    // cuenta recién creada. Ahora se reconstruye aquí, cada vez que se abre el panel,
+    // leyendo `window.__tableTicketItems` (lo mantiene al día table-pos.js, tanto al
+    // cargar la página como después de cada cambio en el ticket). Borra esta nota.
+    const liveItems = window.__tableTicketItems || [];
+    itemsList.innerHTML = "";
+    liveItems.forEach((item) => {
+      const row = document.createElement("div");
+      row.className = "table-split-item";
+      row.dataset.splitItem = "";
+      row.dataset.itemId = String(item.item_id);
+      row.dataset.itemSubtotal = String(item.subtotal);
+      row.dataset.assignedSplit = "";
+      const name = document.createElement("span");
+      name.className = "table-split-item-name";
+      name.textContent = item.name;
+      const price = document.createElement("span");
+      price.className = "table-split-item-price";
+      price.textContent = money(item.subtotal);
+      const buttons = document.createElement("div");
+      buttons.className = "table-split-item-buttons";
+      buttons.dataset.splitItemButtons = "";
+      row.append(name, price, buttons);
+      itemsList.append(row);
+    });
+  }
+
   function splitSubtotalFor(index) {
     let subtotal = 0;
     itemsList.querySelectorAll("[data-split-item]").forEach((item) => {
@@ -112,7 +143,7 @@ propina y el efectivo cambian por cuenta. Borra esta nota después de leerla. */
   }
 
   function resetSplitState() {
-    itemsList.querySelectorAll("[data-split-item]").forEach((item) => { item.dataset.assignedSplit = ""; });
+    renderItemRows();
     accountsContainer.innerHTML = "";
     responsibleWaiterId = "";
     responsibleButtons.forEach((button) => button.classList.remove("is-selected"));
