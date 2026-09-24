@@ -9,7 +9,9 @@ from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, WAITER
 
 from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product, StockMovement
 
-from .models import Order
+from tables.models import DiningTable, TableAccount
+
+from .models import Order, TerminalCut, TerminalMovement
 from .services import (
     add_internal_order_package, add_internal_order_product, change_internal_order_item,
     change_internal_order_type, transition_order, update_cashier_payment, update_delivery_tip,
@@ -229,6 +231,102 @@ class DeliveryProfileRestrictionTests(TestCase):
         self.assertEqual(response.status_code, 403)
         cash_order.refresh_from_db()
         self.assertIsNone(cash_order.delivery_tip_updated_at)
+
+
+class TerminalMovementLinkingRulesTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="terminal_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.waiter = get_user_model().objects.create_user(username="terminal_waiter")
+        self.waiter.groups.add(Group.objects.get_or_create(name=WAITER)[0])
+        self.client.force_login(self.admin)
+        self.today = timezone.localdate()
+        self.table = DiningTable.objects.create(name="Mesa terminal test")
+
+    def make_delivery_order(self, *, daily_number, payment_method, status):
+        return Order.objects.create(
+            daily_number=daily_number, operating_date=self.today,
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=status, customer_name="Cliente terminal", total=100,
+            payment_method=payment_method,
+        )
+
+    def make_closed_table(self, *, payment_method):
+        return TableAccount.objects.create(
+            table=self.table, assigned_waiter=self.waiter, opened_by=self.waiter,
+            status=TableAccount.Status.CLOSED, payment_method=payment_method,
+            total_paid=100, closed_at=timezone.now(),
+        )
+
+    def save_movement(self, *, provider, linked_record, total_amount="100.00"):
+        cut, _ = TerminalCut.objects.get_or_create(operating_date=self.today, provider=provider)
+        return self.client.post(reverse("cashier:terminal_movement_save"), {
+            "cut_id": cut.pk, "total_amount": total_amount, "tip_amount": "0",
+            "linked_record": linked_record,
+        })
+
+    def test_clover_can_link_closed_card_table_but_not_a_delivery_order(self):
+        table = self.make_closed_table(payment_method=TableAccount.PaymentMethod.CARD)
+        response = self.save_movement(provider=TerminalCut.Provider.CLOVER, linked_record=f"table:{table.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(TerminalMovement.objects.get().table_account_id, table.pk)
+
+        order = self.make_delivery_order(
+            daily_number=901, payment_method=Order.PaymentMethod.CARD, status=Order.Status.DELIVERED,
+        )
+        response = self.save_movement(provider=TerminalCut.Provider.CLOVER, linked_record=f"order:{order.pk}")
+        self.assertEqual(response.status_code, 400)
+
+    def test_mercado_pago_can_link_delivered_card_order_but_not_a_table(self):
+        order = self.make_delivery_order(
+            daily_number=902, payment_method=Order.PaymentMethod.CARD, status=Order.Status.DELIVERED,
+        )
+        response = self.save_movement(provider=TerminalCut.Provider.MERCADO_PAGO, linked_record=f"order:{order.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(TerminalMovement.objects.get().order_id, order.pk)
+
+        table = self.make_closed_table(payment_method=TableAccount.PaymentMethod.CARD)
+        response = self.save_movement(provider=TerminalCut.Provider.MERCADO_PAGO, linked_record=f"table:{table.pk}")
+        self.assertEqual(response.status_code, 400)
+
+    def test_mercado_pago_rejects_order_still_out_for_delivery(self):
+        order = self.make_delivery_order(
+            daily_number=903, payment_method=Order.PaymentMethod.CARD,
+            status=Order.Status.OUT_FOR_DELIVERY,
+        )
+        response = self.save_movement(provider=TerminalCut.Provider.MERCADO_PAGO, linked_record=f"order:{order.pk}")
+        self.assertEqual(response.status_code, 400)
+
+    def test_transfer_can_link_both_delivered_and_out_for_delivery_transfer_orders(self):
+        for status in (Order.Status.DELIVERED, Order.Status.OUT_FOR_DELIVERY):
+            with self.subTest(status=status):
+                order = self.make_delivery_order(
+                    daily_number=910 + list(Order.Status).index(status),
+                    payment_method=Order.PaymentMethod.TRANSFER, status=status,
+                )
+                response = self.save_movement(provider=TerminalCut.Provider.TRANSFER, linked_record=f"order:{order.pk}")
+                self.assertEqual(response.status_code, 200)
+
+    def test_transfer_can_link_a_closed_transfer_table(self):
+        table = self.make_closed_table(payment_method=TableAccount.PaymentMethod.TRANSFER)
+        response = self.save_movement(provider=TerminalCut.Provider.TRANSFER, linked_record=f"table:{table.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(TerminalMovement.objects.get().table_account_id, table.pk)
+
+    def test_transfer_rejects_a_card_paid_table(self):
+        table = self.make_closed_table(payment_method=TableAccount.PaymentMethod.CARD)
+        response = self.save_movement(provider=TerminalCut.Provider.TRANSFER, linked_record=f"table:{table.pk}")
+        self.assertEqual(response.status_code, 400)
+
+    def test_canceled_order_never_appears_as_linkable(self):
+        self.make_delivery_order(
+            daily_number=920, payment_method=Order.PaymentMethod.TRANSFER,
+            status=Order.Status.CANCELED,
+        )
+        cut, _ = TerminalCut.objects.get_or_create(operating_date=self.today, provider=TerminalCut.Provider.TRANSFER)
+        response = self.client.get(f"{reverse('cashier:terminal_board')}?provider=transfer")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["available_link_orders"], [])
 
 
 class CapturePrintTests(TestCase):

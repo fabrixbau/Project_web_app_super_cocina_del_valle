@@ -2149,6 +2149,8 @@ def cashier_terminal_board(request):
         })
     cut = cuts[provider]
     is_transfer_provider = provider == TerminalCut.Provider.TRANSFER
+    is_clover_provider = provider == TerminalCut.Provider.CLOVER
+    is_mercado_pago_provider = provider == TerminalCut.Provider.MERCADO_PAGO
     expected_payment_method = (
         Order.PaymentMethod.TRANSFER if is_transfer_provider else Order.PaymentMethod.CARD
     )
@@ -2183,20 +2185,33 @@ def cashier_terminal_board(request):
             "person": person, "actual": actual_person, "expected": expected_person,
             "difference": actual_person - expected_person,
         })
-    linked_orders = Order.objects.filter(
-        operating_date=selected_date,
-        order_type=Order.OrderType.DELIVERY,
-        payment_method=expected_payment_method,
-        status=Order.Status.DELIVERED,
-        customer_debt__isnull=True,
-    ).select_related(
-        "delivery_tip_recipient", "delivery_person",
-    ).order_by("daily_number")
+    # NOTA TEMPORAL PARA APRENDIZAJE: cada tipo de corte ahora vincula un tipo de
+    # registro distinto (Clover sólo Mesas, Mercado Pago sólo Entregas, Transferencias
+    # ambos) — ver CODEX_CONTEXT.md para las reglas confirmadas. Borra esta nota.
+    linked_orders = Order.objects.none()
+    if not is_clover_provider:
+        order_status_options = (
+            (Order.Status.DELIVERED, Order.Status.OUT_FOR_DELIVERY)
+            if is_transfer_provider
+            else (Order.Status.DELIVERED,)
+        )
+        linked_orders = Order.objects.filter(
+            operating_date=selected_date,
+            order_type=Order.OrderType.DELIVERY,
+            payment_method=expected_payment_method,
+            status__in=order_status_options,
+            customer_debt__isnull=True,
+        ).select_related(
+            "delivery_tip_recipient", "delivery_person",
+        ).order_by("daily_number")
     linked_tables = TableAccount.objects.none()
-    if not is_transfer_provider:
+    if not is_mercado_pago_provider:
+        table_payment_method = (
+            TableAccount.PaymentMethod.TRANSFER if is_transfer_provider else TableAccount.PaymentMethod.CARD
+        )
         linked_tables = TableAccount.objects.filter(
             status=TableAccount.Status.CLOSED,
-            payment_method=TableAccount.PaymentMethod.CARD,
+            payment_method=table_payment_method,
             closed_at__date=selected_date,
         ).select_related("table", "tip_recipient", "assigned_waiter").order_by("closed_at")
     used_order_links = dict(TerminalMovement.objects.filter(
@@ -2218,8 +2233,9 @@ def cashier_terminal_board(request):
         "movement_id": used_table_links.get(row.id),
     } for row in linked_tables]
     # NOTA TEMPORAL PARA APRENDIZAJE: construimos las opciones por fila para que un
-    # vínculo utilizado en Clover desaparezca también de Mercado Pago (y viceversa).
-    # La fila propietaria conserva su opción para poder verla o cambiarla. Borra esta nota.
+    # pedido o mesa ya vinculado en otro movimiento desaparezca de la lista, salvo
+    # para la fila propietaria (que conserva su opción para poder verla o cambiarla).
+    # Borra esta nota.
     for movement in movements:
         movement.available_link_orders = [option for option in link_orders if not option["movement_id"] or option["movement_id"] == movement.id]
         movement.available_link_tables = [option for option in link_tables if not option["movement_id"] or option["movement_id"] == movement.id]
@@ -2290,13 +2306,25 @@ def cashier_terminal_movement_save(request):
     movement.table_account = None
     link = request.POST.get("linked_record", "")
     if link.startswith("order:") and link[6:].isdigit():
+        if cut.provider == TerminalCut.Provider.CLOVER:
+            return JsonResponse({"ok": False, "error": "Clover sólo admite vincular Mesas."}, status=400)
         linked_order = Order.objects.filter(pk=int(link[6:])).first()
         expected_method = (
             Order.PaymentMethod.TRANSFER
             if cut.provider == TerminalCut.Provider.TRANSFER
             else Order.PaymentMethod.CARD
         )
-        if not linked_order or linked_order.order_type != Order.OrderType.DELIVERY or linked_order.payment_method != expected_method:
+        allowed_statuses = (
+            (Order.Status.DELIVERED, Order.Status.OUT_FOR_DELIVERY)
+            if cut.provider == TerminalCut.Provider.TRANSFER
+            else (Order.Status.DELIVERED,)
+        )
+        if (
+            not linked_order
+            or linked_order.order_type != Order.OrderType.DELIVERY
+            or linked_order.payment_method != expected_method
+            or linked_order.status not in allowed_statuses
+        ):
             return JsonResponse({"ok": False, "error": "Ese pedido no corresponde al tipo de cobro de este apartado."}, status=400)
         if TerminalMovement.objects.filter(order=linked_order).exclude(pk=movement.pk).exists():
             return JsonResponse({
@@ -2305,14 +2333,20 @@ def cashier_terminal_movement_save(request):
             }, status=409)
         movement.order = linked_order
     elif link.startswith("table:") and link[6:].isdigit():
+        if cut.provider == TerminalCut.Provider.MERCADO_PAGO:
+            return JsonResponse({"ok": False, "error": "Mercado Pago sólo admite vincular pedidos de Entrega."}, status=400)
+        expected_table_method = (
+            TableAccount.PaymentMethod.TRANSFER
+            if cut.provider == TerminalCut.Provider.TRANSFER
+            else TableAccount.PaymentMethod.CARD
+        )
         linked_table = TableAccount.objects.filter(pk=int(link[6:])).first()
         if (
-            cut.provider == TerminalCut.Provider.TRANSFER
-            or not linked_table
+            not linked_table
             or linked_table.status != TableAccount.Status.CLOSED
-            or linked_table.payment_method != TableAccount.PaymentMethod.CARD
+            or linked_table.payment_method != expected_table_method
         ):
-            return JsonResponse({"ok": False, "error": "Esa mesa no corresponde a un cobro con Terminal."}, status=400)
+            return JsonResponse({"ok": False, "error": "Esa mesa no corresponde al tipo de cobro de este apartado."}, status=400)
         if TerminalMovement.objects.filter(table_account=linked_table).exclude(pk=movement.pk).exists():
             return JsonResponse({
                 "ok": False, "code": "link_already_used",
