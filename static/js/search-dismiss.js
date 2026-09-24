@@ -98,6 +98,12 @@
       return;
     }
 
+    // El clic que ABRE la búsqueda también cae dentro de este listener (el botón
+    // vive en el mismo <form> que su input). Sin este corte, el código de abajo lo
+    // trata como "click fuera de una búsqueda abierta" y dispara un cierre que
+    // cancela la apertura antes de que el enfoque llegue a mostrarse.
+    if (focusedLauncher) return;
+
     if (formSearch || activeInput) finishAfterCurrentSearch(formSearch || activeInput);
   }, true);
 })();

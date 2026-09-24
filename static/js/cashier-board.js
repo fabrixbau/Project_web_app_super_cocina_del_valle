@@ -286,7 +286,12 @@ document.addEventListener("submit", async (event) => {
 });
 
 const filters = document.querySelector("[data-cashier-filters]");
-if (filters) { let timer; filters.querySelectorAll("select, input[type='date']").forEach((field) => field.addEventListener("change", () => filters.requestSubmit())); filters.querySelector("input[name='q']").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => filters.requestSubmit(), 450); }); }
+// NOTA TEMPORAL PARA APRENDIZAJE: el campo de texto ya NO se auto-envía mientras se
+// escribe (antes lo hacía 450ms después de cada tecla, recargando la página entera y
+// quitando el foco — en móvil, la pausa natural entre letras suele ser mayor a esos
+// 450ms, así que sólo dejaba escribir un carácter a la vez). Ahora sólo se busca con
+// Enter (envío nativo del formulario) o cambiando fecha/select. Borra esta nota.
+if (filters) { filters.querySelectorAll("select, input[type='date']").forEach((field) => field.addEventListener("change", () => filters.requestSubmit())); }
 
 const cashierTools = document.querySelector(".cashier-tools");
 const unpaidQuick = document.querySelector(".cashier-unpaid-quick");

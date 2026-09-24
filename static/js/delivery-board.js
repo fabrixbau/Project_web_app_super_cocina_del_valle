@@ -50,14 +50,14 @@ if (deliveryFilters) {
   deliveryFilters.addEventListener("submit", () => {
     window.sessionStorage.setItem(scrollStorageKey, String(window.scrollY));
   });
-  let timer = null;
+  // NOTA TEMPORAL PARA APRENDIZAJE: el campo de texto ya NO se auto-envía mientras se
+  // escribe (antes lo hacía 500ms después de cada tecla, recargando la página entera y
+  // quitando el foco — en móvil, la pausa natural entre letras suele ser mayor a esos
+  // 500ms, así que sólo dejaba escribir un carácter a la vez). Ahora sólo se busca con
+  // Enter (envío nativo del formulario) o cambiando fecha/repartidor/estado. Borra esta nota.
   deliveryFilters.querySelectorAll("select, input[type='date']").forEach((field) => field.addEventListener("change", () => deliveryFilters.requestSubmit()));
   deliveryFilters.querySelectorAll("input[name='delivery_person']").forEach((field) => field.addEventListener("change", () => deliveryFilters.requestSubmit()));
   deliveryFilters.querySelectorAll("input[name='status']").forEach((field) => field.addEventListener("change", () => deliveryFilters.requestSubmit()));
-  deliveryFilters.querySelector("input[name='q']")?.addEventListener("input", () => {
-    window.clearTimeout(timer);
-    timer = window.setTimeout(() => deliveryFilters.requestSubmit(), 500);
-  });
   deliveryFilters.querySelector("[data-clear-delivery-status]")?.addEventListener("click", () => {
     deliveryFilters.querySelectorAll("input[name='status']").forEach((field) => { field.checked = false; });
     deliveryFilters.requestSubmit();
