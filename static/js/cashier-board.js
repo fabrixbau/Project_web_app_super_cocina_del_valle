@@ -99,7 +99,7 @@ const repaintPayment = (panel, data) => {
   panel.querySelector("[data-payment-result]")?.classList.toggle("has-change", data.payment_method === "cash" && data.needs_change);
   const tipPanel = panel.querySelector("[data-cashier-tip]");
   if (tipPanel) {
-    const tipAllowed = data.payment_method === "transfer";
+    const tipAllowed = data.payment_method === "transfer" || data.payment_method === "card";
     tipPanel.hidden = !tipAllowed;
     tipPanel.inert = !tipAllowed;
     tipPanel.querySelectorAll("button, input").forEach((control) => { control.disabled = !tipAllowed; });

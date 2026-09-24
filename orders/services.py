@@ -316,18 +316,6 @@ def set_cashier_release(*, order, actor, released=True):
     if released:
         if not order.payment_method:
             raise ValidationError("Selecciona la forma de pago antes de liberar el pedido.")
-        # NOTA TEMPORAL PARA APRENDIZAJE: si Caja marca Efectivo en un pedido de Recoger
-        # pero nunca definió el billete/otra cantidad ni pago exacto, y aun así libera el
-        # pedido, se asume pago exacto en vez de dejar el monto sin definir. Sólo aplica
-        # a Recoger; Entregas siguen su propio flujo de propina/cambio. Borra esta nota.
-        if (
-            order.order_type == Order.OrderType.PICKUP
-            and order.payment_method == Order.PaymentMethod.CASH
-            and order.cash_tendered is None
-        ):
-            order.cash_tendered = order.total
-            order.needs_change = False
-            order.save(update_fields=("cash_tendered", "needs_change", "updated_at"))
         if order.order_type == Order.OrderType.DELIVERY and not order.delivery_person_id:
             raise ValidationError("Asigna un repartidor antes de liberar la entrega.")
         # NOTA TEMPORAL PARA APRENDIZAJE: liberar en Caja completa de una vez las
@@ -1111,10 +1099,19 @@ def transition_order(*, order, action, actor=None):
     if action == "complete_pickup":
         if not order.payment_method:
             raise ValidationError("Registra la forma de pago antes de cerrar completamente el ticket.")
-        if order.payment_method == Order.PaymentMethod.CASH and order.needs_change and (
-            order.cash_tendered is None or order.cash_tendered < order.total
-        ):
-            raise ValidationError("Actualiza el efectivo recibido antes de cerrar el ticket.")
+        if order.payment_method == Order.PaymentMethod.CASH:
+            # NOTA TEMPORAL PARA APRENDIZAJE: si nunca se definió el efectivo (billete,
+            # otra cantidad o pago exacto) y aun así el ticket llega a Recogido —ya sea
+            # liberando desde Caja o avanzando el estado directamente en /app/pedidos/—,
+            # se asume pago exacto en vez de bloquear o dejar el monto sin definir. Se
+            # centraliza aquí porque ambos caminos terminan pasando por esta transición.
+            # Borra esta nota después de leerla.
+            if order.cash_tendered is None:
+                order.cash_tendered = order.total
+                order.needs_change = False
+                order.save(update_fields=("cash_tendered", "needs_change", "updated_at"))
+            elif order.needs_change and order.cash_tendered < order.total:
+                raise ValidationError("Actualiza el efectivo recibido antes de cerrar el ticket.")
     if action == "complete_delivery" and order.order_type != Order.OrderType.DELIVERY:
         raise ValidationError("Solo un pedido de entrega puede marcarse como entregado.")
     if action == "dispatch_delivery" and order.order_type != Order.OrderType.DELIVERY:
@@ -1182,6 +1179,11 @@ def assign_delivery(*, order, delivery_person, assigned_by):
     order.delivery_assigned_at = timezone.now()
     if order.delivery_tip_amount > 0:
         order.delivery_tip_recipient = delivery_person
+        # NOTA TEMPORAL PARA APRENDIZAJE: si el pedido ya estaba vinculado en Caja >
+        # Terminales antes de reasignar repartidor, ese TerminalMovement.tip_recipient
+        # quedaría apuntando al repartidor viejo y descuadraría la conciliación de
+        # propinas. Se sincroniza aquí igual que se hace para mesas. Borra esta nota.
+        order.terminal_movements.update(tip_recipient=delivery_person)
     order.save(update_fields=[
         "delivery_person", "delivery_assigned_by", "delivery_assigned_at",
         "delivery_tip_recipient", "updated_at",
@@ -1223,4 +1225,17 @@ def update_delivery_tip(*, order, amount, actor):
         "delivery_tip_amount", "delivery_tip_recipient", "delivery_tip_updated_by",
         "delivery_tip_updated_at", "updated_at",
     ))
+    # NOTA TEMPORAL PARA APRENDIZAJE: si este pedido ya estaba vinculado en Caja >
+    # Terminales, ese TerminalMovement guarda su propia fotografía de total/propina/
+    # responsable tomada al momento de vincular; sin esto, corregir la propina aquí
+    # (por ejemplo un Admin arreglando un dato mal capturado) dejaría desactualizada
+    # la conciliación de terminales y el reporte de propinas. Si el pedido todavía no
+    # está vinculado no hace falta nada más: la próxima vez que se abra Caja >
+    # Terminales, la lista de candidatos para vincular ya se calcula con los valores
+    # actuales del pedido. Borra esta nota después de leerla.
+    order.terminal_movements.update(
+        total_amount=order.total_with_delivery_tip,
+        tip_amount=order.delivery_tip_amount,
+        tip_recipient=order.delivery_tip_recipient,
+    )
     return order

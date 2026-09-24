@@ -13,9 +13,9 @@ from tables.models import DiningTable, TableAccount
 
 from .models import Order, TerminalCut, TerminalMovement
 from .services import (
-    add_internal_order_package, add_internal_order_product, change_internal_order_item,
-    change_internal_order_type, set_cashier_release, transition_order, update_cashier_payment,
-    update_delivery_tip, update_internal_package_extras,
+    add_internal_order_package, add_internal_order_product, assign_delivery,
+    change_internal_order_item, change_internal_order_type, set_cashier_release, transition_order,
+    update_cashier_payment, update_delivery_tip, update_internal_package_extras,
 )
 
 
@@ -265,6 +265,63 @@ class CashierReleaseCashDefaultTests(TestCase):
         order = set_cashier_release(order=order, actor=self.admin, released=True)
         self.assertIsNone(order.cash_tendered)
         self.assertFalse(order.needs_change)
+
+    def test_advancing_status_directly_from_pedidos_also_assumes_exact_payment(self):
+        # NOTA: mismo default, pero entrando por /app/pedidos/ (transition_order
+        # directo) en vez de "Liberar de caja" — ambos caminos deben comportarse igual.
+        order = self.make_pickup_order(payment_method=Order.PaymentMethod.CASH)
+        order = transition_order(order=order, action="complete_pickup", actor=self.admin)
+        self.assertEqual(order.cash_tendered, order.total)
+        self.assertFalse(order.needs_change)
+        self.assertEqual(order.status, Order.Status.PICKED_UP)
+        self.assertFalse(order.needs_change)
+
+
+class DeliveryTipTerminalMovementSyncTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="tip_sync_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.courier1 = get_user_model().objects.create_user(username="tip_sync_courier1")
+        self.courier1.groups.add(Group.objects.get_or_create(name=DELIVERY)[0])
+        self.courier4 = get_user_model().objects.create_user(username="tip_sync_courier4")
+        self.courier4.groups.add(Group.objects.get_or_create(name=DELIVERY)[0])
+        self.today = timezone.localdate()
+        self.order = Order.objects.create(
+            daily_number=950, operating_date=self.today,
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.DELIVERED, customer_name="Entrega terminal",
+            total=100, payment_method=Order.PaymentMethod.CARD,
+            delivery_person=self.courier1, delivery_tip_amount=20,
+            delivery_tip_recipient=self.courier1,
+        )
+        cut, _ = TerminalCut.objects.get_or_create(
+            operating_date=self.today, provider=TerminalCut.Provider.MERCADO_PAGO,
+        )
+        self.movement = TerminalMovement.objects.create(
+            cut=cut, order=self.order, total_amount=120, tip_amount=20,
+            tip_recipient=self.courier1, created_by=self.admin,
+        )
+
+    def test_correcting_the_tip_amount_updates_the_linked_terminal_movement(self):
+        update_delivery_tip(order=self.order, amount=10, actor=self.admin)
+        self.movement.refresh_from_db()
+        self.assertEqual(self.movement.tip_amount, 10)
+        self.assertEqual(self.movement.total_amount, 110)
+        self.assertEqual(self.movement.tip_recipient_id, self.courier1.pk)
+
+    def test_reassigning_the_courier_updates_the_linked_terminal_movement_recipient(self):
+        assign_delivery(order=self.order, delivery_person=self.courier4, assigned_by=self.admin)
+        self.movement.refresh_from_db()
+        self.assertEqual(self.movement.tip_recipient_id, self.courier4.pk)
+        self.assertEqual(self.movement.total_amount, 120)
+
+    def test_correcting_tip_and_reassigning_together_matches_the_users_scenario(self):
+        update_delivery_tip(order=self.order, amount=10, actor=self.admin)
+        assign_delivery(order=self.order, delivery_person=self.courier4, assigned_by=self.admin)
+        self.movement.refresh_from_db()
+        self.assertEqual(self.movement.tip_amount, 10)
+        self.assertEqual(self.movement.total_amount, 110)
+        self.assertEqual(self.movement.tip_recipient_id, self.courier4.pk)
 
 
 class TerminalMovementLinkingRulesTests(TestCase):
