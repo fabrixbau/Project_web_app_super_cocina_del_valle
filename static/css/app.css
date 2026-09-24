@@ -3388,58 +3388,6 @@ html[data-theme="dark"] .menu-admin-product strong,
 html[data-theme="dark"] .menu-category-card strong,
 html[data-theme="dark"] .inventory-product-card strong { color: #eef4f1; }
 
-/* Pedidos: la tabla de ocho columnas pasa a fichas al reducir el ancho. */
-@media (max-width: 1100px) {
-  .order-board-card { min-width: 0; }
-  .order-board-card .order-list { min-width: 0; }
-  .order-board-card .order-list-head { display: none; }
-  .order-board-card .order-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: .85rem 1rem;
-    align-items: start;
-    min-width: 0;
-    padding: 1rem;
-  }
-  .order-board-card .order-row > [data-column] { min-width: 0; overflow-wrap: anywhere; }
-  .order-board-card .order-row > [data-column]::before {
-    content: attr(data-column);
-    display: block;
-    margin-bottom: .3rem;
-    color: #52685e;
-    font-size: .7rem;
-    font-weight: 850;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-  }
-  .order-board-card .order-row > [data-column="Folio"] { grid-column: 1; grid-row: 1; }
-  .order-board-card .order-row > [data-column="Cliente"] { grid-column: 1; grid-row: 2; }
-  .order-board-card .order-row > [data-column="Total"] { grid-column: 2; grid-row: 1; }
-  .order-board-card .order-row > [data-column="Estado"] { grid-column: 2; grid-row: 2; }
-  .order-board-card .order-row > [data-column="Resumen"] { grid-column: 1; grid-row: 3; }
-  .order-board-card .order-row > [data-column="Modalidad"] { grid-column: 2; grid-row: 3; }
-  .order-board-card .order-row > [data-column="Forma de pago"] { grid-column: 1; grid-row: 4; }
-  .order-board-card .order-row > [data-column="Siguiente paso"] { grid-column: 2; grid-row: 4; }
-  .order-board-card .order-row-actions { justify-items: start; }
-  .order-board-card .order-row-actions form,
-  .order-board-card .order-row-actions button { width: auto; }
-  .order-board-card .order-row-actions button { min-width: 10rem; }
-  .order-board-card .order-more-actions { justify-self: start; }
-  .order-board-card .order-list-modality { display: grid !important; grid-template-columns: 2.15rem minmax(0, 1fr); }
-}
-@media (max-width: 600px) {
-  .order-board-card { padding: .7rem; }
-  .order-board-card .order-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; padding: .85rem; }
-  .order-board-card .order-row > [data-column="Folio"] { grid-column: 1; grid-row: 1; }
-  .order-board-card .order-row > [data-column="Total"] { grid-column: 2; grid-row: 1; }
-  .order-board-card .order-row > [data-column="Cliente"] { grid-column: 1 / -1; grid-row: 2; }
-  .order-board-card .order-row > [data-column="Estado"] { grid-column: 1 / -1; grid-row: 3; }
-  .order-board-card .order-row > [data-column="Resumen"] { grid-column: 1 / -1; grid-row: 4; }
-  .order-board-card .order-row > [data-column="Modalidad"] { grid-column: 1 / -1; grid-row: 5; }
-  .order-board-card .order-row > [data-column="Forma de pago"] { grid-column: 1 / -1; grid-row: 6; }
-  .order-board-card .order-row > [data-column="Siguiente paso"] { grid-column: 1 / -1; grid-row: 7; }
-  .order-board-card .order-row-actions form,
-  .order-board-card .order-row-actions button { width: 100%; }
-}
 .coffee-report-panel { margin-bottom: 1rem; }
 .coffee-report-panel h2 { margin-top: 0; }
 .coffee-report-filter { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; margin-bottom: 1rem; }
@@ -3454,17 +3402,6 @@ html[data-theme="dark"] .inventory-product-card strong { color: #eef4f1; }
 .package-egg-choice { display: grid; gap: .35rem; min-width: 180px; padding: .7rem; border: 1px solid #d9d3c5; border-radius: .65rem; background: #fffaf0; font-weight: 700; }
 .package-egg-choice select { min-width: 0; width: 100%; padding: .65rem; border: 1px solid #b9c9bf; border-radius: .45rem; background: #fff; color: #173d32; }
 
-/* Opt-in layout for the Yeemovil X20 order board only. */
-html.yeemovil-x20 .order-board-card { min-width: 0; padding: .75rem; }
-html.yeemovil-x20 .order-board-card .order-list { min-width: 0; }
-html.yeemovil-x20 .order-board-card .order-list-head { display: none; }
-html.yeemovil-x20 .order-board-card .order-row {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: .9rem 1.15rem;
-  align-items: start;
-  min-width: 0;
-  padding: 1rem;
-}
 
 /* Tipografía clara para controles y botones operativos. */
 button,
@@ -3624,32 +3561,6 @@ input[type="reset"],
   }
 }
 
-/* Orders list: one useful desktop heading row. */
-@media (min-width: 901px) {
-  main.internal-panel:has(.order-board-card) > .page-heading {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 1rem;
-    align-items: center;
-  }
-  main.internal-panel:has(.order-board-card) > .page-heading > div:first-child {
-    display: flex;
-    min-width: 0;
-    gap: .8rem;
-    align-items: center;
-  }
-  main.internal-panel:has(.order-board-card) > .page-heading h1 { margin: 0; }
-  main.internal-panel:has(.order-board-card) > .page-heading > div:first-child > a:first-child {
-    order: -1;
-    white-space: nowrap;
-  }
-  main.internal-panel:has(.order-board-card) > .page-heading .new-order-type-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(150px, 1fr));
-    gap: .55rem;
-    margin: 0;
-  }
-}
 
 /* Panel principal: cuatro módulos por fila en teléfono y tablet. */
 @media (max-width: 900px) {
@@ -4608,61 +4519,6 @@ input[type="reset"],
   }
 }
 
-/* iPad Air landscape: preserve the operational three-column reading order. */
-@media (min-width: 901px) and (max-width: 1200px) and (pointer: coarse) {
-  .order-board-card { min-width: 0; padding: .8rem; }
-  .order-board-card .order-list { min-width: 0; }
-  .order-board-card .order-list-head { display: none; }
-  .order-board-card .order-row {
-    display: grid;
-    grid-template-columns: minmax(0, 30fr) minmax(0, 30fr) minmax(0, 40fr);
-    grid-template-rows: repeat(3, auto);
-    gap: .55rem .75rem;
-    align-items: stretch;
-    min-width: 0;
-    padding: .9rem;
-  }
-  .order-board-card .order-row > [data-column] {
-    min-width: 0;
-    padding: .42rem .5rem;
-    overflow-wrap: anywhere;
-    border: 1px solid #d7e0da;
-    border-radius: .5rem;
-    background: rgb(255 255 255 / 72%);
-  }
-  .order-board-card .order-row > [data-column]::before {
-    content: attr(data-column);
-    display: block;
-    margin-bottom: .22rem;
-    color: #52685e;
-    font-size: .62rem;
-    font-weight: 850;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-  }
-  .order-board-card .order-row > [data-column="Folio"] { grid-column: 1; grid-row: 1; }
-  .order-board-card .order-row > [data-column="Cliente"] { grid-column: 1; grid-row: 2; }
-  .order-board-card .order-row > [data-column="Resumen"] { grid-column: 1; grid-row: 3; }
-  .order-board-card .order-row > [data-column="Modalidad"] { grid-column: 2; grid-row: 1 / span 2; }
-  .order-board-card .order-row > [data-column="Forma de pago"] { grid-column: 2; grid-row: 3; }
-  .order-board-card .order-row > [data-column="Total"] { grid-column: 3; grid-row: 1; }
-  .order-board-card .order-row > [data-column="Estado"] { grid-column: 3; grid-row: 2; }
-  .order-board-card .order-row > [data-column="Siguiente paso"] { grid-column: 3; grid-row: 3; }
-  .order-board-card .order-row-actions,
-  .order-board-card .order-row-actions form { width: 100%; }
-  .order-board-card .order-row-actions button {
-    width: 100%;
-    min-width: 0;
-    min-height: 4rem;
-    padding: .8rem .65rem;
-    font-size: .84rem;
-  }
-  .order-board-card .order-list-modality {
-    display: grid !important;
-    grid-template-columns: 2.15rem minmax(0, 1fr);
-  }
-}
-
 .cashier-order.is-cashier-target {
   border-color: #e39a12 !important;
   outline: 4px solid rgb(244 189 69 / 72%);
@@ -5151,91 +5007,7 @@ input[type="reset"],
   .order-filter-card .filters label { min-width: 0; }
   .order-filter-card .filters input,
   .order-filter-card .filters select { width: 100%; min-width: 0; }
-
-  .order-board-card { padding: .5rem; }
-  .order-board-card .order-list { gap: .5rem; }
-  .order-board-card .order-list-head { display: none; }
-  .order-board-card .order-row {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
-    grid-auto-rows: auto;
-    gap: .55rem .7rem !important;
-    width: 100%;
-    min-width: 0;
-    padding: .7rem !important;
-    align-items: start;
-  }
-  .order-board-card .order-row > [data-column] {
-    min-width: 0;
-    font-size: .76rem;
-    line-height: 1.28;
-    overflow-wrap: normal !important;
-    word-break: normal !important;
-  }
-  .order-board-card .order-row > [data-column]::before {
-    display: block;
-    margin-bottom: .16rem;
-    color: #4c685d;
-    font-size: .58rem;
-    font-weight: 900;
-    letter-spacing: .055em;
-    text-transform: uppercase;
-    content: attr(data-column);
-  }
-  .order-board-card .order-row strong { font-size: .79rem; }
-  .order-board-card .order-row small { margin-top: .08rem; font-size: .66rem; line-height: 1.28; }
-  .order-board-card .order-row > [data-column="Folio"] { grid-column: 1; grid-row: 1; }
-  .order-board-card .order-row > [data-column="Total"] { grid-column: 2; grid-row: 1; }
-  .order-board-card .order-row > [data-column="Cliente"] { grid-column: 1; grid-row: 2; }
-  .order-board-card .order-row > [data-column="Estado"] { grid-column: 2; grid-row: 2; }
-  .order-board-card .order-row > [data-column="Resumen"] { grid-column: 1 / -1; grid-row: 3; }
-  .order-board-card .order-row > [data-column="Modalidad"] { grid-column: 1 / -1; grid-row: 4; }
-  .order-board-card .order-row > [data-column="Forma de pago"] { grid-column: 1; grid-row: 5; }
-  .order-board-card .order-row > [data-column="Siguiente paso"] { grid-column: 2; grid-row: 5; }
-  .order-board-card .order-list-modality {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: .45rem;
-    align-items: start;
-  }
-  .order-board-card .order-row-actions { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
-  .order-board-card .order-row-actions form { width: auto; max-width: 100%; }
-  .order-board-card .order-row-actions button { width: auto; min-width: 0; min-height: 2.15rem; padding: .38rem .5rem; font-size: .67rem; }
-  .order-board-card .order-more-actions { position: relative; }
-  .order-board-card .order-more-actions-menu { right: 0; left: auto; min-width: 10rem; }
 }
-html.yeemovil-x20 .order-board-card .order-row > [data-column] {
-  min-width: 0;
-  overflow-wrap: break-word;
-}
-html.yeemovil-x20 .order-board-card .order-row > [data-column]::before {
-  content: attr(data-column);
-  display: block;
-  margin-bottom: .3rem;
-  color: #52685e;
-  font-size: .7rem;
-  font-weight: 850;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-html.yeemovil-x20 .order-board-card .order-row > [data-column="Folio"] { grid-column: 1; grid-row: 1; }
-html.yeemovil-x20 .order-board-card .order-row > [data-column="Total"] { grid-column: 2; grid-row: 1; }
-html.yeemovil-x20 .order-board-card .order-row > [data-column="Cliente"] { grid-column: 1; grid-row: 2; }
-html.yeemovil-x20 .order-board-card .order-row > [data-column="Estado"] { grid-column: 2; grid-row: 2; }
-html.yeemovil-x20 .order-board-card .order-row > [data-column="Resumen"] { grid-column: 1; grid-row: 3; }
-html.yeemovil-x20 .order-board-card .order-row > [data-column="Modalidad"] { grid-column: 2; grid-row: 3; }
-html.yeemovil-x20 .order-board-card .order-row > [data-column="Forma de pago"] { grid-column: 1; grid-row: 4; }
-html.yeemovil-x20 .order-board-card .order-row > [data-column="Siguiente paso"] { grid-column: 2; grid-row: 4; }
-html.yeemovil-x20 .order-board-card .order-list-modality {
-  display: grid !important;
-  grid-template-columns: 2.15rem minmax(0, 1fr);
-  gap: .55rem;
-}
-html.yeemovil-x20 .order-board-card .order-list-modality::before { grid-column: 1 / -1; }
-html.yeemovil-x20 .order-board-card .order-list-modality > span:last-child { min-width: 0; }
-html.yeemovil-x20 .order-board-card .order-row-actions { justify-items: start; }
-html.yeemovil-x20 .order-board-card .order-row-actions form,
-html.yeemovil-x20 .order-board-card .order-row-actions button { width: auto; max-width: 100%; }
 
 html.yeemovil-x20 .visual-package-dialog:has(form[data-internal-package]) {
   width: calc(100% - .5rem);
@@ -5313,12 +5085,6 @@ html.yeemovil-x20 .visual-package-dialog form[data-internal-package] > .confirm-
 }
 
 @media (orientation: portrait) {
-  html.yeemovil-x20 .order-board-card .order-row { gap: .7rem; padding: .8rem; }
-  html.yeemovil-x20 .order-board-card .order-row > [data-column="Cliente"],
-  html.yeemovil-x20 .order-board-card .order-row > [data-column="Resumen"],
-  html.yeemovil-x20 .order-board-card .order-row > [data-column="Modalidad"],
-  html.yeemovil-x20 .order-board-card .order-row > [data-column="Forma de pago"],
-  html.yeemovil-x20 .order-board-card .order-row > [data-column="Siguiente paso"] { grid-column: 1 / -1; grid-row: auto; }
   html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-visual-groups,
   html.yeemovil-x20 .visual-package-dialog form[data-package-kind="executive"] .package-visual-groups { grid-template-columns: minmax(0, 1fr); }
   html.yeemovil-x20 .visual-package-dialog form[data-internal-package] .package-choice-grid,
@@ -5380,37 +5146,6 @@ html.yeemovil-x20 .visual-package-dialog form[data-internal-package] > .confirm-
     width: min(100% - 1rem, 1380px);
     margin-block: .75rem;
   }
-  main:has(.order-board-card) .page-heading {
-    display: grid;
-    gap: .65rem;
-  }
-  main:has(.order-board-card) .page-heading > div:first-child {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: .5rem;
-    width: 100%;
-  }
-  main:has(.order-board-card) .page-heading > div:first-child h1 {
-    grid-column: 1;
-    grid-row: 1;
-    margin: 0;
-  }
-  main:has(.order-board-card) .page-heading > div:first-child > a:first-child {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
-    white-space: nowrap;
-  }
-  main:has(.order-board-card) .new-order-type-actions {
-    width: 100%;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  main:has(.order-board-card) .new-order-type-actions .order-type-action {
-    width: 100%;
-    min-width: 0;
-  }
-
   .table-operation-header,
   .table-operation-header.is-breakfast {
     gap: .55rem;
@@ -5682,26 +5417,6 @@ html.yeemovil-x20 .visual-package-dialog form[data-internal-package] > .confirm-
   .cashier-order-controls .cashier-payment-buttons button,
   .cashier-delivery-payment .cashier-payment-buttons button { min-width: 0; min-height: 2.15rem; padding: .3rem .16rem; font-size: .6rem; }
   .cashier-order-controls .cashier-release { min-height: 2.2rem; font-size: .68rem; }
-
-  main:has(.order-board-card) .page-heading > div:first-child > a:first-child {
-    display: inline-flex;
-    gap: .4rem;
-    align-items: center;
-    padding: .5rem .65rem;
-    border: 1px solid #bac9c0;
-    border-radius: .65rem;
-    color: transparent;
-    background: #fff;
-    font-size: 0;
-    text-decoration: none;
-  }
-  main:has(.order-board-card) .page-heading > div:first-child > a:first-child::after {
-    color: #245b46;
-    font-size: .72rem;
-    font-weight: 750;
-    white-space: nowrap;
-    content: "← Volver al panel";
-  }
 }
 
 @media (max-width: 560px) {
@@ -9387,78 +9102,6 @@ siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un ta
 
 /* Corrección final para iPad: misma composición estable en vertical y horizontal. */
 @media (min-width: 700px) and (max-width: 1200px) and (pointer: coarse) {
-  .order-board-card {
-    min-width: 0;
-    padding: .75rem;
-  }
-  .order-board-card .order-list { min-width: 0; }
-  .order-board-card .order-list-head { display: none; }
-  .order-board-card .order-row {
-    display: grid !important;
-    grid-template-columns: minmax(0, 30fr) minmax(0, 30fr) minmax(0, 40fr) !important;
-    grid-template-rows: repeat(3, auto) !important;
-    gap: .45rem !important;
-    align-items: stretch;
-    min-width: 0;
-    padding: .65rem !important;
-  }
-  .order-board-card .order-row > [data-column] {
-    min-width: 0;
-    padding: .45rem;
-    overflow-wrap: normal !important;
-    word-break: normal !important;
-    border: 1px solid #d4dfd8;
-    border-radius: .5rem;
-    background: rgb(255 255 255 / 78%);
-  }
-  .order-board-card .order-row > [data-column]::before {
-    content: attr(data-column);
-    display: block;
-    margin-bottom: .2rem;
-    color: #52685e;
-    font-size: .61rem;
-    font-weight: 900;
-    letter-spacing: .035em;
-    text-transform: uppercase;
-  }
-  .order-board-card .order-row > [data-column="Folio"] { grid-column: 1 !important; grid-row: 1 !important; }
-  .order-board-card .order-row > [data-column="Cliente"] { grid-column: 1 !important; grid-row: 2 !important; }
-  .order-board-card .order-row > [data-column="Resumen"] { grid-column: 1 !important; grid-row: 3 !important; }
-  .order-board-card .order-row > [data-column="Modalidad"] { grid-column: 2 !important; grid-row: 1 / span 2 !important; }
-  .order-board-card .order-row > [data-column="Forma de pago"] { grid-column: 2 !important; grid-row: 3 !important; }
-  .order-board-card .order-row > [data-column="Total"] { grid-column: 3 !important; grid-row: 1 !important; }
-  .order-board-card .order-row > [data-column="Estado"] { grid-column: 3 !important; grid-row: 2 !important; }
-  .order-board-card .order-row > [data-column="Siguiente paso"] { grid-column: 3 !important; grid-row: 3 !important; }
-  .order-board-card .order-list-modality {
-    display: grid !important;
-    grid-template-columns: 2.15rem minmax(0, 1fr) !important;
-    grid-template-rows: auto 1fr;
-    gap: .25rem .5rem;
-    align-content: start;
-  }
-  .order-board-card .order-list-modality::before { grid-column: 1 / -1; grid-row: 1; }
-  .order-board-card .order-list-modality > .order-type-icon { grid-column: 1; grid-row: 2; }
-  .order-board-card .order-list-modality > span:last-child {
-    grid-column: 2;
-    grid-row: 2;
-    min-width: 0;
-    width: 100%;
-    overflow-wrap: normal;
-    word-break: normal;
-    hyphens: none;
-  }
-  .order-board-card .order-row-actions,
-  .order-board-card .order-row-actions form { width: 100% !important; }
-  .order-board-card .order-row-actions button {
-    width: 100% !important;
-    min-width: 0 !important;
-    min-height: 4rem !important;
-    padding: .7rem .55rem !important;
-    font-size: .78rem !important;
-    line-height: 1.2;
-  }
-  .order-board-card .order-more-actions { justify-self: end; }
-
   .cashier-board-columns .cashier-order {
     position: relative;
     display: block !important;
