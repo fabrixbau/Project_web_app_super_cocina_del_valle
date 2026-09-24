@@ -1276,6 +1276,7 @@ def order_detail(request, order_id):
             order.status == Order.Status.OUT_FOR_DELIVERY
             and user_has_any_role(request.user, (ORDER_TAKER,))
         ),
+        "auto_print_job_id": request.GET.get("printed_job") if request.GET.get("printed_job", "").isdigit() else None,
     })
 
 
@@ -1589,9 +1590,9 @@ def order_kitchen_custom_print(request, order_id):
             job = queue_ticket(source_type="order", source=order, ticket_type="kitchen", items=selected, user=request.user)
         except ValueError as error:
             messages.error(request, str(error))
-        else:
-            messages.success(request, f"Comanda enviada a la Dell (trabajo #{job.pk}).")
-        return redirect("orders:order_detail", order_id=order.pk)
+            return redirect("orders:order_detail", order_id=order.pk)
+        messages.success(request, f"Comanda enviada a la Dell (trabajo #{job.pk}).")
+        return redirect(f"{reverse('orders:order_detail', args=(order.pk,))}?printed_job={job.pk}")
     context.update({
         "selection_items": [printable_item(item) for item in queryset],
         "selection_errors": result if request.method == "POST" else [],

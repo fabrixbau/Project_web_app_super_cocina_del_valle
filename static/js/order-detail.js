@@ -105,3 +105,22 @@ document.addEventListener("submit", async (event) => {
   responsiveView.addEventListener?.("change", arrange);
   arrange();
 })();
+
+(() => {
+  const printStatus = document.querySelector("[data-print-job-status]");
+  if (!printStatus) return;
+  const jobId = printStatus.dataset.jobId;
+  (async () => {
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      try {
+        const response = await fetch(`/app/impresion/estado/${jobId}/`, { credentials: "same-origin", cache: "no-store" });
+        if (!response.ok) return;
+        const job = await response.json();
+        if (job.status === "printed") { printStatus.textContent = "Comanda enviada a la impresora de la Dell."; printStatus.classList.add("text-success"); return; }
+        if (job.status === "failed") { printStatus.textContent = "La comanda no se pudo imprimir. Avisa al administrador antes de reintentar."; printStatus.classList.add("text-danger"); return; }
+        if (job.status === "expired") { printStatus.textContent = "La impresora se desconectó antes de imprimir la comanda. Usa “Imprimir cocina modificado” para reintentar."; printStatus.classList.add("text-danger"); return; }
+      } catch (_) { return; }
+    }
+  })();
+})();

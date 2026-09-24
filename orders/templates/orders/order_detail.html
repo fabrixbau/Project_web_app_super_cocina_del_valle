@@ -9,6 +9,7 @@ Productos individuales conservan la etiqueta Modificado y diferencias del snapsh
 {% block content %}
   <p><a href="{% url 'orders:order_list' %}">← Pedidos</a></p>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  {% if auto_print_job_id %}<p class="ticket-print-status" data-print-job-status data-job-id="{{ auto_print_job_id }}">Enviando comanda a la impresora…</p>{% endif %}
   {% if is_locked_for_user %}<p class="message">Este pedido quedó en modo de sólo lectura.{% if can_complete_locked_delivery %} Como telefonista únicamente puedes marcarlo como Entregado.{% endif %}</p>{% endif %}
   {% if order.customer_debt %}<p class="message error"><strong>Pago pendiente:</strong> este pedido quedó a cuenta de {{ order.customer_debt.customer.name }}. Saldo ${{ order.customer_debt.balance|floatformat:2 }}. <a href="{% url 'cashier:debt_board' %}?customer={{ order.customer_debt.customer_id }}&scope=all#adeudo-{{ order.customer_debt.id }}">Revisar adeudo</a></p>{% endif %}
   <p class="message" data-order-detail-feedback hidden></p>
@@ -24,4 +25,4 @@ Productos individuales conservan la etiqueta Modificado y diferencias del snapsh
   {% if order_actions %}<section class="card spaced-card" data-order-detail-actions><h2>Siguiente acción</h2><div class="action-group">{% for action in order_actions %}<form method="post" action="{% url 'orders:order_resolve' order.id %}" data-order-detail-action>{% csrf_token %}<input type="hidden" name="action" value="{{ action.value }}"><button {% if action.danger %}class="danger"{% endif %} type="submit">{{ action.label }}</button></form>{% endfor %}</div></section>{% endif %}
   <section class="card spaced-card"><h2>Historial de estados</h2><ol class="status-history" data-order-detail-history>{% for change in order.status_history.all %}<li><strong>{{ change.get_to_status_display }}</strong><small>{{ change.changed_at|date:'d/m/Y H:i:s' }}{% if change.changed_by %} · {{ change.changed_by.get_full_name|default:change.changed_by.username }}{% else %} · Sistema{% endif %}</small></li>{% empty %}<li data-empty-history>Este pedido es anterior a la bitácora; su próximo cambio quedará registrado.</li>{% endfor %}</ol></section>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/order-detail.js' %}?v=4"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/order-detail.js' %}?v=5"></script>{% endblock %}

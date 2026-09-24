@@ -18,7 +18,7 @@ adicional del navegador. Borra esta nota al terminar. */
           const response = await fetch(`/app/impresion/estado/${jobId}/`, { credentials: "same-origin", cache: "no-store" });
           if (!response.ok) return;
           const job = await response.json();
-          if (job.status === "printed") { printStatus.textContent = "Ticket de cobro enviado a la impresora de la Dell."; return; }
+          if (job.status === "printed") { printStatus.textContent = "Ticket de cobro enviado a la impresora de la Dell."; printStatus.classList.add("text-success"); return; }
           if (job.status === "failed") { printStatus.textContent = "El ticket de cobro no se pudo imprimir. Avisa al administrador antes de reintentar."; printStatus.classList.add("text-danger"); return; }
           if (job.status === "expired") { printStatus.textContent = "La impresora se desconectó antes de imprimir el ticket de cobro. Usa “Imprimir cobro” para reintentar."; printStatus.classList.add("text-danger"); return; }
         } catch (_) { return; }

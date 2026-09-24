@@ -165,7 +165,19 @@ def run():
                     if not browser_alive():
                         logging.warning("Edge ya no respondía; se vuelve a abrir antes de imprimir.")
                         browser = playwright.chromium.launch(channel="msedge", headless=True)
-                    png = render_ticket(browser, job["html"])
+                    try:
+                        png = render_ticket(browser, job["html"])
+                    except Exception:
+                        # NOTA TEMPORAL PARA APRENDIZAJE: browser_alive() sólo detecta un
+                        # Edge que ya murió ANTES de este intento; también puede morir a
+                        # media renderización del propio ticket (mismo error de Playwright,
+                        # "BrowserType.launch..." si el crash ocurre justo al reabrir). Se
+                        # reabre una vez más y se reintenta el mismo ticket antes de darlo
+                        # por fallido, para que un tropiezo puntual de Edge no obligue a
+                        # reimprimir a mano. Borra esta nota después de leerla.
+                        logging.warning("Falló el render con el navegador actual; se reabre Edge y se reintenta una vez.")
+                        browser = playwright.chromium.launch(channel="msedge", headless=True)
+                        png = render_ticket(browser, job["html"])
                     print_ticket(png, job["id"])
                     result = {"status": "printed"}
                 except Exception as exc:

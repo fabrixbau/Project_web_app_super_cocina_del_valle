@@ -2057,6 +2057,7 @@ nota después de leerla. */
 .terminal-final-reconciliation .terminal-final-head { grid-template-columns: 2fr repeat(4, 1fr); }
 .terminal-final-reconciliation .terminal-final-total { grid-template-columns: 2fr repeat(4, 1fr); background: #edf5f0; border-top: 3px solid #285943; }
 .text-danger { color: #a52824 !important; font-weight: 800; }
+.text-success { color: #285943 !important; font-weight: 800; }
 @media (max-width: 800px) { .terminal-filter-card form { grid-template-columns: 1fr 1fr; } }
 .customer-debt-warning { margin: .75rem 0; padding: .85rem 1rem; border: 2px solid #b52a25; border-radius: .65rem; background: #fff0ee; color: #7f1f1a; }
 .customer-debt-warning a { color: inherit; font-weight: 900; }

@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -9,9 +9,11 @@ from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, WAITER
 
 from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product, StockMovement
 
+from print_station.models import PrintStation
+
 from tables.models import DiningTable, TableAccount
 
-from .models import Order, TerminalCut, TerminalMovement
+from .models import Order, OrderItem, TerminalCut, TerminalMovement
 from .services import (
     add_internal_order_package, add_internal_order_product, assign_delivery,
     change_internal_order_item, change_internal_order_type, set_cashier_release, transition_order,
@@ -784,3 +786,45 @@ class FixedMenuInventoryTests(TestCase):
 
         self.assertEqual(stock.available_quantity, 1)
         self.assertEqual(stock.movements.count(), 2)
+
+
+@override_settings(PRINT_AGENT_TOKEN="test-token")
+class KitchenCustomPrintStatusTests(TestCase):
+    def setUp(self):
+        self.actor = get_user_model().objects.create_superuser(
+            username="custom_print_admin", email="custom_print@example.test",
+            password="test-password",
+        )
+        PrintStation.objects.create(
+            name="cocina", printer_available=True, last_heartbeat_at=timezone.now(),
+        )
+        self.order = Order.objects.create(
+            daily_number=994, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.PICKUP, source=Order.Source.INTERNAL,
+            status=Order.Status.DRAFT, customer_name="Mostrador", total=5,
+            created_by=self.actor,
+        )
+        self.item = self.order.items.create(
+            item_type=OrderItem.ItemType.PRODUCT, product_name_snapshot="Bolillo",
+            tortillas=False, beans=False,
+            unit_price=5, quantity=1, subtotal=5,
+        )
+        self.client.force_login(self.actor)
+
+    def test_queuing_a_custom_kitchen_ticket_redirects_with_the_job_id(self):
+        response = self.client.post(
+            reverse("orders:order_kitchen_custom_print", args=(self.order.pk,)),
+            {f"item_{self.item.pk}": "on", f"quantity_{self.item.pk}": "1"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f"{reverse('orders:order_detail', args=(self.order.pk,))}?printed_job=", response.url)
+
+    def test_order_detail_shows_the_print_status_placeholder_for_the_job(self):
+        response = self.client.post(
+            reverse("orders:order_kitchen_custom_print", args=(self.order.pk,)),
+            {f"item_{self.item.pk}": "on", f"quantity_{self.item.pk}": "1"},
+        )
+        detail_response = self.client.get(response.url)
+
+        self.assertContains(detail_response, "data-print-job-status")
