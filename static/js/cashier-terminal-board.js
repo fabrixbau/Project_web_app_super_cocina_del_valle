@@ -65,7 +65,15 @@ async function saveRow(row) {
     if (!response.ok || !result.ok) {
       if (result.code === "link_already_used") {
         row.querySelector("[name='linked_record']").value = "";
-        row.querySelector("[data-link-trigger]").textContent = "Vincular";
+        row.querySelector("[data-link-trigger]").textContent = row.dataset.revertLinkLabel || "Vincular";
+        if (row.dataset.revertTotal !== undefined) row.querySelector("[name='total_amount']").value = row.dataset.revertTotal;
+        if (row.dataset.revertTip !== undefined) row.querySelector("[name='tip_amount']").value = row.dataset.revertTip;
+        if (row.dataset.revertRecipient !== undefined) {
+          const recipient = row.dataset.revertRecipient;
+          row.querySelector("[name='tip_recipient']").value = recipient;
+          row.querySelectorAll("[data-recipient-id]").forEach((button) => button.classList.toggle("is-selected", button.dataset.recipientId === recipient));
+        }
+        updateConsumption(row);
       }
       throw new Error(result.error || "No se pudo guardar el movimiento.");
     } if (versions.get(row) !== version) return;
@@ -158,6 +166,15 @@ function fieldsMatch(row, candidate) {
 }
 
 function applyCandidateToRow(row, candidate) {
+  // NOTA TEMPORAL PARA APRENDIZAJE: se guarda una foto de lo que había antes de aplicar
+  // el candidato, para poder restaurar la fila completa (no sólo el vínculo) si el
+  // guardado falla porque alguien más ya tomó ese pedido/mesa (link_already_used) —
+  // antes sólo se limpiaba el vínculo y la fila quedaba "atorada" con el total/propina/
+  // responsable del candidato fallido todavía puestos. Borra esta nota después de leerla.
+  row.dataset.revertTotal = row.querySelector("[name='total_amount']").value;
+  row.dataset.revertTip = row.querySelector("[name='tip_amount']").value;
+  row.dataset.revertRecipient = row.querySelector("[name='tip_recipient']").value;
+  row.dataset.revertLinkLabel = row.querySelector("[data-link-trigger]").textContent;
   row.querySelector("[name='linked_record']").value = candidate ? candidate.value : "";
   if (candidate) {
     row.querySelector("[name='total_amount']").value = Number(candidate.total).toFixed(2);
