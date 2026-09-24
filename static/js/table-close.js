@@ -5,6 +5,27 @@ Django valida nuevamente al enviar. El cobro se procesa directamente, sin confir
 adicional del navegador. Borra esta nota al terminar. */
 
 (() => {
+  // NOTA TEMPORAL PARA APRENDIZAJE: esto corre siempre, incluso en la pantalla de resumen
+  // ya cerrada donde el diálogo de cobro ni se dibuja, porque ahí es donde vive el aviso
+  // del ticket de cobro que se manda a imprimir en automático al cerrar. Borra esta nota.
+  const printStatus = document.querySelector("[data-print-job-status]");
+  if (printStatus) {
+    const jobId = printStatus.dataset.jobId;
+    (async () => {
+      for (let attempt = 0; attempt < 15; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
+          const response = await fetch(`/app/impresion/estado/${jobId}/`, { credentials: "same-origin", cache: "no-store" });
+          if (!response.ok) return;
+          const job = await response.json();
+          if (job.status === "printed") { printStatus.textContent = "Ticket de cobro enviado a la impresora de la Dell."; return; }
+          if (job.status === "failed") { printStatus.textContent = "El ticket de cobro no se pudo imprimir. Avisa al administrador antes de reintentar."; printStatus.classList.add("text-danger"); return; }
+          if (job.status === "expired") { printStatus.textContent = "La impresora se desconectó antes de imprimir el ticket de cobro. Usa “Imprimir cobro” para reintentar."; printStatus.classList.add("text-danger"); return; }
+        } catch (_) { return; }
+      }
+    })();
+  }
+
   const dialog = document.querySelector("[data-close-account-dialog]");
   const form = document.querySelector("[data-close-account-form]");
   if (!dialog || !form) return;
@@ -127,5 +148,23 @@ adicional del navegador. Borra esta nota al terminar. */
   tipInput.addEventListener("input", () => {
     form.querySelectorAll("[data-tip-amount]").forEach((button) => button.classList.remove("is-selected"));
   });
+
+  const responsibleWaiterSelect = form.querySelector('[name="responsible_waiter"]');
+  const responsibleWaiterError = form.querySelector("[data-responsible-waiter-error]");
+  form.querySelectorAll("[data-responsible-waiter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      responsibleWaiterSelect.value = button.dataset.responsibleWaiter;
+      responsibleWaiterError.hidden = true;
+      form.querySelectorAll("[data-responsible-waiter]").forEach((candidate) => candidate.classList.toggle("is-selected", candidate === button));
+    });
+  });
+  form.addEventListener("submit", (event) => {
+    if (!responsibleWaiterSelect.value) {
+      event.preventDefault();
+      responsibleWaiterError.hidden = false;
+      responsibleWaiterError.scrollIntoView({block: "center"});
+    }
+  });
+
   updatePaymentFields();
 })();

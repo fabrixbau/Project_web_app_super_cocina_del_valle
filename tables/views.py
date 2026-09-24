@@ -596,8 +596,9 @@ def table_detail(request, account_id):
         "product_customizations": product_customizations,
         "catalog_search_products": catalog_search_products,
         "can_reassign": can_reassign,
-        "waiters": waiter_queryset() if can_reassign else (),
+        "waiters": waiter_queryset(),
         "close_form": TableAccountCloseForm(account_total=ticket["total"]),
+        "auto_print_job_id": request.GET.get("printed_job") if request.GET.get("printed_job", "").isdigit() else None,
     }
     context.update(capture_mode_context(request))
     return render(request, "tables/table_detail.html", context)
@@ -894,12 +895,25 @@ def table_close(request, account_id):
         )
     except ValidationError as error:
         messages.error(request, error.message)
-    else:
-        messages.success(
-            request,
-            f"La cuenta de {account.table.name} quedó cerrada y la mesa está disponible.",
+        return redirect("tables:table_detail", account_id=account.pk)
+    messages.success(
+        request,
+        f"La cuenta de {account.table.name} quedó cerrada y la mesa está disponible.",
+    )
+    # NOTA TEMPORAL PARA APRENDIZAJE: se manda a imprimir el ticket de cobro justo aquí,
+    # ya con el responsable final elegido en el cierre (no antes), para que la comanda
+    # impresa siempre coincida con quien realmente quedó como responsable. Si la Dell no
+    # está disponible no se revierte el cierre (ya está pagado y cerrado); solo se avisa.
+    # Borra esta nota después de leerla.
+    try:
+        job = queue_ticket(
+            source_type="table", source=account, ticket_type="payment",
+            items=[printable_item(item) for item in account.items.all()], user=request.user,
         )
-    return redirect("tables:table_detail", account_id=account.pk)
+    except ValueError as error:
+        messages.warning(request, f"La cuenta quedó cerrada, pero no se pudo enviar el ticket de cobro a imprimir: {error}")
+        return redirect("tables:table_detail", account_id=account.pk)
+    return redirect(f"{reverse('tables:table_detail', args=(account.pk,))}?printed_job={job.pk}")
 
 
 @role_required(ADMIN, WAITER, ORDER_TAKER)

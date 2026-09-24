@@ -7,6 +7,9 @@
 # informa al servicio si todavía falta una selección. Borra esta nota.
 
 from django import forms
+from django.contrib.auth import get_user_model
+
+from accounts.roles import WAITER
 
 from menu.forms import PackageSelectionForm
 from menu.egg import egg_products
@@ -102,10 +105,18 @@ class TableAccountCloseForm(forms.Form):
         label="Efectivo recibido", required=False, min_value=0,
         max_digits=10, decimal_places=2,
     )
+    responsible_waiter = forms.ModelChoiceField(
+        label="¿A nombre de quién se queda la mesa?",
+        queryset=get_user_model().objects.none(),
+        error_messages={"required": "Selecciona quién se queda como responsable de la mesa."},
+    )
 
     def __init__(self, *args, account_total, **kwargs):
         super().__init__(*args, **kwargs)
         self.account_total = account_total
+        self.fields["responsible_waiter"].queryset = get_user_model().objects.filter(
+            is_active=True, groups__name=WAITER,
+        ).distinct().order_by("first_name", "username")
 
     def clean(self):
         cleaned_data = super().clean()

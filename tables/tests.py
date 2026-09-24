@@ -62,6 +62,7 @@ class TableCustomerAutosaveTests(TestCase):
 class TableInventoryIntegrationTests(TestCase):
     def setUp(self):
         self.waiter = get_user_model().objects.create_user(username="stock_waiter")
+        self.waiter.groups.add(Group.objects.get_or_create(name=WAITER)[0])
         category = Category.objects.create(name="Comida corrida")
         self.product = Product.objects.create(
             category=category, name="Arroz de prueba", price=25,
@@ -113,7 +114,7 @@ class TableInventoryIntegrationTests(TestCase):
         )
         close_table_account(
             account=self.account,
-            cleaned_data={"tip_amount": 0, "payment_method": "cash", "cash_tendered": 25},
+            cleaned_data={"tip_amount": 0, "payment_method": "cash", "cash_tendered": 25, "responsible_waiter": self.waiter},
             closed_by=self.waiter,
         )
 

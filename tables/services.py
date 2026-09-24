@@ -55,13 +55,22 @@ def open_table_account(*, table, assigned_waiter, opened_by):
 
 @transaction.atomic
 def reassign_table_account(*, account, assigned_waiter, changed_by):
+    # NOTA TEMPORAL PARA APRENDIZAJE: ya no se limita a cuentas abiertas. Si la cuenta
+    # está cerrada, `tip_recipient` (usado en reportes de propinas) y el `TerminalMovement`
+    # ya vinculado a esta mesa (si lo hay) se actualizan también, para que la conciliación
+    # de terminales y el reporte de propinas queden coherentes con el nuevo responsable en
+    # vez de seguir mostrando a quien ya no lo es. Borra esta nota después de leerla.
     account = TableAccount.objects.select_for_update().get(pk=account.pk)
-    if account.status != TableAccount.Status.OPEN:
-        raise ValidationError("Solo puedes reasignar una cuenta abierta.")
     validate_waiter(assigned_waiter)
     previous = account.assigned_waiter
     account.assigned_waiter = assigned_waiter
-    account.save(update_fields=("assigned_waiter",))
+    update_fields = ["assigned_waiter"]
+    if account.status == TableAccount.Status.CLOSED:
+        account.tip_recipient = assigned_waiter
+        update_fields.append("tip_recipient")
+    account.save(update_fields=update_fields)
+    if account.status == TableAccount.Status.CLOSED:
+        account.terminal_movements.update(tip_recipient=assigned_waiter)
     record_activity(account=account, actor=changed_by, action=TableActivity.Action.REASSIGN, description=f"De {previous.get_full_name() or previous.username} a {assigned_waiter.get_full_name() or assigned_waiter.username}")
     return account
 
@@ -602,19 +611,27 @@ def close_table_account(*, account, cleaned_data, closed_by):
     else:
         cash_tendered = None
         change = None
+    responsible_waiter = cleaned_data["responsible_waiter"]
+    validate_waiter(responsible_waiter)
     account.status = TableAccount.Status.CLOSED
     account.closed_at = timezone.now()
     account.closed_by = closed_by
     account.payment_method = method
     account.subtotal_closed = subtotal
     account.tip_amount = tip
-    account.tip_recipient = account.assigned_waiter
+    # NOTA TEMPORAL PARA APRENDIZAJE: antes `tip_recipient` se copiaba en automático de
+    # `assigned_waiter` (quien fuera que abrió la mesa o la tuviera asignada por el login),
+    # sin confirmarlo. Ahora quien cierra debe elegir explícitamente a quién se queda la
+    # mesa, y esa elección actualiza tanto el responsable como quien recibe la propina.
+    # Borra esta nota después de leerla.
+    account.assigned_waiter = responsible_waiter
+    account.tip_recipient = responsible_waiter
     account.total_paid = total
     account.cash_tendered = cash_tendered
     account.change_given = change
     account.save(update_fields=(
         "status", "closed_at", "closed_by", "payment_method", "subtotal_closed",
-        "tip_amount", "tip_recipient", "total_paid", "cash_tendered", "change_given",
+        "tip_amount", "assigned_waiter", "tip_recipient", "total_paid", "cash_tendered", "change_given",
     ))
     StockMovement.objects.filter(
         reference_type="table_item",
