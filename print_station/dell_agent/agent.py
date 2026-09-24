@@ -64,17 +64,27 @@ def heartbeat_loop():
         time.sleep(HEARTBEAT_INTERVAL_SECONDS)
 
 
-def render_ticket(html):
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(channel="msedge", headless=True)
-        try:
-            page = browser.new_page(viewport={"width": 900, "height": 1200}, device_scale_factor=2)
-            page.set_content(html, wait_until="load")
-            ticket = page.locator(".thermal-ticket")
-            ticket.wait_for(state="visible", timeout=10000)
-            return ticket.screenshot(type="png")
-        finally:
-            browser.close()
+def render_ticket(browser, html):
+    """Dibuja un ticket con una pestaña nueva del navegador que ya está abierto.
+
+    NOTA TEMPORAL PARA APRENDIZAJE: antes esta función abría y cerraba Edge por
+    completo en cada ticket (sync_playwright() + chromium.launch() nuevos cada
+    vez). Eso funcionaba, pero abrir un navegador entero decenas de veces al día
+    es lento y, bajo carga o con la máquina ocupada, a veces Edge tarda en
+    arrancar o Windows lo cierra a medio lanzar — Playwright reporta ese caso
+    como "BrowserType.launch: Target page, context or browser has been closed".
+    Ahora el navegador se abre una sola vez en run() y se reutiliza: aquí sólo
+    se abre y se cierra una pestaña (mucho más rápido y confiable). Borra esta
+    nota después de leerla.
+    """
+    page = browser.new_page(viewport={"width": 900, "height": 1200}, device_scale_factor=2)
+    try:
+        page.set_content(html, wait_until="load")
+        ticket = page.locator(".thermal-ticket")
+        ticket.wait_for(state="visible", timeout=10000)
+        return ticket.screenshot(type="png")
+    finally:
+        page.close()
 
 
 def escpos_raster(png):
@@ -119,36 +129,68 @@ def run():
     session.headers.update({"Authorization": f"Bearer {TOKEN}"})
     threading.Thread(target=heartbeat_loop, daemon=True).start()
     logging.info("Escuchando %s para %s", SERVER, PRINTER)
-    while True:
+
+    # NOTA TEMPORAL PARA APRENDIZAJE: el navegador se abre una sola vez aquí y se
+    # reutiliza para todos los tickets del turno (ver render_ticket). Si en algún
+    # momento se cierra solo (crash de Edge, se quedó sin memoria, etc.), el
+    # siguiente intento de usarlo falla con un error de Playwright — browser_alive()
+    # lo detecta y browser se vuelve a abrir antes del próximo ticket, en vez de que
+    # el agente se quede fallando todos los trabajos hasta que alguien lo reinicie
+    # a mano. Borra esta nota después de leerla.
+    playwright = sync_playwright().start()
+    browser = playwright.chromium.launch(channel="msedge", headless=True)
+
+    def browser_alive():
         try:
-            response = session.post(f"{SERVER}/app/impresion/agente/tomar/", timeout=15)
-            response.raise_for_status()
-            job = response.json()["job"]
-            if job is None:
-                time.sleep(3)
-                continue
-            logging.info("Trabajo %s: %s", job["id"], job["label"])
+            return browser.is_connected()
+        except Exception:
+            return False
+
+    try:
+        while True:
             try:
-                # NOTA TEMPORAL PARA APRENDIZAJE: el latido pudo haberse enviado hace
-                # varios segundos; se vuelve a comprobar aquí para no intentar
-                # imprimir con la POS-80 recién desconectada. Borra esta nota.
-                if not printer_is_connected():
-                    raise RuntimeError("La impresora POS-80 está apagada o desconectada.")
-                png = render_ticket(job["html"])
-                print_ticket(png, job["id"])
-                result = {"status": "printed"}
-            except Exception as exc:
-                logging.exception("Falló el trabajo %s", job["id"])
-                result = {"status": "failed", "error": str(exc)[:500]}
-            response = session.post(
-                f"{SERVER}/app/impresion/agente/{job['id']}/finalizar/",
-                json=result,
-                timeout=15,
-            )
-            response.raise_for_status()
-        except (requests.RequestException, KeyError, ValueError):
-            logging.exception("Sin conexión con la cola; reintentando en 10 segundos")
-            time.sleep(10)
+                response = session.post(f"{SERVER}/app/impresion/agente/tomar/", timeout=15)
+                response.raise_for_status()
+                job = response.json()["job"]
+                if job is None:
+                    time.sleep(3)
+                    continue
+                logging.info("Trabajo %s: %s", job["id"], job["label"])
+                try:
+                    # NOTA TEMPORAL PARA APRENDIZAJE: el latido pudo haberse enviado hace
+                    # varios segundos; se vuelve a comprobar aquí para no intentar
+                    # imprimir con la POS-80 recién desconectada. Borra esta nota.
+                    if not printer_is_connected():
+                        raise RuntimeError("La impresora POS-80 está apagada o desconectada.")
+                    if not browser_alive():
+                        logging.warning("Edge ya no respondía; se vuelve a abrir antes de imprimir.")
+                        browser = playwright.chromium.launch(channel="msedge", headless=True)
+                    png = render_ticket(browser, job["html"])
+                    print_ticket(png, job["id"])
+                    result = {"status": "printed"}
+                except Exception as exc:
+                    logging.exception("Falló el trabajo %s", job["id"])
+                    result = {"status": "failed", "error": str(exc)[:500]}
+                    if not browser_alive():
+                        try:
+                            browser = playwright.chromium.launch(channel="msedge", headless=True)
+                        except Exception:
+                            logging.exception("No se pudo reabrir Edge; se reintentará con el siguiente trabajo.")
+                response = session.post(
+                    f"{SERVER}/app/impresion/agente/{job['id']}/finalizar/",
+                    json=result,
+                    timeout=15,
+                )
+                response.raise_for_status()
+            except (requests.RequestException, KeyError, ValueError):
+                logging.exception("Sin conexión con la cola; reintentando en 10 segundos")
+                time.sleep(10)
+    finally:
+        try:
+            browser.close()
+        except Exception:
+            pass
+        playwright.stop()
 
 
 if __name__ == "__main__":
