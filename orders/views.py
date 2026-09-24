@@ -107,20 +107,28 @@ def _can_edit_delivery_tip_on_board(order, user):
     # NOTA TEMPORAL PARA APRENDIZAJE: en Repartos, sólo Administrador puede corregir
     # libremente la propina; Telefonista pierde esa edición aquí aunque la conserve
     # durante la captura interna. El Repartidor asignado sigue capturando la suya una
-    # sola vez, igual que antes. Borra esta nota después de leerla.
+    # sola vez, igual que antes — pero ahora la ventana depende del método de pago:
+    # Efectivo sigue exigiendo que el pedido siga "En reparto" (se resuelve con
+    # "Cambio devuelto" en Caja, que ya lo pasa a Entregado); Terminal ahora también
+    # se puede registrar con el pedido ya en "Entregado", porque el propio Repartidor
+    # es quien marca esa transición (ver delivery_complete) y necesita poder anotar la
+    # propina en ese mismo momento. Si el ciclo se reinicia, `delivery_tip_updated_at`
+    # queda con la fecha del ciclo anterior y el Repartidor pierde la oportunidad —
+    # a propósito, sólo Admin puede tocarla después de eso. Borra esta nota al leerla.
     if user_has_any_role(user, (ADMIN,)):
         return True
     is_delivery_profile = (
         user_has_any_role(user, (DELIVERY,))
         and not user_has_any_role(user, (ADMIN, ORDER_TAKER))
     )
-    if is_delivery_profile:
-        return (
-            order.status == Order.Status.OUT_FOR_DELIVERY
-            and order.delivery_person_id == user.pk
-            and order.payment_method in {Order.PaymentMethod.CASH, Order.PaymentMethod.CARD}
-            and order.delivery_tip_updated_at is None
-        )
+    if not is_delivery_profile:
+        return False
+    if order.delivery_person_id != user.pk or order.delivery_tip_updated_at is not None:
+        return False
+    if order.payment_method == Order.PaymentMethod.CASH:
+        return order.status == Order.Status.OUT_FOR_DELIVERY
+    if order.payment_method == Order.PaymentMethod.CARD:
+        return order.status in {Order.Status.OUT_FOR_DELIVERY, Order.Status.DELIVERED}
     return False
 
 
@@ -1390,7 +1398,15 @@ def delivery_board(request):
         order.can_update_delivery_status = (
             order.status in {Order.Status.READY, Order.Status.OUT_FOR_DELIVERY}
             if not is_delivery_profile
-            else False
+            # NOTA TEMPORAL PARA APRENDIZAJE: el Repartidor sólo ve sus propios
+            # pedidos aquí (delivery_orders ya está filtrado arriba), así que sólo
+            # falta exigir Terminal/Transferencia (Efectivo sigue dependiendo de
+            # "Cambio devuelto" en Caja) y que siga "En reparto" — no puede
+            # despachar (READY), sólo completar. Borra esta nota después de leerla.
+            else (
+                order.status == Order.Status.OUT_FOR_DELIVERY
+                and order.payment_method in {Order.PaymentMethod.CARD, Order.PaymentMethod.TRANSFER}
+            )
         )
     return render(request, "orders/delivery_board.html", {
         "delivery_orders": delivery_orders,
@@ -1463,8 +1479,11 @@ def delivery_tip_update(request, order_id):
         return JsonResponse({"ok": False, "error": "Sólo puedes modificar propinas de pedidos asignados a ti."}, status=403)
     if is_delivery_profile and order.delivery_tip_updated_at is not None:
         return JsonResponse({"ok": False, "error": "La propina ya fue registrada y no puede editarse."}, status=400)
-    if is_delivery_profile and order.status in {Order.Status.DELIVERED, Order.Status.PICKED_UP}:
-        return JsonResponse({"ok": False, "error": "La propina ya no puede modificarse después de finalizar el pedido."}, status=400)
+    # NOTA TEMPORAL PARA APRENDIZAJE: aquí ya no se bloquea Entregado a secas —
+    # _can_edit_delivery_tip_on_board (arriba) ya decide correctamente según el
+    # método de pago (Efectivo sigue exigiendo "En reparto"; Terminal también
+    # permite "Entregado", porque el propio Repartidor marca esa transición).
+    # Borra esta nota después de leerla.
     form = DeliveryTipForm(request.POST)
     if not form.is_valid():
         return JsonResponse({"ok": False, "error": "Escribe una propina válida."}, status=400)
@@ -1492,13 +1511,21 @@ def delivery_complete(request, order_id):
         user_has_any_role(request.user, (DELIVERY,))
         and not user_has_any_role(request.user, (ADMIN, ORDER_TAKER))
     )
-    # NOTA TEMPORAL PARA APRENDIZAJE: el Repartidor no inicia ni reinicia ciclos;
-    # solamente el asignado puede cerrar su pedido de En reparto a Entregado.
-    # Borra esta nota después de leerla.
+    # NOTA TEMPORAL PARA APRENDIZAJE: el Repartidor puede cerrar su propio pedido de
+    # En reparto a Entregado, pero sólo cuando el pago es Terminal o Transferencia.
+    # Efectivo sigue dependiendo únicamente de "Cambio devuelto" en Caja
+    # (confirm_cash_settlement), para no saltarse esa conciliación de cambio. El
+    # Repartidor tampoco inicia ni reinicia ciclos; sólo puede completar (nunca
+    # despachar) y sólo el pedido asignado a él mismo. Borra esta nota al leerla.
     if is_delivery_profile:
-        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return JsonResponse({"ok": False, "error": "El repartidor no puede cambiar el estado del pedido."}, status=403)
-        raise PermissionDenied
+        is_own_order = order.delivery_person_id == request.user.pk
+        is_card_or_transfer = order.payment_method in (
+            Order.PaymentMethod.CARD, Order.PaymentMethod.TRANSFER,
+        )
+        if not (is_own_order and is_card_or_transfer):
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return JsonResponse({"ok": False, "error": "El repartidor no puede cambiar el estado de este pedido."}, status=403)
+            raise PermissionDenied
     action = (
         "complete_delivery"
         if is_delivery_profile or order.status == Order.Status.OUT_FOR_DELIVERY

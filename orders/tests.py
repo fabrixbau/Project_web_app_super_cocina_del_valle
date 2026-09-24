@@ -157,6 +157,79 @@ class DeliveryProfileRestrictionTests(TestCase):
         with self.assertRaisesMessage(ValidationError, "Efectivo o Terminal"):
             update_delivery_tip(order=self.order, amount=10, actor=self.courier)
 
+    def test_courier_can_complete_own_card_or_transfer_delivery(self):
+        for payment_method in (Order.PaymentMethod.CARD, Order.PaymentMethod.TRANSFER):
+            with self.subTest(payment_method=payment_method):
+                order = Order.objects.create(
+                    daily_number=970 + list(Order.PaymentMethod).index(payment_method),
+                    operating_date=timezone.localdate(),
+                    order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+                    status=Order.Status.OUT_FOR_DELIVERY, customer_name="Entrega tarjeta",
+                    total=100, payment_method=payment_method, delivery_person=self.courier,
+                )
+                response = self.client.post(
+                    reverse("deliveries:delivery_complete", args=(order.pk,)),
+                    HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+                )
+                self.assertEqual(response.status_code, 200)
+                order.refresh_from_db()
+                self.assertEqual(order.status, Order.Status.DELIVERED)
+
+    def test_courier_still_cannot_complete_own_cash_delivery(self):
+        response = self.client.post(
+            reverse("deliveries:delivery_complete", args=(self.order.pk,)),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.OUT_FOR_DELIVERY)
+
+    def test_courier_cannot_complete_someone_elses_order(self):
+        other_order = Order.objects.create(
+            daily_number=977, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.OUT_FOR_DELIVERY, customer_name="Otro repartidor",
+            total=100, payment_method=Order.PaymentMethod.CARD,
+            delivery_person=self.other_courier,
+        )
+        response = self.client.post(
+            reverse("deliveries:delivery_complete", args=(other_order.pk,)),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_courier_can_register_card_tip_after_marking_delivered(self):
+        card_order = Order.objects.create(
+            daily_number=976, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.DELIVERED, customer_name="Entrega ya cerrada",
+            total=100, payment_method=Order.PaymentMethod.CARD,
+            delivery_person=self.courier,
+        )
+        response = self.client.post(
+            reverse("deliveries:delivery_tip_update", args=(card_order.pk,)),
+            {"tip_amount": "15"},
+        )
+        self.assertEqual(response.status_code, 200)
+        card_order.refresh_from_db()
+        self.assertEqual(card_order.delivery_tip_amount, 15)
+
+    def test_courier_cannot_register_cash_tip_after_delivered(self):
+        cash_order = Order.objects.create(
+            daily_number=975, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.DELIVERED, customer_name="Efectivo ya entregado",
+            total=100, payment_method=Order.PaymentMethod.CASH,
+            delivery_person=self.courier,
+        )
+        response = self.client.post(
+            reverse("deliveries:delivery_tip_update", args=(cash_order.pk,)),
+            {"tip_amount": "10"},
+        )
+        self.assertEqual(response.status_code, 403)
+        cash_order.refresh_from_db()
+        self.assertIsNone(cash_order.delivery_tip_updated_at)
+
 
 class CapturePrintTests(TestCase):
     def setUp(self):
