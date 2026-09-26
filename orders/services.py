@@ -867,16 +867,24 @@ def add_water_to_internal_package(*, order, water_product, actor=None):
     ).first()
     if not daily_menu:
         return None
-    item = OrderItem.objects.select_for_update().select_related("package").filter(
+    # NOTA TEMPORAL PARA APRENDIZAJE: PostgreSQL no permite FOR UPDATE sobre el lado
+    # nullable de un OUTER JOIN (mismo patrón ya resuelto así en
+    # update_internal_package_extras). `package` es un FK nulable (SET_NULL), así
+    # que el `select_related("package")` que había aquí antes generaba ese outer
+    # join y cualquier intento de agregar agua del día tiraba un 500. Bloqueamos la
+    # partida sola y leemos el paquete después, en una consulta aparte sin bloqueo.
+    # Borra esta nota después de leerla.
+    item = OrderItem.objects.select_for_update().filter(
         order=order, item_type=OrderItem.ItemType.PACKAGE, with_water=False,
     ).order_by("id").first()
-    if not item or not item.package:
+    if not item or not item.package_id:
         return None
+    package = MealPackage.objects.get(pk=item.package_id)
     _change_order_item_stock(item=item, quantity=item.quantity, actor=actor, reserve=False)
     item.with_water = True
     item.water_name_snapshot = water_product.name
     item.water_product = water_product
-    item.unit_price = item.package.price_with_water
+    item.unit_price = package.price_with_water
     item.subtotal = item.unit_price * item.quantity
     item.configuration_signature = f"{item.configuration_signature}|agua:{item.pk}"
     item.save(update_fields=(

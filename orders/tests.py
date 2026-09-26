@@ -718,6 +718,73 @@ class OrderPackageInventoryTests(TestCase):
         self.assertEqual(self.bread_stock.available_quantity, 4)
 
 
+class AddWaterToPackageTests(TestCase):
+    # NOTA TEMPORAL PARA APRENDIZAJE: reproduce el bug reportado en producción
+    # ("FOR UPDATE no puede ser aplicado al lado nulable de un outer join", 500 al
+    # agregar el agua del día desde Bebidas frías) — necesita correr contra Postgres
+    # real (este proyecto usa Postgres tanto en dev como en pruebas) para que la
+    # restricción de Postgres realmente se ejerza. Borra esta nota después de leerla.
+    def setUp(self):
+        self.actor = get_user_model().objects.create_user(username="water_upgrade_user")
+        self.actor.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
+        category = Category.objects.create(name="Componentes agua")
+        self.component = Product.objects.create(
+            category=category, name="Componente agua", price=20,
+            component_type=Product.ComponentType.SECOND_COURSE,
+            is_sold_individually=False,
+        )
+        self.water = Product.objects.create(
+            category=category, name="Jamaica del día", price=0,
+            component_type=Product.ComponentType.DAILY_WATER,
+        )
+        today = timezone.localdate()
+        self.menu = DailyMenu.objects.create(
+            date=today, status=DailyMenu.Status.PUBLISHED,
+            second_course_one=self.component, water_product=self.water,
+        )
+        self.component_stock = DailyProductStock.objects.create(
+            date=today, daily_menu=self.menu, product=self.component,
+            channel=DailyProductStock.Channel.ORDERS, initial_quantity=10,
+        )
+        self.water_stock = DailyProductStock.objects.create(
+            date=today, daily_menu=self.menu, product=self.water,
+            channel=DailyProductStock.Channel.ORDERS, initial_quantity=10,
+        )
+        self.package, _ = MealPackage.objects.update_or_create(
+            package_type=MealPackage.PackageType.RUNNING,
+            defaults={
+                "name": "Paquete agua", "price_without_water": 70,
+                "price_with_water": 80, "table_refill_price": 10,
+            },
+        )
+        self.order = Order.objects.create(
+            daily_number=993, operating_date=today, order_type=Order.OrderType.PICKUP,
+            source=Order.Source.INTERNAL, status=Order.Status.DRAFT,
+            customer_name="Mostrador", phone="", total=0, created_by=self.actor,
+        )
+        self.item = add_internal_order_package(
+            order=self.order, package=self.package, daily_menu=self.menu, actor=self.actor,
+            cleaned_data={
+                "first_course": self.component, "second_course": self.component,
+                "main_course": self.component, "chicken_piece": "",
+                "with_water": False, "tortillas": "no", "bread": False,
+                "beans": "no", "quantity": 1, "customization_comment": "",
+            },
+        )
+        self.client.force_login(self.actor)
+
+    def test_adding_daily_water_from_the_catalog_does_not_500(self):
+        response = self.client.post(
+            reverse("orders:internal_order_product_add", args=(self.order.pk, self.water.pk)),
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.item.refresh_from_db()
+        self.assertTrue(self.item.with_water)
+        self.assertEqual(self.item.water_product, self.water)
+        self.assertEqual(self.item.unit_price, self.package.price_with_water)
+
+
 class ChickenPieceInventoryTests(TestCase):
     def setUp(self):
         self.actor = get_user_model().objects.create_user(username="chicken_stock_user")
