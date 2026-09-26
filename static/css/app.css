@@ -2148,9 +2148,19 @@ nota después de leerla. */
 .debt-row.status-paid .debt-status { background: #dceee1; }
 .debt-row.status-forgiven .debt-status { background: #e7e7e7; }
 .debt-detail { padding: 1rem; background: #faf8f3; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.debt-detail.credit-detail-grid { grid-template-columns: 2fr 3fr 5fr; }
 .debt-payment-form, .debt-status-form { display: grid; gap: .5rem; align-content: start; }
 .debt-payment-form label, .debt-status-form label { display: grid; gap: .25rem; font-weight: 800; }
 .debt-history { max-height: 230px; overflow-y: auto; }
+.debt-history.credit-ledger-history { max-height: 420px; }
+.credit-ledger-scroll { overflow-x: auto; }
+.credit-ledger-table { width: 100%; border-collapse: collapse; font-size: .78rem; table-layout: fixed; }
+.credit-ledger-table th { padding: .5rem .5rem; color: #315747; font-size: .68rem; font-weight: 900; text-transform: uppercase; text-align: left; background: #f3f1e9; position: sticky; top: 0; }
+.credit-ledger-table td { padding: .5rem .5rem; border-top: 1px solid #e4ded0; vertical-align: top; white-space: normal; overflow-wrap: break-word; }
+.credit-ledger-table td span, .credit-ledger-table td small { display: block; }
+.credit-ledger-table td small { color: #68756f; font-weight: 600; }
+.credit-ledger-table td.is-positive { color: #1c6b4c; font-weight: 850; }
+.credit-ledger-table td.is-negative { color: #b52a25; font-weight: 850; }
 .customer-debt-overview { margin-bottom: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; justify-content: space-between; }
 .customer-debt-mini-list { flex-basis: 100%; }
 .customer-credit-overview { margin-bottom: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; }
@@ -2188,7 +2198,7 @@ nota después de leerla. */
 @media (max-width: 1000px) { .cashier-unpaid-quick form { grid-template-columns: 1fr 1fr; } .cashier-unpaid-quick form button { grid-column: 1 / -1; } }
 @media (max-width: 560px) { .cashier-unpaid-quick form { grid-template-columns: 1fr; } .cashier-unpaid-quick form button { grid-column: auto; } .cashier-unpaid-quick summary small { display: none; } }
 @media (max-width: 1000px) { .debt-create-card form { grid-template-columns: 1fr 1fr; } .debt-create-card form button { grid-column: 1 / -1; } }
-@media (max-width: 800px) { .page-heading { align-items: flex-start; flex-direction: column; } .page-heading-actions { justify-content: flex-start; } .debt-create-card, .debt-detail { grid-template-columns: 1fr; } .debt-filter-card form { grid-template-columns: 1fr 1fr; } .debt-filter-card form button { grid-column: 1 / -1; } .debt-summary-grid { grid-template-columns: 1fr; } .debt-list > header { display: none; } .debt-row > summary { grid-template-columns: 1fr 1fr; } .debt-row [data-column]::before { content: attr(data-column); display: block; color: #567064; font-size: .7rem; text-transform: uppercase; } }
+@media (max-width: 800px) { .page-heading { align-items: flex-start; flex-direction: column; } .page-heading-actions { justify-content: flex-start; } .debt-create-card, .debt-detail, .debt-detail.credit-detail-grid { grid-template-columns: 1fr; } .debt-filter-card form { grid-template-columns: 1fr 1fr; } .debt-filter-card form button { grid-column: 1 / -1; } .debt-summary-grid { grid-template-columns: 1fr; } .debt-list > header { display: none; } .debt-row > summary { grid-template-columns: 1fr 1fr; } .debt-row [data-column]::before { content: attr(data-column); display: block; color: #567064; font-size: .7rem; text-transform: uppercase; } }
 @media (max-width: 560px) { .page-heading-actions, .page-heading-actions .button-link { width: 100%; } .debt-create-card form, .debt-filter-card form { grid-template-columns: 1fr; } .debt-create-card form button, .debt-filter-card form button { grid-column: auto; } }
 
 /* NOTA TEMPORAL PARA APRENDIZAJE: el reporte separa primero los indicadores, luego

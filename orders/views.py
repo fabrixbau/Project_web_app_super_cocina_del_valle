@@ -35,7 +35,7 @@ from .cart import add_package, add_product, cart_control_summary, clear, decreas
 from .coffee_report import coffee_sales_for_date
 from .phones import phone_key as normalize_customer_phone
 from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm, PublicOrderModeForm
-from .models import CoffeeSettlement, Customer, CustomerAddress, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
+from .models import CoffeeSettlement, Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
 from .services import ACTION_LABELS, add_customer_credit, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, settle_selected_debts_from_cashier, start_internal_order, transition_order, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
 
 
@@ -1943,9 +1943,30 @@ def cashier_credit_board(request):
     if customer_id.isdigit():
         selected_customer = Customer.objects.filter(pk=int(customer_id)).first()
         if selected_customer:
+            # NOTA TEMPORAL PARA APRENDIZAJE: el desarrollador pidió ver el historial
+            # como un balance corrido — con cuánto saldo empezó cada movimiento y con
+            # cuánto quedó — no sólo la lista de movimientos sueltos que ya había.
+            # Como Customer.credit_balance es sólo el total actual (cacheado), aquí se
+            # reconstruye el saldo en cada punto recorriendo TODO el historial en
+            # orden cronológico (el más viejo primero) y sumando/restando cada
+            # movimiento; por eso no se trunca a los últimos 50 como antes — un
+            # balance corrido incompleto mentiría sobre el saldo inicial. Se muestra
+            # en la plantilla del más reciente al más viejo (para ver primero lo
+            # último que pasó), pero el cálculo siempre corre de más viejo a más
+            # nuevo. Borra esta nota después de leerla.
             movements = list(
-                selected_customer.credit_movements.select_related("order", "registered_by")[:50]
+                selected_customer.credit_movements.select_related("order", "registered_by")
+                .order_by("created_at", "id")
             )
+            running_balance = Decimal("0")
+            for movement in movements:
+                movement.balance_before = running_balance
+                if movement.action == CustomerCreditMovement.Action.DEPOSIT:
+                    running_balance += movement.amount
+                else:
+                    running_balance -= movement.amount
+                movement.balance_after = running_balance
+            movements.reverse()
     return render(request, "orders/cashier_credit_board.html", {
         "customers": customers, "search": search,
         "can_manage_credit": user_has_any_role(request.user, (ADMIN,)),

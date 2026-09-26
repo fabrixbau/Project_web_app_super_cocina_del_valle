@@ -1427,6 +1427,35 @@ class CustomerCreditTests(TestCase):
         self.assertContains(response, "Debe $100.00 en 1 pedido(s) anterior(es)")
         self.assertContains(response, reverse("cashier:settle_debts", args=(new_order.pk,)))
 
+    def test_credit_board_shows_a_running_balance_ledger_for_the_selected_customer(self):
+        # NOTA: el desarrollador pidió ver, en el historial de saldo a favor, el
+        # balance corrido — con cuánto empezó cada movimiento y con cuánto quedó —
+        # no sólo la lista de movimientos sueltos que ya había.
+        add_customer_credit(customer=self.customer, amount="500", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        order = self.make_order(total=200)
+        order.items.create(
+            item_type=OrderItem.ItemType.PRODUCT, product_name_snapshot="Comida",
+            tortillas=False, beans=False, unit_price=200, quantity=1, subtotal=200,
+        )
+        apply_customer_credit_to_order(order=order, actor=self.actor)
+        refund_customer_credit(customer=self.customer, amount="100", actor=self.actor)
+
+        response = self.client.get(reverse("cashier:credit_board"), {"customer": self.customer.pk})
+        movements = list(response.context["movements"])
+        # El más reciente primero (igual que antes); balance_before/after arman el
+        # balance corrido en orden cronológico aunque se muestren al revés.
+        self.assertEqual(movements[2].action, CustomerCreditMovement.Action.DEPOSIT)
+        self.assertEqual(movements[2].balance_before, Decimal("0"))
+        self.assertEqual(movements[2].balance_after, Decimal("500"))
+        self.assertEqual(movements[1].action, CustomerCreditMovement.Action.REDEMPTION)
+        self.assertEqual(movements[1].balance_before, Decimal("500"))
+        self.assertEqual(movements[1].balance_after, Decimal("300"))
+        self.assertEqual(movements[0].action, CustomerCreditMovement.Action.REFUND)
+        self.assertEqual(movements[0].balance_before, Decimal("300"))
+        self.assertEqual(movements[0].balance_after, Decimal("200"))
+        self.assertContains(response, "Saldo antes")
+        self.assertContains(response, "Saldo después")
+
     def test_cashier_can_settle_a_customers_debt_from_the_new_orders_payment_panel(self):
         debt_order = self.make_order(total=100, status=Order.Status.DELIVERED, daily_number=2430)
         debt = create_customer_debt(order=debt_order, actor=self.actor)
