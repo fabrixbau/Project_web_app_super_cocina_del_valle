@@ -91,12 +91,12 @@
   }));
   paymentChoices.forEach((button) => button.addEventListener("click", async () => {
     const field = form.querySelector(`input[name='payment_method'][value='${button.dataset.paymentChoice}']`);
-    const orderType = form.querySelector("input[name='order_type']:checked")?.value || "pickup";
-    // NOTA TEMPORAL PARA APRENDIZAJE: sólo en Recoger, tocar el método de pago que ya
-    // estaba seleccionado lo apaga (vuelve a quedar sin método de pago) en vez de
-    // simplemente re-marcarlo. En Entrega el comportamiento normal de radio se
-    // mantiene igual que antes. Borra esta nota después de leerla.
-    if (orderType === "pickup" && field?.checked) {
+    // NOTA TEMPORAL PARA APRENDIZAJE: tocar el método de pago que ya estaba
+    // seleccionado lo apaga (vuelve a quedar sin método de pago) en vez de sólo
+    // re-marcarlo — igual en Recoger que en Entrega a domicilio. Antes esto sólo
+    // pasaba en Recoger; el desarrollador pidió el mismo comportamiento en ambas
+    // modalidades. Borra esta nota después de leerla.
+    if (field?.checked) {
       field.checked = false;
     } else if (field) {
       field.checked = true;
@@ -113,6 +113,38 @@
     customerPanel.hidden = !customerPanel.hidden;
   }));
   form.querySelectorAll("[data-customer-panel-close]").forEach((button) => button.addEventListener("click", () => { customerPanel.hidden = true; }));
+
+  // NOTA TEMPORAL PARA APRENDIZAJE: "Limpiar formulario" borra los campos visibles
+  // del panel (nombre, teléfono, fecha/hora, domicilio, notas) más los vínculos con
+  // la agenda (agenda_customer_id/agenda_address_id, que viven fuera del panel en
+  // los campos ocultos) y guarda ese estado vacío de inmediato, igual que cualquier
+  // otro cambio en este formulario. Funciona igual en Recoger y en Entrega porque
+  // sólo limpia campos, sin tocar la modalidad. Borra esta nota después de leerla.
+  form.querySelectorAll("[data-customer-panel-clear]").forEach((button) => button.addEventListener("click", () => {
+    customerPanel.querySelectorAll("input, textarea").forEach((field) => { field.value = ""; });
+    const agendaCustomerId = form.querySelector("[name='agenda_customer_id']");
+    const agendaAddressId = form.querySelector("[name='agenda_address_id']");
+    if (agendaCustomerId) agendaCustomerId.value = "";
+    if (agendaAddressId) agendaAddressId.value = "";
+    if (agendaResults) { agendaResults.hidden = true; agendaResults.replaceChildren(); }
+    if (duplicatePhoneWarning) duplicatePhoneWarning.hidden = true;
+    if (customerDebtWarning) customerDebtWarning.hidden = true;
+    refresh();
+    window.clearTimeout(autosaveTimer);
+    autosaveCustomer();
+  }));
+
+  // NOTA TEMPORAL PARA APRENDIZAJE: dentro de este panel no hay ningún botón de
+  // envío real (los de "Guardar sin cerrar"/"Cerrar captura" viven en el ticket y
+  // sólo se asocian por el atributo form=), así que al presionar Enter en un campo
+  // de texto el navegador terminaba activando ese envío implícito en vez de sólo
+  // insertar el valor. Aquí se bloquea ese envío accidental sólo para inputs de una
+  // línea (el textarea de notas sigue permitiendo Enter para hacer salto de línea,
+  // que nunca envía un formulario por sí solo). Borra esta nota después de leerla.
+  customerPanel.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.target.tagName !== "INPUT") return;
+    event.preventDefault();
+  });
 
   const compactCustomerView = window.matchMedia("(max-width: 900px)");
   const customerFieldBackdrop = document.createElement("button");
@@ -450,45 +482,16 @@
   const searchEmpty = capture.querySelector("[data-internal-search-empty]");
   const sourceCards = [...capture.querySelectorAll(".internal-category [data-product-name]")];
   const ticketDataNode = document.querySelector("#internal-ticket-data");
-  const noteConfig = document.querySelector("[data-order-note-config]");
   const noteDialog = document.querySelector("[data-ticket-note-dialog]");
   const noteForm = noteDialog?.querySelector("[data-ticket-note-form]");
   const ticketBox = capture.querySelector(".internal-live-ticket");
-  const printUrls = capture.querySelector("[data-internal-print-urls]");
-  let printActions = ticketBox?.querySelector(".ticket-print-actions");
-  if (ticketBox && printUrls) {
-    if (!printActions) {
-      printActions = document.createElement("div");
-      printActions.className = "ticket-print-actions";
-      [
-        [printUrls.dataset.kitchenUrl, "Imprimir cocina", ""],
-        [printUrls.dataset.paymentUrl, "Imprimir cobro", ""],
-        [printUrls.dataset.customUrl, "Imprimir cocina modificado", "ticket-print-custom"],
-      ].forEach(([url, label, className]) => {
-        const link = document.createElement("a");
-        link.href = url;
-        link.textContent = label;
-        if (className) link.className = className;
-        printActions.append(link);
-      });
-    }
-    ticketBox.querySelector(".current-ticket-heading")?.after(printActions);
-  }
-  const generalNoteButton = document.createElement("button");
-  const generalNoteText = document.createElement("p");
-  if (ticketBox && noteConfig) {
-    generalNoteButton.type = "button";
-    generalNoteButton.className = "ticket-general-note-button";
-    generalNoteButton.textContent = "Agregar nota general";
-    generalNoteButton.dataset.orderNoteOpen = "";
-    generalNoteButton.dataset.url = noteConfig.dataset.url;
-    generalNoteButton.dataset.note = noteConfig.dataset.note || "";
-    generalNoteText.className = "ticket-general-note";
-    generalNoteText.dataset.ticketGeneralNote = "";
-    generalNoteText.textContent = noteConfig.dataset.note || "";
-    generalNoteText.hidden = !generalNoteText.textContent;
-    ticketBox.querySelector(".current-ticket-heading")?.after(generalNoteButton, generalNoteText);
-  }
+  // NOTA TEMPORAL PARA APRENDIZAJE: el botón de nota general y los enlaces de
+  // impresión ahora se dibujan directamente en la plantilla (arriba del ticket, junto
+  // a Guardar/Cerrar), en vez de crearse y reubicarse aquí con JS. Sólo se leen los
+  // elementos ya existentes para seguir sincronizando su estado. Borra esta nota.
+  const generalNoteButton = ticketBox?.querySelector("[data-order-note-open]");
+  const generalNoteText = ticketBox?.querySelector("[data-ticket-general-note]");
+  const printActions = ticketBox?.querySelector(".ticket-print-actions");
 
   function normalize(value) {
     return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es-MX").trim();
@@ -602,10 +605,14 @@
       printActions.inert = !ticket.items.length;
       printActions.querySelectorAll("a").forEach((link) => link.setAttribute("aria-disabled", String(!ticket.items.length)));
     }
-    generalNoteButton.dataset.note = ticket.note || "";
-    generalNoteButton.textContent = ticket.note ? "Editar nota general" : "Agregar nota general";
-    generalNoteText.textContent = ticket.note || "";
-    generalNoteText.hidden = !ticket.note;
+    if (generalNoteButton) {
+      generalNoteButton.dataset.note = ticket.note || "";
+      generalNoteButton.textContent = ticket.note ? "Editar nota general" : "Agregar nota general";
+    }
+    if (generalNoteText) {
+      generalNoteText.textContent = ticket.note || "";
+      generalNoteText.hidden = !ticket.note;
+    }
     const orderNotesField = form.querySelector("textarea[name='notes']");
     if (orderNotesField) orderNotesField.value = ticket.note || "";
     form.dataset.orderTotal = ticket.total;

@@ -4,6 +4,7 @@ sin recargar Caja ni mover el scroll. Borra esta nota después de leerla. -->
 <div class="cashier-status-action" data-cashier-status>
   <strong>Estado del pedido</strong>
   <span class="status-badge status-{{ order.status }}" data-cashier-status-label>{{ order.get_status_display }}</span>
+  {% if order.can_cancel or order.can_mark_unpaid %}<details class="order-more-actions"><summary aria-label="Más acciones" title="Más acciones"><span aria-hidden="true">•••</span></summary><div class="order-more-actions-menu">{% if order.can_cancel %}<form method="post" action="{% url 'orders:order_resolve' order.id %}" data-cancel-order-form>{% csrf_token %}<input type="hidden" name="action" value="cancel"><button type="submit" class="danger">Cancelar pedido</button></form>{% endif %}{% if order.can_mark_unpaid %}<form method="post" action="{% url 'cashier:order_debt_create' order.id %}"><input type="hidden" name="next" value="{{ request.get_full_path }}">{% csrf_token %}<button type="submit" class="warning">No pagó</button></form>{% endif %}</div></details>{% endif %}
   {# La acción sigue disponible para reutilizarla; Caja puede ocultarla mientras se define el flujo. #}
   {% if not hide_action %}
   {% if order.quick_action %}

@@ -185,7 +185,7 @@ document.addEventListener("click", async (event) => {
 const openCashierOrder = (row) => { window.location.href = row.dataset.cashierOrderUrl; };
 document.addEventListener("click", (event) => {
   const row = event.target.closest("[data-cashier-order-url]");
-  if (!row || event.target.closest("[data-cashier-payment], button, a, input, select, textarea, label, form")) return;
+  if (!row || event.target.closest("[data-cashier-payment], button, a, input, select, textarea, label, form, details, summary")) return;
   openCashierOrder(row);
 });
 document.addEventListener("keydown", (event) => {

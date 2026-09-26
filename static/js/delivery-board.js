@@ -253,3 +253,48 @@ document.addEventListener("submit", async (event) => {
     errorBox.hidden = false;
   }
 });
+
+// NOTA TEMPORAL PARA APRENDIZAJE: control aparte, exclusivo de Administrador, para
+// mover el pedido por cualquier estado válido (igual que en Caja) directamente desde
+// Repartos — reutiliza orders:order_resolve, cuya respuesta usa next_action/
+// next_action_label (no next_label, que es lo que sí devuelve delivery_complete de
+// arriba); por eso necesita su propio manejador en vez de compartir el de encima.
+// Borra esta nota después de leerla.
+document.addEventListener("submit", async (event) => {
+  const form = event.target.closest("[data-delivery-quick-status-form]");
+  if (!form) return;
+  event.preventDefault();
+  const card = form.closest("[data-delivery-card]");
+  const button = form.querySelector("button[type='submit']");
+  const errorBox = card.querySelector("[data-delivery-quick-status-error]");
+  button.disabled = true;
+  try {
+    const response = await fetch(form.getAttribute("action"), {
+      method: "POST", body: new FormData(form),
+      headers: {
+        "X-Requested-With": "XMLHttpRequest",
+        "X-CSRFToken": form.querySelector("input[name='csrfmiddlewaretoken']").value,
+        "Accept": "application/json",
+      },
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "No se pudo cambiar el estado.");
+    card.classList.remove(`status-${card.dataset.deliveryStatus}`);
+    card.classList.add(`status-${data.status}`);
+    card.dataset.deliveryStatus = data.status;
+    const statusLabel = card.querySelector("[data-delivery-status-label]");
+    if (statusLabel) statusLabel.textContent = data.status_label;
+    errorBox.hidden = true;
+    if (data.next_action) {
+      form.querySelector("[name='action']").value = data.next_action;
+      button.textContent = data.next_action_label;
+      button.disabled = false;
+    } else {
+      form.remove();
+    }
+  } catch (error) {
+    button.disabled = false;
+    errorBox.textContent = error.message;
+    errorBox.hidden = false;
+  }
+});

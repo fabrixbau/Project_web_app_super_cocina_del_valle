@@ -25,13 +25,13 @@ if (filterForm && filterToggle) {
   });
 }
 if (filterForm) {
-  let searchTimer = null;
+  // NOTA TEMPORAL PARA APRENDIZAJE: el campo de texto ya NO se auto-envía mientras se
+  // escribe (antes lo hacía 500ms después de cada tecla, recargando la página entera y
+  // quitando el foco — en móvil, la pausa natural entre letras suele ser mayor a esos
+  // 500ms, así que sólo dejaba escribir un carácter a la vez). Ahora sólo se busca con
+  // Enter (envío nativo del formulario) o cambiando fecha/select. Borra esta nota.
   filterForm.querySelectorAll("select, input[type='date']").forEach((field) => {
     field.addEventListener("change", () => filterForm.requestSubmit());
-  });
-  filterForm.querySelector("input[name='q']")?.addEventListener("input", () => {
-    window.clearTimeout(searchTimer);
-    searchTimer = window.setTimeout(() => filterForm.requestSubmit(), 500);
   });
 }
 

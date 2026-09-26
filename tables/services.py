@@ -662,43 +662,92 @@ def close_table_account(*, account, cleaned_data, closed_by):
 @transaction.atomic
 def split_and_close_table_account(*, account, splits, responsible_waiter, closed_by):
     # NOTA TEMPORAL PARA APRENDIZAJE: `splits` es una lista de dicts ya validados por la
-    # vista: [{"items": [TableAccountItem, ...], "payment_method": ..., "tip_amount": ...,
-    # "cash_tendered": ...}, ...]. La primera cuenta reutiliza la cuenta ya abierta; el
-    # resto se crea como cuentas nuevas de la misma mesa. Un solo mesero se acredita en
-    # todas (así se confirmó con el desarrollador) — sólo cambian método de pago, propina
-    # y efectivo por cuenta. Todo o nada: si una sola división falla su validación,
-    # ninguna se cierra. Borra esta nota después de leerla.
+    # vista: [{"item_quantities": {item_pk: cantidad, ...}, "payment_method": ...,
+    # "tip_amount": ..., "cash_tendered": ...}, ...]. La primera cuenta reutiliza la
+    # cuenta ya abierta; el resto se crea como cuentas nuevas de la misma mesa. Un solo
+    # mesero se acredita en todas (así se confirmó con el desarrollador) — sólo cambian
+    # método de pago, propina y efectivo por cuenta. Todo o nada: si una sola división
+    # falla su validación, ninguna se cierra. Borra esta nota después de leerla.
+    #
+    # NOTA TEMPORAL PARA APRENDIZAJE: un mismo artículo (mismo pk) puede repartirse en
+    # varias cuentas divididas cuando su `quantity` es mayor a 1 (dos comidas idénticas
+    # agrupadas en una sola partida) — antes esto era imposible porque sólo se podía
+    # mover la partida completa. Se permite ahora siempre que la suma de cantidades
+    # asignadas a ese pk, en todas las divisiones, coincida exactamente con su
+    # `quantity` real. Cuando una división se queda con menos que el total, esa porción
+    # se separa en una partida nueva (mismos datos, cantidad y subtotal recalculado); la
+    # partida original se reduce y termina asignándose completa a la última división que
+    # la usa, evitando crear una fila nueva quando no hace falta. Los movimientos de
+    # inventario (`StockMovement`) de esa partida original se consumen todos juntos con
+    # la primera división que se cierre — no se reparten entre las partidas nuevas; el
+    # total de inventario sigue siendo correcto, sólo la atribución de cuál cuenta
+    # disparó el consumo puede no ser exacta para las porciones separadas. Borra esta
+    # nota después de leerla.
     account = TableAccount.objects.select_for_update().get(pk=account.pk)
     if account.status != TableAccount.Status.OPEN:
         raise ValidationError("La cuenta ya fue cerrada.")
     if len(splits) < 2:
         raise ValidationError("Divide la cuenta en al menos dos partes.")
-    all_items = list(account.items.select_for_update().only(
-        "subtotal", "item_type", "is_complete", "is_package_candidate", "product_name_snapshot",
-    ))
+    all_items = list(account.items.select_for_update().all())
     _validate_items_closeable(all_items)
-    assigned_ids = set()
-    for split in splits:
-        for item in split["items"]:
-            if item.pk in assigned_ids:
-                raise ValidationError("Un artículo no puede pertenecer a más de una cuenta dividida.")
-            assigned_ids.add(item.pk)
-    if assigned_ids != {item.pk for item in all_items}:
-        raise ValidationError("Todos los artículos del ticket deben quedar asignados a alguna cuenta antes de dividir.")
+    items_by_id = {item.pk: item for item in all_items}
+    assigned_quantity = {}
+    item_portions = {item.pk: [] for item in all_items}
+    for index, split in enumerate(splits):
+        for item_pk, quantity in split["item_quantities"].items():
+            if item_pk not in items_by_id:
+                raise ValidationError("Alguno de los artículos ya no pertenece a esta cuenta.")
+            if quantity < 1:
+                raise ValidationError("La cantidad asignada debe ser mayor a cero.")
+            assigned_quantity[item_pk] = assigned_quantity.get(item_pk, 0) + quantity
+            item_portions[item_pk].append((index, quantity))
+    for item in all_items:
+        if assigned_quantity.get(item.pk, 0) != item.quantity:
+            raise ValidationError("Todos los artículos del ticket deben quedar asignados a alguna cuenta antes de dividir.")
     validate_waiter(responsible_waiter)
+
+    # NOTA TEMPORAL PARA APRENDIZAJE: una mesa sólo puede tener UNA cuenta abierta a la
+    # vez (`unique_open_account_per_table`), así que las cuentas nuevas no pueden
+    # crearse todas por adelantado — cada una se crea, recibe sus artículos y se cierra
+    # antes de crear la siguiente, igual que hacía la versión anterior de esta función.
+    # Borra esta nota después de leerla.
+    last_split_index_for_item = {
+        item_pk: max(index for index, _ in portions) for item_pk, portions in item_portions.items()
+    }
+    remaining_by_item = dict(items_by_id)
     closed_accounts = []
     for index, split in enumerate(splits):
         target_account = account if index == 0 else TableAccount.objects.create(
             table=account.table, assigned_waiter=responsible_waiter, opened_by=account.opened_by,
         )
         if index > 0:
-            TableAccountItem.objects.filter(pk__in=[item.pk for item in split["items"]]).update(account=target_account)
             record_activity(
                 account=target_account, actor=closed_by, action=TableActivity.Action.OPEN,
                 description=f"Cuenta dividida de {account.table.name}",
             )
+        split_items = []
+        for item_pk, quantity in split["item_quantities"].items():
+            remaining = remaining_by_item[item_pk]
+            if index == last_split_index_for_item[item_pk]:
+                if remaining.account_id != target_account.pk:
+                    remaining.account = target_account
+                    remaining.save(update_fields=["account"])
+                split_items.append(remaining)
+            else:
+                new_item = TableAccountItem.objects.get(pk=remaining.pk)
+                new_item.pk = None
+                new_item.id = None
+                new_item._state.adding = True
+                new_item.account = target_account
+                new_item.quantity = quantity
+                new_item.subtotal = new_item.unit_price * quantity
+                new_item.save(force_insert=True)
+                split_items.append(new_item)
+                remaining.quantity -= quantity
+                remaining.subtotal = remaining.unit_price * remaining.quantity
+                remaining.save(update_fields=["quantity", "subtotal"])
         closed_accounts.append(_finalize_account_close(
-            account=target_account, items=split["items"],
+            account=target_account, items=split_items,
             payment_method=split["payment_method"], tip_amount=split["tip_amount"],
             cash_tendered=split.get("cash_tendered"), responsible_waiter=responsible_waiter,
             closed_by=closed_by,

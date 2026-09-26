@@ -27,6 +27,7 @@ from .phones import phone_key
 
 
 ACTION_LABELS = {
+    "close_draft": "Cerrar captura y enviar al listado",
     "confirm": "Confirmar pedido",
     "cancel": "Cancelar pedido",
     "start_preparing": "Iniciar preparación",
@@ -161,15 +162,17 @@ def _move_order_stock_channel(*, order, old_type, actor):
 
 @transaction.atomic
 def create_customer_debt(*, order, actor, note=""):
-    """Move a delivered order into the ledger, completing an active delivery first."""
+    """Move an order into the ledger. Any status is eligible except Cancelado."""
     # NOTA TEMPORAL PARA APRENDIZAJE: PostgreSQL no permite FOR UPDATE sobre el lado
     # nullable de un LEFT JOIN. Bloqueamos solamente Order y leemos agenda_customer
     # después mediante una consulta normal. Borra esta nota después de leerla.
+    # NOTA TEMPORAL PARA APRENDIZAJE: antes se exigía que el pedido ya estuviera
+    # Entregado/Recogido (completando en automático un "En reparto"). El desarrollador
+    # confirmó que ya no hace falta esa exigencia — cualquier estado es elegible salvo
+    # Cancelado, sin transicionar el pedido a otro estado por sí sola. Borra esta nota.
     order = Order.objects.select_for_update().get(pk=order.pk)
-    if order.status == Order.Status.OUT_FOR_DELIVERY:
-        order = transition_order(order=order, action="complete_delivery", actor=actor)
-    if order.status not in {Order.Status.DELIVERED, Order.Status.PICKED_UP}:
-        raise ValidationError("El pedido debe estar entregado o recogido antes de dejarlo a cuenta.")
+    if order.status == Order.Status.CANCELED:
+        raise ValidationError("Un pedido cancelado no puede dejarse a cuenta.")
     if not order.agenda_customer_id:
         raise ValidationError("Vincula un cliente de la agenda antes de dejar este pedido a cuenta.")
     if hasattr(order, "customer_debt"):
@@ -885,6 +888,16 @@ def add_water_to_internal_package(*, order, water_product, actor=None):
 
 
 def available_order_actions(order):
+    # NOTA TEMPORAL PARA APRENDIZAJE: un pedido en "Capturando" normalmente sólo avanza
+    # cuando el telefonista cierra la captura desde /app/pedidos/<id>/editar/ (botón
+    # "Cerrar captura y enviar al listado"), que corre sus propias validaciones
+    # (artículos, cliente, fecha/hora, domicilio, forma de pago). Si un pedido se queda
+    # varado en Capturando, este mismo botón queda disponible como acción rápida desde
+    # Caja/Repartos — transition_order() llama a close_internal_order_capture() para
+    # esta acción específica, en vez del mapa genérico de transiciones, así nunca se
+    # salta esa validación. Borra esta nota después de leerla.
+    if order.status == Order.Status.DRAFT:
+        return ("close_draft",)
     if order.status == Order.Status.PENDING_CONFIRMATION:
         return ("confirm", "cancel")
     if order.status in {Order.Status.CONFIRMED, Order.Status.SCHEDULED}:
@@ -1071,6 +1084,12 @@ def transition_order(*, order, action, actor=None):
         raise ValidationError("Sólo un administrador puede reiniciar el ciclo del pedido.")
     if action == "cancel" and not user_has_any_role(actor, (ADMIN,)):
         raise ValidationError("Sólo un administrador puede cancelar pedidos.")
+    if action == "close_draft":
+        # NOTA TEMPORAL PARA APRENDIZAJE: reutiliza exactamente la misma validación que
+        # ya corre el botón "Cerrar captura y enviar al listado" de la captura interna
+        # (artículos, cliente, fecha/hora, domicilio, forma de pago) — nunca el mapa
+        # genérico de abajo, que no sabe nada de esos requisitos. Borra esta nota.
+        return close_internal_order_capture(order=order, actor=actor)
     transitions = {
         (Order.Status.PENDING_CONFIRMATION, "cancel"): Order.Status.CANCELED,
         (Order.Status.CONFIRMED, "start_preparing"): Order.Status.PREPARING,

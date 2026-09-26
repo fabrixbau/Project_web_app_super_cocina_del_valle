@@ -247,7 +247,7 @@ def table_map(request):
             "accounts",
             queryset=TableAccount.objects.filter(status=TableAccount.Status.OPEN).select_related(
                 "assigned_waiter", "opened_by",
-            ),
+            ).annotate(current_total=Sum("items__subtotal")),
             to_attr="open_accounts",
         )
     )
@@ -942,12 +942,16 @@ def table_split_close(request, account_id):
     splits = []
     try:
         for raw in raw_splits:
-            item_ids = raw.get("item_ids") or []
-            if not item_ids:
+            raw_items = raw.get("items") or []
+            if not raw_items:
                 return JsonResponse({"ok": False, "error": "Cada cuenta dividida debe tener al menos un artículo."}, status=400)
-            items = list(TableAccountItem.objects.filter(pk__in=item_ids, account=account))
-            if len(items) != len(set(item_ids)):
-                return JsonResponse({"ok": False, "error": "Alguno de los artículos ya no pertenece a esta cuenta."}, status=400)
+            item_quantities = {}
+            for raw_item in raw_items:
+                item_pk = int(raw_item.get("item_id"))
+                quantity = int(raw_item.get("quantity"))
+                if quantity < 1:
+                    raise ValueError("La cantidad asignada debe ser mayor a cero.")
+                item_quantities[item_pk] = item_quantities.get(item_pk, 0) + quantity
             payment_method = raw.get("payment_method")
             if payment_method not in valid_methods:
                 return JsonResponse({"ok": False, "error": "Selecciona la forma de pago de cada cuenta dividida."}, status=400)
@@ -958,7 +962,7 @@ def table_split_close(request, account_id):
             if payment_method == TableAccount.PaymentMethod.CASH and raw.get("cash_tendered") not in (None, ""):
                 cash_tendered = Decimal(str(raw.get("cash_tendered")))
             splits.append({
-                "items": items, "payment_method": payment_method,
+                "item_quantities": item_quantities, "payment_method": payment_method,
                 "tip_amount": tip_amount, "cash_tendered": cash_tendered,
             })
     except (InvalidOperation, TypeError, ValueError):

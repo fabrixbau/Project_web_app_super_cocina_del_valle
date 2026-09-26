@@ -281,7 +281,7 @@ html[data-theme="dark"] .active-operator { color: #102d24; background: #f4f0e5; 
   align-content: start !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  overscroll-behavior-y: contain;
+  overscroll-behavior-y: auto;
 }
 .table-pos-layout .table-ticket .table-ticket-item {
   display: grid !important;
@@ -332,7 +332,6 @@ html[data-theme="dark"] .active-operator { color: #102d24; background: #f4f0e5; 
     top: auto !important;
     display: flex !important;
     width: 100% !important;
-    height: calc(100dvh - 1rem) !important;
     min-height: 0 !important;
     max-height: calc(100dvh - 1rem) !important;
     overflow-x: hidden !important;
@@ -442,9 +441,6 @@ html[data-theme="dark"] .active-operator { color: #102d24; background: #f4f0e5; 
     margin: 0 !important;
     box-sizing: border-box !important;
   }
-  .internal-live-ticket > .internal-ticket-actions {
-    padding-bottom: .6rem !important;
-  }
 }
 
 /* Prioridad definitiva de Pedidos para tablet horizontal. */
@@ -454,7 +450,6 @@ html[data-theme="dark"] .active-operator { color: #102d24; background: #f4f0e5; 
     top: 1rem !important;
     display: flex !important;
     width: 100% !important;
-    height: calc(100dvh - 4rem) !important;
     min-height: 0 !important;
     max-height: calc(100dvh - 4rem) !important;
     flex-direction: column !important;
@@ -474,7 +469,7 @@ html[data-theme="dark"] .active-operator { color: #102d24; background: #f4f0e5; 
     align-content: start !important;
     overflow-x: hidden !important;
     overflow-y: auto !important;
-    overscroll-behavior-y: contain !important;
+    overscroll-behavior-y: auto !important;
     touch-action: pan-y !important;
   }
   .internal-live-ticket .internal-ticket-item {
@@ -565,10 +560,6 @@ html[data-theme="dark"] .active-operator { color: #102d24; background: #f4f0e5; 
     max-width: 100% !important;
     margin: 0 !important;
     box-sizing: border-box !important;
-  }
-  .internal-live-ticket > .internal-ticket-actions {
-    flex: 0 0 auto !important;
-    padding-bottom: .65rem !important;
   }
 }
 
@@ -579,7 +570,6 @@ html[data-theme="dark"] .active-operator { color: #102d24; background: #f4f0e5; 
     top: 1rem !important;
     display: flex !important;
     width: 100% !important;
-    height: calc(100dvh - 4rem) !important;
     min-height: 0 !important;
     max-height: calc(100dvh - 4rem) !important;
     flex-direction: column !important;
@@ -599,7 +589,7 @@ html[data-theme="dark"] .active-operator { color: #102d24; background: #f4f0e5; 
     align-content: start !important;
     overflow-x: hidden !important;
     overflow-y: auto !important;
-    overscroll-behavior-y: contain !important;
+    overscroll-behavior-y: auto !important;
     touch-action: pan-y !important;
     -webkit-overflow-scrolling: touch;
   }
@@ -694,10 +684,6 @@ html[data-theme="dark"] .active-operator { color: #102d24; background: #f4f0e5; 
     max-width: 100% !important;
     margin: 0 !important;
     box-sizing: border-box !important;
-  }
-  .internal-live-ticket > .internal-ticket-actions {
-    flex: 0 0 auto !important;
-    padding-bottom: .65rem !important;
   }
 }
 
@@ -709,12 +695,12 @@ html[data-theme="dark"] .delivery-person-filter { color: #e7efea; border-color: 
 html[data-theme="dark"] .delivery-search-filter { color: #e7efea; background: transparent; }
 html[data-theme="dark"] .delivery-search-filter input { color: #ecf3ef; border-color: #50695c; background: #101a15; }
 html[data-theme="dark"] .delivery-status-filter span,
-html[data-theme="dark"] .delivery-person-filter span,
+html[data-theme="dark"] .delivery-person-options span,
 html[data-theme="dark"] .delivery-person-buttons button,
 html[data-theme="dark"] .delivery-payment-buttons button,
 html[data-theme="dark"] .delivery-cash-amount-buttons button { color: #dce9e2; border-color: #587467; background: #213029; }
 html[data-theme="dark"] .delivery-status-filter label:has(input:checked) span,
-html[data-theme="dark"] .delivery-person-filter label:has(input:checked) span,
+html[data-theme="dark"] .delivery-person-options label:has(input:checked) span,
 html[data-theme="dark"] .delivery-person-buttons button.is-selected,
 html[data-theme="dark"] .delivery-payment-buttons button.is-selected,
 html[data-theme="dark"] .delivery-cash-amount-buttons button.is-selected { color: #18241e; border-color: #e2ad36; background: #e2ad36; }
@@ -897,6 +883,7 @@ a { color: #285943; }
 .message { padding: .75rem 1rem; border-radius: .4rem; background: #e0eddf; }
 .message.error { background: #f7d9d7; }
 .danger { background: #a12622; }
+.warning { background: #b66a2d; }
 .daily-menu-row { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
 .action-group { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
 .action-group form { margin: 0; }
@@ -1241,12 +1228,21 @@ devuelve overflow:visible sólo a esta sección. Borra esta nota al leerla. */
 @media (max-width: 580px) { .public-mode-buttons, .public-daily-board > div { grid-template-columns: 1fr; } .public-menu-heading { align-items: stretch; flex-direction: column; } }
 .error { color: #a12622; }
 .public-home { text-align: center; padding-top: 15vh; }
-.delivery-grid { display: grid; grid-template-columns: 1fr; gap: .65rem; }
+.delivery-grid { display: grid; grid-template-columns: 1fr; gap: 1.1rem; }
+/* Frontera de ficha bien marcada: antes el borde del `.card` base (1px, muy pálido)
+   se confundía con las líneas internas entre secciones (Cobro/Entrega/etc.), y en
+   tablet/celular no quedaba claro dónde empezaba o terminaba cada pedido. El acento
+   grueso a la izquierda + sombra marca la ficha completa de un vistazo, separada de
+   sus divisiones internas. */
+.delivery-card { border: 2px solid #b9cdc0; border-left: 8px solid #285943; background: #fdfcf8; box-shadow: 0 5px 16px rgb(25 54 43 / 10%); }
 .delivery-card { display: grid; grid-template-columns: 1.05fr 1.2fr 1.05fr 1.6fr minmax(145px, .75fr); gap: .9rem; align-items: center; min-height: 165px; }
 .delivery-card p { margin: .35rem 0; }
 .delivery-summary, .delivery-address, .delivery-assignment, .delivery-row-action { min-width: 0; }
 .delivery-row-action { display: grid; gap: .45rem; }
 .delivery-row-action form, .delivery-row-action button { width: 100%; margin: 0; }
+.delivery-quick-status { display: grid; gap: .3rem; padding: .5rem; border: 1px dashed #b8935a; border-radius: .6rem; background: #fff8ec; }
+.delivery-quick-status > strong { color: #7e3f14; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; }
+.delivery-quick-status form, .delivery-quick-status button { width: 100%; margin: 0; }
 .delivery-title { display: flex; justify-content: space-between; gap: 1rem; align-items: start; }
 .delivery-title h3 { margin-top: 0; }
 .delivery-payment { padding: .75rem; border-radius: .5rem; background: #f5f2e9; }
@@ -1323,6 +1319,9 @@ devuelve overflow:visible sólo a esta sección. Borra esta nota al leerla. */
 .delivery-filters { display: grid; grid-template-columns: minmax(280px, .9fr) minmax(390px, 1.35fr); gap: .7rem; align-items: stretch; }
 .delivery-search-filter { display: grid; gap: .35rem; align-content: center; padding: .65rem; border: 1px solid #d8e0db; border-radius: .75rem; background: #fafcfa; font-weight: 800; }
 .delivery-search-filter input { min-height: 3.05rem; border: 1px solid #b9c9c0; border-radius: .62rem; background: #fff; }
+.delivery-date-row { display: flex; gap: .6rem; }
+.delivery-date-row label { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; gap: .3rem; font-weight: 800; }
+.delivery-date-row input { min-width: 0; border: 1px solid #b9c9c0; border-radius: .62rem; background: #fff; }
 .delivery-person-filter,
 .delivery-status-filter { min-width: 0; margin: 0; padding: .65rem; border: 1px solid #d8e0db; border-radius: .75rem; background: #fafcfa; }
 .delivery-person-filter { grid-column: 2; grid-row: 1; }
@@ -1330,10 +1329,10 @@ devuelve overflow:visible sólo a esta sección. Borra esta nota al leerla. */
 .delivery-person-filter legend,
 .delivery-status-filter legend { padding: 0 .32rem; color: #315748; font-size: .74rem; font-weight: 850; }
 .delivery-person-filter > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: .4rem; }
-.delivery-person-filter label { position: relative; min-width: 0; }
-.delivery-person-filter input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.delivery-person-filter span { display: grid; min-height: 2.75rem; padding: .45rem .6rem; place-items: center; border: 2px solid #bfd0c7; border-radius: .58rem; color: #245b46; background: #fff; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; font-size: .75rem; font-weight: 800; }
-.delivery-person-filter label:has(input:checked) span { border-color: #28644e; color: #fff; background: #28644e; box-shadow: 0 3px 9px rgb(25 57 44 / 15%); }
+.delivery-person-options label { position: relative; min-width: 0; }
+.delivery-person-options input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.delivery-person-options span { display: grid; min-height: 2.75rem; padding: .45rem .6rem; place-items: center; border: 2px solid #bfd0c7; border-radius: .58rem; color: #245b46; background: #fff; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; font-size: .75rem; font-weight: 800; }
+.delivery-person-options label:has(input:checked) span { border-color: #28644e; color: #fff; background: #28644e; box-shadow: 0 3px 9px rgb(25 57 44 / 15%); }
 .delivery-results-heading { display: flex; justify-content: space-between; gap: 1rem; align-items: center; margin: 1.15rem 0 .65rem; }
 .delivery-results-heading h2 { margin: .1rem 0 0; color: #173c2f; font-size: 1.35rem; }
 .delivery-results-heading > strong { display: grid; min-width: 2.5rem; height: 2.5rem; padding: 0 .6rem; place-items: center; border-radius: 999px; color: #245b46; background: #e3eee8; }
@@ -1644,6 +1643,15 @@ después de leerla. */
 .table-ticket-items { display: grid; gap: .65rem; }
 .table-ticket-item { display: grid; grid-template-columns: 1fr auto; gap: .5rem; padding-bottom: .7rem; border-bottom: 1px solid #d9d4c7; }
 .table-ticket-item small { display: block; color: #52685e; }
+/* Pedidos (escritorio/tablet horizontal): el panel de ticket tiene una altura mínima
+   para no verse vacío con pocos artículos, pero eso estiraba el único renglón de la
+   cuadrícula a ocupar toda esa altura — y dentro del artículo, la fila de los botones
+   −/+/×/Nota heredaba ese estiramiento, quedando centrada muy por debajo del producto.
+   Mesas ya tenía este mismo arreglo (`.table-pos-layout ...`); nunca se replicó aquí.
+   En celular no se notaba porque esas mismas propiedades sí se fijaban aparte en los
+   `@media` angostos de abajo. Borra esta nota después de leerla. */
+.internal-live-ticket > .table-ticket-items { align-content: start; }
+.internal-live-ticket .internal-ticket-item { align-items: start; grid-auto-rows: max-content; }
 .ticket-package-edit { display: flex; gap: .45rem; align-items: center; padding: 0; color: #285943; background: transparent; text-align: left; }
 .ticket-package-edit:hover { text-decoration: underline; }
 .incomplete-badge { display: inline-block; padding: .2rem .45rem; border-radius: 999px; color: #6f3f24; background: #f4c95d; font-size: .75rem; font-weight: 900; }
@@ -1653,10 +1661,33 @@ después de leerla. */
 .quantity-buttons span { min-width: 2rem; text-align: center; font-weight: 800; }
 .table-ticket-total { display: flex; justify-content: space-between; margin-top: 1rem; padding-top: 1rem; border-top: 3px solid #285943; font-size: 1.4rem; }
 .ticket-print-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-top: .75rem; }
-.ticket-print-actions a { padding: .65rem .45rem; border: 2px solid #285943; border-radius: .55rem; color: #174c3a; background: #fff; font-weight: 850; text-align: center; text-decoration: none; }
+.ticket-print-actions a { display: flex; align-items: center; justify-content: center; padding: .65rem .45rem; border: 2px solid #285943; border-radius: .55rem; color: #174c3a; background: #fff; font-weight: 600; text-align: center; text-decoration: none; }
 .ticket-print-actions a:first-child { color: #fff; background: #7e4324; border-color: #7e4324; }
 .ticket-print-actions .ticket-print-custom { grid-column: 1 / -1; color: #713712; background: #fff4dc; border-color: #c56a2d; }
 .ticket-print-actions.is-disabled a { opacity: .45; pointer-events: none; }
+/* Pedidos: nota general, guardar/cerrar e imprimir arriba del ticket, en una sola
+   cuadrícula de 3 columnas × 2 filas (fila 1: nota, guardar, cerrar; fila 2: los tres
+   de imprimir) — .ticket-print-actions pasa a "display: contents" para que sus tres
+   enlaces participen como celdas de esta misma cuadrícula en vez de la suya propia. */
+.internal-ticket-quick-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; margin: .6rem 0; }
+.internal-ticket-quick-actions > button,
+.internal-ticket-quick-actions .ticket-print-actions a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.3rem;
+  margin: 0;
+  padding: .4rem .3rem;
+  font-size: .72rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.15;
+}
+.internal-ticket-quick-actions > .secondary-action { background: #fff; color: #174c3a; border: 2px solid #174c3a; }
+.internal-ticket-quick-actions > .ticket-general-note-button { width: auto; margin: 0; }
+.internal-ticket-quick-actions .ticket-print-actions { display: contents; }
+.internal-ticket-quick-actions .ticket-print-actions .ticket-print-custom { grid-column: auto; }
+.internal-ticket-actions-hint { display: block; margin: -.2rem 0 .3rem; color: #5d6d66; text-align: center; }
 .kitchen-print-selection { max-width: 980px; margin-inline: auto; }
 .selection-toolbar { display: flex; gap: .65rem; margin-bottom: 1rem; }
 .selection-list { display: grid; gap: .65rem; margin-bottom: 1rem; }
@@ -1669,7 +1700,7 @@ después de leerla. */
 @media (max-width: 640px) { .selection-row { grid-template-columns: auto 1fr; } .selection-quantity { grid-column: 2; } }
 .registered-consumptions p { display: flex; justify-content: space-between; gap: 1rem; padding-bottom: .5rem; border-bottom: 1px solid #d9d4c7; }
 .ticket-next-step, .empty-ticket { color: #52685e; }
-.table-close-launcher, .confirm-close-button { width: 100%; margin-top: 1rem; padding: .9rem; font-weight: 800; }
+.table-close-launcher, .confirm-close-button { display: flex; align-items: center; justify-content: center; width: 100%; margin-top: 1rem; padding: .9rem; font-weight: 600; text-align: center; }
 .table-close-dialog { width: min(580px, calc(100% - 2rem)); max-height: 90vh; padding: 1.25rem; border: 0; border-radius: 1rem; overflow: auto; }
 .table-close-dialog::backdrop { background: rgb(20 25 21 / 65%); }
 
@@ -1678,7 +1709,7 @@ aislado a propósito, para no pelear con el layout ya delicado del diálogo de c
 normal. Reutiliza las clases de botones de método de pago/efectivo/propina que ya
 existen (.cashier-payment-buttons, .cash-quick-buttons, .tip-quick-buttons,
 .cash-selection-error) en vez de duplicar esos estilos. Borra esta nota después de leerla. */
-.table-split-launcher { width: 100%; min-height: 68px; margin-top: .6rem; padding: .65rem .8rem; border: 2px solid #b8cbbf; border-radius: .8rem; color: #174c3a; background: #fff; font-weight: 800; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
+.table-split-launcher { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 68px; margin-top: .6rem; padding: .65rem .8rem; border: 2px solid #b8cbbf; border-radius: .8rem; color: #174c3a; background: #fff; font-weight: 600; text-align: center; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
 .table-split-launcher:hover { border-color: #28644e; background: #eef6f1; transform: translateY(-1px); }
 .table-split-account-card .cash-quick-buttons { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .table-split-dialog { width: min(1100px, calc(100% - 2rem)); max-height: 92vh; padding: 1.5rem; border: 0; border-radius: 1rem; overflow-y: auto; }
@@ -1850,6 +1881,20 @@ nota después de leerla. */
 .customer-data-panel h2, .customer-data-panel h3 { margin: 0; color: #173f32; }
 .customer-data-panel header p { margin: .2rem 0 0; color: #61716a; }
 .customer-data-panel header button { min-width: 2.8rem; min-height: 2.8rem; padding: .25rem; background: #fff; color: #173f32; border: 2px solid #173f32; font-size: 1.4rem; }
+.customer-data-panel header button[aria-label="Cerrar panel"] { color: #a12622; border-color: #a12622; }
+.customer-panel-header-actions { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.customer-data-panel .customer-panel-header-clear,
+.customer-data-panel .customer-panel-header-save {
+  min-width: 0;
+  min-height: 2.8rem;
+  padding: .5rem .9rem;
+  border-radius: .5rem;
+  font-size: .8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.customer-data-panel .customer-panel-header-clear { background: #fff; color: #a12622; border: 2px solid #a12622; }
+.customer-data-panel .customer-panel-header-save { background: #fff; color: #174c3a; border: 2px solid #174c3a; }
 .delivery-data-panel { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #cbd8d1; }
 .delivery-data-panel[hidden] { display: none !important; }
 .delivery-data-panel h3 { margin-bottom: .7rem; }
@@ -1857,11 +1902,9 @@ nota después de leerla. */
 .customer-notes-field textarea { width: 100%; }
 .customer-panel-actions { display: flex; gap: .6rem; justify-content: flex-end; margin-top: .8rem; }
 .autosave-state { margin-right: auto; align-self: center; color: #587066; font-size: .9rem; font-weight: 750; }
-.customer-panel-actions button { min-height: 3rem; font-weight: 800; }
-.customer-panel-actions .secondary-action { background: #fff; color: #174c3a; border: 2px solid #174c3a; }
 .internal-menu-workspace { display: grid; gap: 1rem; }
 .internal-menu-workspace .catalog-search-box { position: static; }
-.internal-live-ticket { position: sticky; top: 1rem; display: block; width: auto; max-height: calc(100dvh - 2rem); overflow-y: auto; overscroll-behavior: contain; }
+.internal-live-ticket { position: sticky; top: 1rem; display: block; width: auto; max-height: calc(100dvh - 2rem); overflow-y: auto; overscroll-behavior: auto; }
 .internal-live-ticket .table-ticket-items { max-height: none; overflow: visible; }
 .internal-live-ticket h2 { display: flex; justify-content: space-between; }
 .internal-live-ticket h2 small { font-size: .8rem; color: #52685e; }
@@ -1877,10 +1920,6 @@ nota después de leerla. */
 .internal-order-section .section-help { margin-top: -.55rem; color: #597068; }
 .payment-capture-card { border-top-color: #d29524; }
 .cash-internal-fields .cash-title { grid-column: 1 / -1; color: #173f32; }
-.internal-ticket-actions { display: grid; gap: .55rem; margin-top: 1rem; }
-.internal-ticket-actions button { min-height: 3.35rem; font-weight: 850; }
-.internal-ticket-actions .secondary-action { background: #fff; color: #174c3a; border: 2px solid #174c3a; }
-.internal-ticket-actions small { color: #5d6d66; text-align: center; }
 .ticket-payment-summary { display: flex; justify-content: space-between; gap: 1rem; margin: .65rem 0; color: #53665e; }
 .ticket-cash-source { display: flex; justify-content: space-between; gap: 1rem; margin: .65rem 0; color: #53665e; }
 .ticket-cash-source[hidden] { display: none !important; }
@@ -1921,7 +1960,7 @@ y el verde confirma acciones terminadas. Borra esta nota después de leerla. */
 .cashier-back-link:hover { border-color: #28644e; background: #edf4f0; }
 .cashier-tools { display: grid; grid-template-columns: auto repeat(5, minmax(0, 1fr)); gap: .55rem; align-items: center; padding: .65rem; border: 1px solid #d8d8cd; border-radius: 1rem; background: #fff; box-shadow: 0 5px 16px rgb(25 57 44 / 5%); }
 .cashier-tools > span { padding: 0 .55rem; color: #68756f; font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.cashier-tools a { display: flex; min-height: 2.85rem; align-items: center; justify-content: center; padding: .55rem .7rem; border-radius: .6rem; color: #fff; background: #28644e; text-align: center; text-decoration: none; font-size: .86rem; font-weight: 750; transition: background .16s ease, transform .16s ease; }
+.cashier-tools a { display: flex; min-height: 2.85rem; align-items: center; justify-content: center; padding: .55rem .7rem; border-radius: .6rem; color: #fff; background: #28644e; text-align: center; text-decoration: none; font-size: .86rem; font-weight: 600; transition: background .16s ease, transform .16s ease; }
 .cashier-tools a:hover { background: #173f31; transform: translateY(-1px); }
 .cashier-filter-card { margin-bottom: 1.25rem; padding: 1rem 1.15rem; border-radius: 1rem; box-shadow: 0 5px 16px rgb(25 57 44 / 5%); }
 .cashier-filters { display: grid; grid-template-columns: minmax(280px, 1.7fr) repeat(3, minmax(155px, .8fr)); gap: .9rem; }
@@ -2097,7 +2136,7 @@ nota después de leerla. */
 .customer-debt-overview { margin-bottom: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; justify-content: space-between; }
 .customer-debt-mini-list { flex-basis: 100%; }
 .cashier-unpaid-quick { margin-bottom: 1rem; padding: 0; overflow: hidden; border: 1px solid #d8d1c2; border-left: 5px solid #d69a28; border-radius: 1rem; background: linear-gradient(105deg, #fffdf7 0%, #fff 54%); box-shadow: 0 5px 16px rgb(25 57 44 / 5%); }
-.cashier-unpaid-quick summary { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.15rem; cursor: pointer; color: #183f31; background: #fff; font-weight: 900; list-style: none; }
+.cashier-unpaid-quick summary { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.15rem; cursor: pointer; color: #183f31; background: #fff; font-weight: 600; list-style: none; }
 .cashier-unpaid-quick summary::-webkit-details-marker { display: none; }
 .cashier-unpaid-quick summary::before { content: "+"; display: grid; flex: 0 0 1.75rem; width: 1.75rem; height: 1.75rem; place-items: center; border-radius: 50%; color: #fff; background: #28644e; }
 .cashier-unpaid-quick[open] summary::before { content: "−"; }
@@ -2255,7 +2294,7 @@ Borra esta nota después de revisar el diseño. */
 .duplicate-phone-warning button { margin-left: .25rem; padding: .3rem .5rem; background: #24634d; color: #fff; font-size: .82rem; }
 .order-total-breakdown { display: grid; gap: .2rem; align-content: center; }
 .order-total-breakdown small { color: #72521c; font-weight: 750; }
-.ticket-general-note-button { width: 100%; margin: .35rem 0; padding: .55rem; border: 2px solid #b66a2d; background: #fff7ee; color: #7e3f14; font-weight: 850; }
+.ticket-general-note-button { width: 100%; margin: .35rem 0; padding: .55rem; border: 2px solid #b66a2d; background: #fff7ee; color: #7e3f14; font-weight: 600; }
 .ticket-general-note { margin: .35rem 0 .7rem; padding: .55rem; border-left: 4px solid #b66a2d; background: #fff7ee; color: #653515; font-size: .9rem; }
 .ticket-general-note[hidden] { display: none !important; }
 .internal-live-ticket article .ticket-item-note-button { padding-inline: .65rem; background: #fff; color: #174c3a; border: 2px solid #24634d; font-size: .78rem; font-weight: 850; }
@@ -2318,14 +2357,14 @@ html[data-theme="dark"] .ticket-note-cancel { color: #e4ede8; border-color: #5b7
 .table-map-actions { justify-content: flex-end; }
 .table-map-back { display: inline-flex; min-height: 2.9rem; align-items: center; gap: .42rem; padding: .62rem .85rem; border: 1px solid #b9c9c0; border-radius: .68rem; color: #245b46; background: #fff; text-decoration: none; font-size: .86rem; font-weight: 750; }
 .table-map-back:hover { border-color: #28644e; background: #edf4f0; }
-.table-map { gap: 1rem; height: calc(100dvh - 270px); max-height: 600px; }
+.table-map { gap: 1rem; height: calc(100dvh - 235px); min-height: 545px; max-height: 620px; }
 .table-tile { position: relative; border: 1px solid; border-radius: 1rem; box-shadow: 0 5px 16px rgb(25 54 43 / 8%); transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
 .table-tile::before { content: ""; position: absolute; z-index: 1; inset: 0 0 auto; height: 5px; background: currentColor; }
 .table-tile:hover { box-shadow: 0 13px 28px rgb(25 54 43 / 14%); transform: translateY(-2px); }
 .table-tile.available { color: #2d7656; border-color: #a8c8b7; background: linear-gradient(145deg, #f9fcfa 0%, #e8f3ed 100%); }
 .table-tile.occupied { color: #a95334; border-color: #d5a28f; background: linear-gradient(145deg, #fffaf7 0%, #f8e8e0 100%); }
 .table-tile form { position: relative; z-index: 2; gap: .55rem; padding: 1rem; }
-.table-main-action { position: relative; z-index: 2; gap: .55rem; padding: 1rem; color: #173126; }
+.table-main-action { position: relative; z-index: 2; gap: .55rem; padding: 1.4rem 1.1rem; color: #173126; }
 .table-main-action:hover, .table-main-action:focus-visible { background: rgb(255 255 255 / 58%); outline: none; }
 .table-number, .table-waiter-form .table-number { color: #173c2f; font-size: clamp(1.7rem, 2.6vw, 2.35rem); font-weight: 800; letter-spacing: -.035em; }
 .table-state { display: inline-flex; align-items: center; gap: .45rem; padding: .38rem .72rem; color: #245b46; background: #fff; box-shadow: 0 2px 7px rgb(25 54 43 / 7%); font-size: .8rem; }
@@ -2333,10 +2372,22 @@ html[data-theme="dark"] .ticket-note-cancel { color: #e4ede8; border-color: #5b7
 .table-tile.occupied .table-state { color: #8f3f28; }
 .table-tile.occupied .table-state::before { background: #c35e3d; }
 .table-waiter-form > small, .table-main-action > small { color: #66736d; }
+.table-tile-total { font-size: 1.35rem; font-weight: 800; color: #8f3f28; }
 .waiter-choice-buttons { gap: .5rem; width: 100%; }
 .waiter-choice-buttons button { min-height: 2.7rem; border: 1px solid #28644e; border-radius: .62rem; background: #28644e; box-shadow: 0 2px 5px rgb(25 54 43 / 9%); transition: background .16s ease, transform .16s ease; }
 .waiter-choice-buttons button:hover { background: #173f31; transform: translateY(-1px); }
-.table-tile.occupied .table-main-action strong { margin-top: .15rem; padding: .62rem .9rem; border-radius: .62rem; background: #9b4931; box-shadow: 0 3px 8px rgb(123 56 37 / 16%); }
+/* NOTA TEMPORAL PARA APRENDIZAJE: el padding de `.table-main-action` (arriba) no tenía
+   ningún efecto visible en escritorio porque el contenedor usa `justify-content: center`
+   con `height: 100%` (fijo por la mesa) — cuando el contenido se centra dentro de una
+   altura fija, aumentar el padding arriba/abajo no cambia el hueco visible: el espacio
+   "extra" que el centrado reparte ya absorbe justo lo que el padding le quita, y el
+   resultado es matemáticamente el mismo hueco de antes (por eso el cambio anterior no
+   se notó). Para que el padding sí controle el hueco real, se cambia el acomodo a
+   `flex-start` sólo para la ficha ocupada, y se usa `margin-top: auto` en el botón
+   "Continuar ticket" para empujarlo hasta el fondo (el truco estándar de flexbox para
+   fijar el último elemento abajo sin centrar todo lo demás). Borra esta nota al leerla. */
+.table-tile.occupied .table-main-action { justify-content: flex-start; }
+.table-tile.occupied .table-main-action strong { margin-top: auto; padding: .62rem .9rem; border-radius: .62rem; background: #9b4931; box-shadow: 0 3px 8px rgb(123 56 37 / 16%); }
 @media (max-width: 1000px) { .table-map { height: auto; max-height: none; grid-template-columns: repeat(3, minmax(150px, 1fr)); grid-template-rows: none; } .table-tile { grid-row: auto !important; grid-column: auto !important; min-height: 220px; } .table-map-actions { justify-content: flex-start; } }
 @media (max-width: 620px) { .table-map { grid-template-columns: repeat(2, minmax(130px, 1fr)); } .table-tile { min-height: 205px; } .table-map-actions > * { flex: 1 1 100%; } .table-map-back, .table-map-actions .button-link { justify-content: center; } }
 @media (max-width: 420px) { .table-map { grid-template-columns: 1fr; } }
@@ -3336,6 +3387,13 @@ button { font-family: "Poppins", "Segoe UI Variable", "Aptos", "Segoe UI", syste
 .visual-package-dialog form[data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(2) { grid-column: 1; grid-row: 2; }
 .visual-package-dialog form[data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) { grid-column: 2; grid-row: 1 / span 2; }
 .visual-package-dialog form[data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) .package-choice-grid { grid-template-columns: repeat(4, minmax(105px, 1fr)); }
+/* Ejecutiva en Mesas (escritorio): "Agua del día" caía en la misma celda que
+   Segundo tiempo (columna 1, fila 2) y lo tapaba por completo — el arreglo para
+   móvil (<900px) ya resolvía esto, pero nunca se agregó el equivalente de
+   escritorio. Se abre una tercera fila sólo para el agua, y el tercer tiempo/
+   plancha crece para seguir ocupando toda la altura de la columna. */
+.table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) { grid-row: 1 / span 3; }
+.table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups > .table-package-visual-extras .table-water-choice { grid-column: 1; grid-row: 3; }
 @media (max-width: 1050px) {
   .visual-package-dialog form[data-package-kind="executive"] .package-visual-groups { grid-template-columns: 1fr; grid-template-rows: none; }
   .visual-package-dialog form[data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(1),
@@ -3400,12 +3458,12 @@ html[data-theme="dark"] .delivery-card,
 html[data-theme="dark"] .delivery-card > section { color: #e8f0eb; border-color: #435b4f; background: #1b2922; }
 html[data-theme="dark"] .delivery-search-filter input { color: #eef4f1; background: #101a15; }
 html[data-theme="dark"] .delivery-status-filter span,
-html[data-theme="dark"] .delivery-person-filter span,
+html[data-theme="dark"] .delivery-person-options span,
 html[data-theme="dark"] .delivery-person-buttons button,
 html[data-theme="dark"] .delivery-payment-buttons button,
 html[data-theme="dark"] .delivery-cash-amount-buttons button { color: #e4ece7; border-color: #597568; background: #213129; }
 html[data-theme="dark"] .delivery-status-filter label:has(input:checked) span,
-html[data-theme="dark"] .delivery-person-filter label:has(input:checked) span,
+html[data-theme="dark"] .delivery-person-options label:has(input:checked) span,
 html[data-theme="dark"] .delivery-payment-buttons button.is-selected,
 html[data-theme="dark"] .delivery-cash-amount-buttons button.is-selected,
 html[data-theme="dark"] .delivery-person-buttons button.is-selected { color: #17231d; border-color: #e3ad35; background: #e3ad35; }
@@ -3453,7 +3511,8 @@ input[type="submit"],
 input[type="reset"],
 .button-link,
 .cashier-tools a,
-.cashier-tools summary {
+.cashier-tools summary,
+.ticket-print-actions a {
   font-family: "Nunito Sans", "Segoe UI Variable", "Aptos", "Segoe UI", system-ui, sans-serif;
 }
 
@@ -6073,6 +6132,36 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 }
 .internal-live-ticket > .current-ticket-heading > span strong { margin-right: .12rem; }
 
+/* NOTA TEMPORAL PARA APRENDIZAJE: este mismo encabezado compacto ("Ticket" + "N artículos"
+   en una sola línea, pegado) ya existía arriba para Pedidos (`.internal-live-ticket`), pero
+   nunca se replicó para Mesas. Sin esta regla, `.current-ticket-heading` en Mesas no tiene
+   ningún `display` propio, así que el navegador usa el comportamiento por defecto: el `<h2>`
+   "Ticket" es un elemento de bloque con margen superior/inferior propio del navegador
+   (~0.83em), y el `<span>` "N artículos" queda forzado a su propia línea debajo. Eso se ve
+   sobre todo en escritorio porque ahí el `<h2>` hereda un tamaño de fuente mayor, agrandando
+   ese margen por defecto; en pantallas angostas el texto es más pequeño y el hueco pasa
+   menos desapercibido. Se replica aquí el mismo criterio: flex en una línea, sin márgenes
+   de navegador. Borra esta nota al leerla. */
+.table-pos-layout .table-ticket > .current-ticket-heading {
+  display: flex;
+  justify-content: flex-start;
+  align-items: baseline;
+  gap: .5rem;
+  margin: 0 0 .45rem;
+}
+.table-pos-layout .table-ticket > .current-ticket-heading h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.1;
+}
+.table-pos-layout .table-ticket > .current-ticket-heading > span {
+  margin: 0;
+  color: #53665e;
+  font-size: .72rem;
+  white-space: nowrap;
+}
+.table-pos-layout .table-ticket > .current-ticket-heading > span strong { margin-right: .12rem; }
+
 @media (max-width: 900px) {
   .internal-live-ticket > .current-ticket-heading {
     gap: .35rem;
@@ -6309,6 +6398,7 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
     padding: 0;
     border: 0;
     box-shadow: none;
+    overflow: visible;
   }
   .cashier-page-header .cashier-unpaid-quick > summary {
     display: grid;
@@ -6331,8 +6421,12 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
     background: #fff;
     box-shadow: 0 14px 30px rgb(20 57 44 / 20%);
   }
-  .cashier-page-header .cashier-unpaid-quick > form { top: calc(100% + .35rem); }
-  .cashier-page-header .cashier-unpaid-quick > small { top: calc(100% + 9.6rem); }
+  .cashier-page-header .cashier-unpaid-quick > form {
+    top: calc(100% + .35rem);
+    grid-template-columns: 1fr 1fr;
+  }
+  .cashier-page-header .cashier-unpaid-quick > form button { grid-column: 1 / -1; }
+  .cashier-page-header .cashier-unpaid-quick > small { top: calc(100% + 11.2rem); }
 }
 
 /* Customer editor: two-column overview and one focused field at a time. */
@@ -6638,7 +6732,7 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   .delivery-search-filter { padding: .4rem; }
   .delivery-search-filter input { min-height: 2.35rem; }
   .delivery-person-options { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .3rem; }
-  .delivery-person-filter span { min-height: 2.1rem; padding: .3rem; }
+  .delivery-person-options span { min-height: 2.1rem; padding: .3rem; }
   .delivery-status-toggle { min-height: 2.5rem; padding: .45rem .6rem; }
   .delivery-results-heading { margin: .7rem 0 .4rem; }
   .delivery-results-heading h2 { font-size: 1.05rem; }
@@ -8245,11 +8339,20 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   }
   .table-map .table-tile { min-width: 0; min-height: 165px; }
   .table-map .table-tile form { gap: .25rem; padding: .55rem .35rem .8rem; }
+  .table-map .table-main-action { gap: .3rem; padding: .7rem .4rem; }
+  .table-map .table-tile.occupied .table-main-action strong {
+    margin-top: .3rem;
+    padding: .42rem .5rem;
+    border-radius: .45rem;
+    font-size: .7rem;
+    line-height: 1.15;
+  }
   .table-map .table-number,
   .table-map .table-waiter-form .table-number { font-size: 1rem; }
   .table-map .table-state,
   .table-map .table-waiter-form > small,
   .table-map .table-main-action > small { font-size: .6rem; }
+  .table-map .table-tile-total { font-size: .85rem; }
   .table-map .waiter-choice-buttons { gap: .22rem; }
   .table-map .waiter-choice-buttons button {
     min-height: 2rem;
@@ -8724,10 +8827,9 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   top: 1rem;
   display: grid !important;
   min-height: 0;
-  height: calc(100dvh - 2rem);
   max-height: calc(100dvh - 2rem);
   overflow: hidden !important;
-  overscroll-behavior: contain;
+  overscroll-behavior: auto;
   box-sizing: border-box;
 }
 .internal-live-ticket {
@@ -8744,7 +8846,7 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   padding-right: .25rem;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  overscroll-behavior: contain;
+  overscroll-behavior: auto;
   scrollbar-gutter: stable;
 }
 .internal-live-ticket > .table-ticket-items::-webkit-scrollbar,
@@ -8760,8 +8862,6 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 .internal-live-ticket > .ticket-payment-summary,
 .internal-live-ticket > .ticket-cash-source,
 .internal-live-ticket > .ticket-change-summary,
-.internal-live-ticket > .ticket-print-actions,
-.internal-live-ticket > .internal-ticket-actions,
 .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-total,
 .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions,
 .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-close-launcher {
@@ -8772,11 +8872,9 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   margin-top: .45rem;
   padding-top: .55rem;
 }
-.internal-live-ticket > .ticket-print-actions,
 .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions {
   margin-top: .45rem;
 }
-.internal-live-ticket > .internal-ticket-actions { margin-top: .45rem; }
 
 @media (max-width: 760px) {
   .internal-live-ticket,
@@ -8784,7 +8882,6 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
     position: relative !important;
     top: auto;
     width: 100%;
-    height: calc(100dvh - 1rem) !important;
     min-height: min(32rem, calc(100dvh - 1rem));
     max-height: calc(100dvh - 1rem) !important;
     overflow: hidden !important;
@@ -8794,12 +8891,10 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
     max-height: none !important;
     overflow-y: auto !important;
   }
-  .internal-live-ticket > .ticket-print-actions,
   .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: .25rem;
   }
-  .internal-live-ticket > .ticket-print-actions a,
   .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions a {
     min-width: 0;
     padding: .42rem .2rem;
@@ -8807,26 +8902,22 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
     font-size: .6rem;
     line-height: 1.08;
   }
-  .internal-live-ticket > .ticket-print-actions .ticket-print-custom,
   .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions .ticket-print-custom {
     grid-column: auto;
   }
-  .internal-live-ticket > .internal-ticket-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: .3rem;
-  }
-  .internal-live-ticket > .internal-ticket-actions button {
-    min-width: 0;
-    min-height: 2.65rem;
-    padding: .4rem;
-    font-size: .65rem;
-    line-height: 1.08;
-  }
-  .internal-live-ticket > .internal-ticket-actions small { grid-column: 1 / -1; font-size: .55rem; }
 }
 
 /* Ticket táctil estable: el encabezado y las acciones permanecen visibles y sólo
-   la lista de partidas consume el espacio flexible, incluso al abrir Efectivo. */
+   la lista de partidas consume el espacio flexible, incluso al abrir Efectivo.
+   NOTA TEMPORAL PARA APRENDIZAJE: `flex: 1 1 4.5rem` (flex-grow: 1) hacía que la
+   lista de artículos SIEMPRE intentara llenar toda la altura disponible del panel,
+   aunque tuviera un solo producto — como el panel es `position: sticky` con
+   `max-height` pero sin `height` fija, un hijo con flex-grow empuja al contenedor a
+   usar esa altura máxima igual, dejando "Total" muy por debajo del último artículo
+   con pocos productos. Con `flex-grow: 0` el panel crece según su contenido real
+   (hasta el mismo tope de siempre); sólo si los artículos exceden ese tope, el
+   `flex-shrink` y el `overflow-y: auto` de abajo siguen encargándose del scroll
+   interno, igual que antes. Borra esta nota después de leerla. */
 .internal-live-ticket,
 .table-pos-layout .table-ticket:not(.is-closed-summary) {
   display: flex !important;
@@ -8835,11 +8926,11 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 }
 .internal-live-ticket > .table-ticket-items,
 .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
-  flex: 1 1 4.5rem;
+  flex: 0 1 auto;
   min-height: 0;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  overscroll-behavior-y: contain;
+  overscroll-behavior-y: auto;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
@@ -8860,7 +8951,6 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
     position: relative !important;
     top: auto !important;
     width: 100%;
-    height: calc(100dvh - 1rem) !important;
     max-height: calc(100dvh - 1rem) !important;
   }
   .internal-menu-workspace,
@@ -8900,11 +8990,9 @@ siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un ta
     overflow-y: auto !important;
   }
   .internal-live-ticket > .table-ticket-items {
-    min-height: 16.5rem !important;
+    min-height: 28rem !important;
   }
   .internal-live-ticket .ticket-payment-details {
-    max-height: 12rem !important;
-    overflow-y: auto !important;
     flex-shrink: 0 !important;
   }
 }
@@ -8957,13 +9045,12 @@ siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un ta
   .table-pos-layout .table-ticket:not(.is-closed-summary) {
     display: flex !important;
     flex-direction: column;
-    height: calc(100dvh - 6rem) !important;
     max-height: calc(100dvh - 6rem) !important;
     overflow: hidden !important;
   }
   .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
     display: grid;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-height: 0;
     grid-auto-rows: max-content;
     align-content: start;
@@ -9245,13 +9332,12 @@ siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un ta
   .table-pos-layout .table-ticket:not(.is-closed-summary) {
     position: sticky !important;
     top: .75rem !important;
-    height: calc(100dvh - 6rem) !important;
     max-height: calc(100dvh - 6rem) !important;
     overflow: hidden !important;
     overscroll-behavior-y: auto !important;
   }
   .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
-    flex: 1 1 4rem;
+    flex: 0 1 auto;
     min-height: 0;
     overflow-y: auto !important;
     overscroll-behavior-y: auto !important;
@@ -9562,12 +9648,11 @@ siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un ta
 /* Ajustes aislados para el editor en iPad Air, vertical y horizontal. */
 @media (min-width: 700px) and (max-width: 1200px) and (pointer: coarse) {
   .internal-live-ticket {
-    height: calc(100dvh - 7rem) !important;
     max-height: calc(100dvh - 7rem) !important;
     overscroll-behavior-y: auto !important;
   }
   .internal-live-ticket > .table-ticket-items {
-    flex: 1 1 3rem;
+    flex: 0 1 auto;
     overscroll-behavior-y: auto !important;
   }
   .internal-live-ticket .cash-command-buttons {
@@ -9656,7 +9741,7 @@ siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un ta
 @media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
   .table-pos-layout .table-ticket:not(.is-closed-summary) > .table-ticket-items {
     display: grid !important;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-height: 0;
     grid-auto-rows: max-content;
     align-content: start !important;
@@ -9695,7 +9780,6 @@ siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un ta
 @media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
   .internal-live-ticket {
     display: flex !important;
-    height: calc(100dvh - 5rem) !important;
     max-height: calc(100dvh - 5rem) !important;
     overflow-x: hidden !important;
     overflow-y: auto !important;
@@ -9763,10 +9847,6 @@ siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un ta
     align-items: center !important;
     padding: .4rem !important;
     box-sizing: border-box;
-  }
-  .internal-live-ticket > .internal-ticket-actions {
-    flex: 0 0 auto;
-    padding-bottom: .35rem;
   }
 }
 
@@ -10461,7 +10541,7 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
   align-content: start !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
-  overscroll-behavior-y: contain !important;
+  overscroll-behavior-y: auto !important;
 }
 .table-pos-layout .table-ticket .table-ticket-item {
   display: grid !important;
@@ -10642,7 +10722,6 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     top: 1rem !important;
     display: flex !important;
     width: 100% !important;
-    height: calc(100dvh - 4rem) !important;
     min-height: 0 !important;
     max-height: calc(100dvh - 4rem) !important;
     flex-direction: column !important;
@@ -10662,7 +10741,7 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     align-content: start !important;
     overflow-x: hidden !important;
     overflow-y: auto !important;
-    overscroll-behavior-y: contain !important;
+    overscroll-behavior-y: auto !important;
     touch-action: pan-y !important;
   }
   .internal-live-ticket .internal-ticket-item {
@@ -10748,10 +10827,6 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     margin: 0 !important;
     box-sizing: border-box !important;
   }
-  .internal-live-ticket > .internal-ticket-actions {
-    flex: 0 0 auto !important;
-    padding-bottom: .65rem !important;
-  }
 }
 
 /* Prioridad final del ticket de Pedidos en celular. */
@@ -10761,7 +10836,6 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     top: auto !important;
     display: flex !important;
     width: 100% !important;
-    height: calc(100dvh - 1rem) !important;
     min-height: 0 !important;
     max-height: calc(100dvh - 1rem) !important;
     overflow-x: hidden !important;
@@ -10871,9 +10945,6 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     margin: 0 !important;
     box-sizing: border-box !important;
   }
-  .internal-live-ticket > .internal-ticket-actions {
-    padding-bottom: .6rem !important;
-  }
 }
 
 /* Ticket de Mesas y Pedidos en tablets cortas en horizontal (p. ej. Galaxy Tab A9+
@@ -10882,12 +10953,10 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
    ancho de dispositivo puntual, para que la lista de partidas conserve espacio
    visible sin importar qué tan ancha sea la tablet. */
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 900px) {
-  .internal-live-ticket > .ticket-print-actions,
   .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: .25rem !important;
   }
-  .internal-live-ticket > .ticket-print-actions a,
   .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions a {
     min-width: 0 !important;
     padding: .38rem .2rem !important;
@@ -10895,23 +10964,9 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     font-size: .58rem !important;
     line-height: 1.05 !important;
   }
-  .internal-live-ticket > .ticket-print-actions .ticket-print-custom,
   .table-pos-layout .table-ticket:not(.is-closed-summary) > .ticket-print-actions .ticket-print-custom {
     grid-column: auto !important;
   }
-  .internal-live-ticket > .internal-ticket-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: .3rem !important;
-    padding-bottom: .4rem !important;
-  }
-  .internal-live-ticket > .internal-ticket-actions button {
-    min-width: 0 !important;
-    min-height: 2.4rem !important;
-    padding: .35rem !important;
-    font-size: .62rem !important;
-    line-height: 1.05 !important;
-  }
-  .internal-live-ticket > .internal-ticket-actions small { grid-column: 1 / -1; font-size: .52rem; }
   .internal-live-ticket .ticket-payment-control {
     margin: -.75rem -.75rem .5rem !important;
     padding: .5rem .65rem !important;

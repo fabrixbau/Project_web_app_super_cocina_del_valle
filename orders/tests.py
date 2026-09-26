@@ -13,11 +13,12 @@ from print_station.models import PrintStation
 
 from tables.models import DiningTable, TableAccount
 
-from .models import Order, OrderItem, TerminalCut, TerminalMovement
+from .models import Customer, Order, OrderItem, TerminalCut, TerminalMovement
 from .services import (
     add_internal_order_package, add_internal_order_product, assign_delivery,
-    change_internal_order_item, change_internal_order_type, set_cashier_release, transition_order,
-    update_cashier_payment, update_delivery_tip, update_internal_package_extras,
+    change_internal_order_item, change_internal_order_type, create_customer_debt,
+    set_cashier_release, transition_order, update_cashier_payment, update_delivery_tip,
+    update_internal_package_extras,
 )
 
 
@@ -438,7 +439,7 @@ class CapturePrintTests(TestCase):
     def test_new_capture_exposes_print_actions_before_first_item(self):
         response = self.client.get(reverse("orders:internal_order_edit", args=(self.order.pk,)))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "data-internal-print-urls")
+        self.assertContains(response, "internal-ticket-quick-actions")
         self.assertContains(response, reverse("orders:order_payment_print", args=(self.order.pk,)))
 
     def test_print_autosave_persists_cash_before_queue(self):
@@ -454,7 +455,7 @@ class CapturePrintTests(TestCase):
     def test_print_autosave_rejects_insufficient_cash(self):
         response = self.client.post(reverse("orders:internal_order_customer_autosave", args=(self.order.pk,)), {
             "order_type": "pickup", "customer_name": "Mostrador", "payment_method": "cash",
-            "cash_bill": "20", "for_print": "1",
+            "cash_custom_amount": "20", "for_print": "1",
         })
         self.assertEqual(response.status_code, 400)
         self.order.refresh_from_db()
@@ -828,3 +829,149 @@ class KitchenCustomPrintStatusTests(TestCase):
         detail_response = self.client.get(response.url)
 
         self.assertContains(detail_response, "data-print-job-status")
+
+
+class DeliveryBoardQuickStatusControlTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="repartos_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.telefonista = get_user_model().objects.create_user(username="repartos_telefonista")
+        self.telefonista.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
+        self.courier = get_user_model().objects.create_user(username="repartos_courier_for_admin_test")
+        self.courier.groups.add(Group.objects.get_or_create(name=DELIVERY)[0])
+        self.order = Order.objects.create(
+            daily_number=983, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.READY, customer_name="Cliente reparto", total=80,
+            payment_method=Order.PaymentMethod.CARD, delivery_person=self.courier,
+        )
+
+    def test_admin_sees_the_full_status_control_on_the_delivery_board(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("deliveries:delivery_board"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-delivery-quick-status-form")
+        self.assertContains(response, reverse("orders:order_resolve", args=(self.order.pk,)))
+
+    def test_order_taker_also_sees_the_full_status_control(self):
+        self.client.force_login(self.telefonista)
+        response = self.client.get(reverse("deliveries:delivery_board"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-delivery-quick-status-form")
+
+    def test_courier_does_not_see_the_full_status_control(self):
+        self.client.force_login(self.courier)
+        response = self.client.get(reverse("deliveries:delivery_board"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "data-delivery-quick-status-form")
+
+    def test_admin_can_advance_status_from_the_delivery_board(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("orders:order_resolve", args=(self.order.pk,)),
+            {"action": "dispatch_delivery"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.OUT_FOR_DELIVERY)
+
+
+class DraftOrderQuickCloseTests(TestCase):
+    # NOTA: un pedido "Capturando" (DRAFT) se quedaba sin ninguna acción disponible en
+    # el control rápido de estado (Caja/Repartos) — available_order_actions() no sabía
+    # nada de ese estado. Esto confirma que ahora sí se puede avanzar, reutilizando la
+    # misma validación de close_internal_order_capture (no un atajo que se la salte).
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="draft_close_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.order = Order.objects.create(
+            daily_number=984, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.PICKUP, source=Order.Source.INTERNAL,
+            status=Order.Status.DRAFT, customer_name="Mostrador", total=25,
+            requested_date=timezone.localdate(), requested_time=timezone.localtime().time(),
+            created_by=self.admin,
+        )
+        self.client.force_login(self.admin)
+
+    def test_admin_can_advance_a_complete_draft_via_the_quick_action(self):
+        self.order.items.create(
+            item_type=OrderItem.ItemType.PRODUCT, product_name_snapshot="Bolillo",
+            tortillas=False, beans=False, unit_price=25, quantity=1, subtotal=25,
+        )
+        response = self.client.post(
+            reverse("orders:order_resolve", args=(self.order.pk,)),
+            {"action": "close_draft"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.order.refresh_from_db()
+        self.assertNotEqual(self.order.status, Order.Status.DRAFT)
+
+    def test_quick_action_still_blocks_an_empty_draft(self):
+        response = self.client.post(
+            reverse("orders:order_resolve", args=(self.order.pk,)),
+            {"action": "close_draft"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("al menos un producto", response.json()["error"])
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.DRAFT)
+
+
+class MarkOrderAsUnpaidTests(TestCase):
+    # NOTA: antes se exigía Entregado/Recogido para dejar un pedido a cuenta; el
+    # desarrollador pidió quitar esa exigencia — cualquier estado es elegible salvo
+    # Cancelado. Estas pruebas cubren el cambio de regla, no sólo el caso feliz de antes.
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="unpaid_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.customer = Customer.objects.create(name="Cliente con adeudo")
+        self.client.force_login(self.admin)
+
+    def make_order(self, status, daily_number):
+        return Order.objects.create(
+            daily_number=daily_number, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.PICKUP, source=Order.Source.INTERNAL,
+            status=status, customer_name=self.customer.name, total=60,
+            agenda_customer=self.customer, created_by=self.admin,
+        )
+
+    def test_an_order_still_being_prepared_can_now_be_marked_as_unpaid(self):
+        order = self.make_order(Order.Status.PREPARING, 985)
+        debt = create_customer_debt(order=order, actor=self.admin)
+        self.assertEqual(debt.customer_id, self.customer.pk)
+        self.assertEqual(debt.original_amount, 60)
+
+    def test_a_canceled_order_still_cannot_be_marked_as_unpaid(self):
+        order = self.make_order(Order.Status.CANCELED, 986)
+        with self.assertRaisesMessage(ValidationError, "cancelado no puede dejarse a cuenta"):
+            create_customer_debt(order=order, actor=self.admin)
+
+    def test_a_delivery_out_for_delivery_no_longer_gets_auto_completed(self):
+        order = Order.objects.create(
+            daily_number=987, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.OUT_FOR_DELIVERY, customer_name=self.customer.name, total=60,
+            agenda_customer=self.customer, created_by=self.admin,
+        )
+        create_customer_debt(order=order, actor=self.admin)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.OUT_FOR_DELIVERY)
+
+    def test_order_board_item_offers_mark_as_unpaid_from_the_kebab_menu(self):
+        order = self.make_order(Order.Status.PREPARING, 988)
+        response = self.client.get(reverse("orders:order_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("cashier:order_debt_create", args=(order.pk,)))
+
+    def test_cashier_board_offers_mark_as_unpaid_from_the_kebab_menu(self):
+        order = self.make_order(Order.Status.PREPARING, 989)
+        response = self.client.get(reverse("cashier:cashier_board"), {"scope": "all"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("cashier:order_debt_create", args=(order.pk,)))

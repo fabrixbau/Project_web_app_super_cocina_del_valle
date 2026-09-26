@@ -532,6 +532,11 @@ def order_list(request):
             user_has_any_role(request.user, (ADMIN,))
             and order.status not in {Order.Status.CANCELED, Order.Status.PICKED_UP, Order.Status.DELIVERED}
         )
+        order.can_mark_unpaid = (
+            user_has_any_role(request.user, (ADMIN,))
+            and order.status != Order.Status.CANCELED
+            and not hasattr(order, "customer_debt")
+        )
         order.can_edit_payment = can_update_order_payment(order=order, actor=request.user)
     return render(request, "orders/order_list.html", {
         "orders": orders,
@@ -552,7 +557,7 @@ def order_list(request):
 
 
 def _internal_order_initial(order):
-    cash_bill = str(int(order.cash_tendered)) if order.cash_tendered in (20, 50, 100, 200, 500) else ""
+    cash_bill = str(int(order.cash_tendered)) if order.cash_tendered in (50, 100, 150, 200, 500) else ""
     opened_at = timezone.localtime(order.created_at)
     return {
         "order_type": order.order_type,
@@ -1406,12 +1411,20 @@ def delivery_board(request):
                 and order.payment_method in {Order.PaymentMethod.CARD, Order.PaymentMethod.TRANSFER}
             )
         )
+        # NOTA TEMPORAL PARA APRENDIZAJE: Administrador y Telefonista pueden mover el
+        # pedido por cualquier estado válido directamente desde Repartos (igual que ya
+        # puede Administrador desde Caja) — Repartidor no tiene motivo para verlo, ya
+        # tiene su propio botón de despachar/completar de arriba. Borra esta nota.
+        if not is_delivery_profile:
+            actions = [action for action in _order_actions_for_user(order, request.user) if action != "cancel"]
+            order.quick_action = actions[0] if actions else ""
+            order.quick_action_label = ACTION_LABELS.get(order.quick_action, "")
     return render(request, "orders/delivery_board.html", {
         "delivery_orders": delivery_orders,
         "repartidores": repartidores,
         "status_choices": Order.Status.choices,
         "payment_method_choices": Order.PaymentMethod.choices,
-        "cash_denominations": [20, 50, 100, 200, 500],
+        "cash_denominations": [50, 100, 150, 200, 500],
         "search": search, "selected_statuses": selected_statuses,
         "selected_delivery_person": delivery_person,
         "can_assign_any_delivery": can_assign_any_delivery,
@@ -1779,7 +1792,7 @@ def cashier_board(request):
         scope = "active"
         queryset = queryset.filter(status__in=active_statuses, cashier_released_at__isnull=True)
     queryset = queryset.select_related(
-        "delivery_person", "cash_settlement_by",
+        "delivery_person", "cash_settlement_by", "customer_debt",
     ).prefetch_related("items").order_by("order_type", "requested_for", "created_at")
     search = request.GET.get("q", "").strip()
     order_type = request.GET.get("type", "").strip()
@@ -1812,6 +1825,9 @@ def cashier_board(request):
         order.can_cancel = (
             user_has_any_role(request.user, (ADMIN,))
             and order.status not in {Order.Status.CANCELED, Order.Status.PICKED_UP, Order.Status.DELIVERED}
+        )
+        order.can_mark_unpaid = (
+            order.status != Order.Status.CANCELED and not hasattr(order, "customer_debt")
         )
     repartidores = get_user_model().objects.filter(
         is_active=True, groups__name=DELIVERY,

@@ -34,26 +34,38 @@ propina y el efectivo cambian por cuenta. Borra esta nota después de leerla. */
     // cuenta recién creada. Ahora se reconstruye aquí, cada vez que se abre el panel,
     // leyendo `window.__tableTicketItems` (lo mantiene al día table-pos.js, tanto al
     // cargar la página como después de cada cambio en el ticket). Borra esta nota.
+    //
+    // NOTA TEMPORAL PARA APRENDIZAJE: cuando dos comidas idénticas quedan agrupadas en
+    // una sola partida del ticket (mismo producto/paquete, `quantity` > 1), antes sólo
+    // se podía repartir el grupo completo a una sola cuenta dividida. Ahora se dibuja
+    // una fila por CADA unidad (misma `item_id`, cantidad de filas = `item.quantity`),
+    // para poder asignar cada una a una cuenta distinta; el envío al servidor las vuelve
+    // a agrupar por `item_id` contando cuántas unidades le tocaron a cada cuenta. Borra
+    // esta nota después de leerla.
     const liveItems = window.__tableTicketItems || [];
     itemsList.innerHTML = "";
     liveItems.forEach((item) => {
-      const row = document.createElement("div");
-      row.className = "table-split-item";
-      row.dataset.splitItem = "";
-      row.dataset.itemId = String(item.item_id);
-      row.dataset.itemSubtotal = String(item.subtotal);
-      row.dataset.assignedSplit = "";
-      const name = document.createElement("span");
-      name.className = "table-split-item-name";
-      name.textContent = item.name;
-      const price = document.createElement("span");
-      price.className = "table-split-item-price";
-      price.textContent = money(item.subtotal);
-      const buttons = document.createElement("div");
-      buttons.className = "table-split-item-buttons";
-      buttons.dataset.splitItemButtons = "";
-      row.append(name, price, buttons);
-      itemsList.append(row);
+      const quantity = Math.max(1, Number(item.quantity) || 1);
+      const unitSubtotal = Number(item.subtotal) / quantity;
+      for (let unit = 1; unit <= quantity; unit += 1) {
+        const row = document.createElement("div");
+        row.className = "table-split-item";
+        row.dataset.splitItem = "";
+        row.dataset.itemId = String(item.item_id);
+        row.dataset.itemSubtotal = String(unitSubtotal);
+        row.dataset.assignedSplit = "";
+        const name = document.createElement("span");
+        name.className = "table-split-item-name";
+        name.textContent = quantity > 1 ? `${item.name} (${unit}/${quantity})` : item.name;
+        const price = document.createElement("span");
+        price.className = "table-split-item-price";
+        price.textContent = money(unitSubtotal);
+        const buttons = document.createElement("div");
+        buttons.className = "table-split-item-buttons";
+        buttons.dataset.splitItemButtons = "";
+        row.append(name, price, buttons);
+        itemsList.append(row);
+      }
     });
   }
 
@@ -108,9 +120,9 @@ propina y el efectivo cambian por cuenta. Borra esta nota después de leerla. */
       </div>
       <div class="table-split-cash-fields" data-split-cash-fields hidden>
         <div class="cash-quick-buttons">
-          <button type="button" data-split-cash-amount="20">$20</button>
           <button type="button" data-split-cash-amount="50">$50</button>
           <button type="button" data-split-cash-amount="100">$100</button>
+          <button type="button" data-split-cash-amount="150">$150</button>
           <button type="button" data-split-cash-amount="200">$200</button>
           <button type="button" data-split-cash-amount="500">$500</button>
           <button type="button" data-split-cash-amount="exact">Exacto</button>
@@ -245,8 +257,14 @@ propina y el efectivo cambian por cuenta. Borra esta nota después de leerla. */
     const splits = [];
     for (let i = 1; i <= splitCount; i += 1) {
       const card = accountsContainer.querySelector(`[data-split-account="${i}"]`);
-      const itemIds = items.filter((item) => Number(item.dataset.assignedSplit) === i).map((item) => Number(item.dataset.itemId));
-      if (!itemIds.length) { splitError.textContent = `La cuenta ${i} no tiene artículos asignados.`; splitError.hidden = false; return; }
+      const assignedRows = items.filter((item) => Number(item.dataset.assignedSplit) === i);
+      if (!assignedRows.length) { splitError.textContent = `La cuenta ${i} no tiene artículos asignados.`; splitError.hidden = false; return; }
+      const quantitiesByItemId = {};
+      assignedRows.forEach((row) => {
+        const itemId = Number(row.dataset.itemId);
+        quantitiesByItemId[itemId] = (quantitiesByItemId[itemId] || 0) + 1;
+      });
+      const splitItems = Object.entries(quantitiesByItemId).map(([itemId, quantity]) => ({item_id: Number(itemId), quantity}));
       const method = card.dataset.paymentMethod;
       if (!method) { splitError.textContent = `Selecciona el método de pago de la cuenta ${i}.`; splitError.hidden = false; return; }
       const tip = Number(card.querySelector("[data-split-tip]").value || 0);
@@ -262,7 +280,7 @@ propina y el efectivo cambian por cuenta. Borra esta nota después de leerla. */
         }
       }
       splits.push({
-        item_ids: itemIds, payment_method: method, tip_amount: String(tip),
+        items: splitItems, payment_method: method, tip_amount: String(tip),
         cash_tendered: cashTendered !== null ? String(cashTendered) : null,
       });
     }

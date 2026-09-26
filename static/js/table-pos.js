@@ -525,6 +525,14 @@ document.querySelectorAll("[data-package-open]").forEach((button) => {
     const dialog = document.querySelector(`#${button.dataset.packageOpen}`);
     const form = dialog.querySelector("[data-package-add]");
     form.reset();
+    // NOTA TEMPORAL PARA APRENDIZAJE: form.reset() sí limpia los radios, pero no
+    // dispara "change" — y los contadores (+/-) y el resaltado de cada tarjeta sólo
+    // se actualizan escuchando ese evento (package-selection.js). Sin este disparo
+    // manual, la comida anterior se queda marcada visualmente aunque el formulario
+    // ya esté limpio. Borra esta nota después de leerla.
+    form.querySelectorAll("input[type='radio']").forEach((input) => {
+      input.dispatchEvent(new Event("change", {bubbles: true}));
+    });
     form.action = form.dataset.addUrl;
     form.querySelector("[data-package-submit]").textContent = "Agregar al ticket";
     dialog.showModal();
@@ -568,7 +576,14 @@ document.addEventListener("click", (event) => {
     if (waterInput) waterInput.checked = editButton.dataset.withWater === "true";
     if (breadInput) breadInput.checked = editButton.dataset.bread === "true" || (!Object.hasOwn(editButton.dataset, "bread") && breadInput.defaultChecked);
     if (refillInput) refillInput.checked = editButton.dataset.refillExtra === "true";
-    form.querySelector("input[name$='main_course']:checked")?.dispatchEvent(new Event("change", {bubbles: true}));
+    // NOTA TEMPORAL PARA APRENDIZAJE: setRadio asigna .checked directamente, sin
+    // disparar "change" — los contadores (+/-) y el resaltado de cada tarjeta de
+    // primer/segundo/tercer tiempo sólo se sincronizan escuchando ese evento
+    // (package-selection.js). Se dispara en las tres, no sólo en tercer tiempo.
+    // Borra esta nota después de leerla.
+    form.querySelectorAll("input[name$='first_course'], input[name$='second_course'], input[name$='main_course']").forEach((input) => {
+      input.dispatchEvent(new Event("change", {bubbles: true}));
+    });
     form.querySelector("[data-package-submit]").textContent = "Guardar cambios";
     dialog.showModal();
     window.requestAnimationFrame(() => {
