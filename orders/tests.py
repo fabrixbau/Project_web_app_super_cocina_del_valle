@@ -1,3 +1,6 @@
+from datetime import timedelta
+from decimal import Decimal
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
@@ -13,12 +16,13 @@ from print_station.models import PrintStation
 
 from tables.models import DiningTable, TableAccount
 
-from .models import Customer, Order, OrderItem, TerminalCut, TerminalMovement
+from .models import Customer, CustomerCreditMovement, CustomerDebt, Order, OrderItem, TerminalCut, TerminalMovement
 from .services import (
-    add_internal_order_package, add_internal_order_product, assign_delivery,
-    change_internal_order_item, change_internal_order_type, create_customer_debt,
-    set_cashier_release, transition_order, update_cashier_payment, update_delivery_tip,
-    update_internal_package_extras,
+    add_customer_credit, add_internal_order_package, add_internal_order_product, assign_delivery,
+    apply_customer_credit_to_order, change_internal_order_item, change_internal_order_type,
+    close_internal_order_capture, create_customer_debt, refund_customer_credit,
+    set_cashier_release, settle_selected_debts_from_cashier, transition_order, update_cashier_payment,
+    update_delivery_tip, update_internal_package_extras,
 )
 
 
@@ -1042,3 +1046,395 @@ class MarkOrderAsUnpaidTests(TestCase):
         response = self.client.get(reverse("cashier:cashier_board"), {"scope": "all"})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("cashier:order_debt_create", args=(order.pk,)))
+
+
+class CustomerCreditTests(TestCase):
+    # NOTA TEMPORAL PARA APRENDIZAJE: espejo de las pruebas de CustomerDebt, para el
+    # saldo a favor (depósitos adelantados que un cliente va consumiendo en varios
+    # pedidos). Borra esta nota después de leerla.
+    def setUp(self):
+        self.actor = get_user_model().objects.create_user(username="credit_admin")
+        self.actor.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.customer = Customer.objects.create(name="Cliente con depósito", phone="5551112222")
+        self.client.force_login(self.actor)
+
+    def make_order(self, *, total, status=Order.Status.DRAFT, credit_applied=0, daily_number=None, order_type=Order.OrderType.PICKUP, **extra):
+        return Order.objects.create(
+            daily_number=daily_number or (2000 + Order.objects.count()),
+            operating_date=timezone.localdate(), order_type=order_type,
+            source=Order.Source.INTERNAL, status=status, customer_name=self.customer.name,
+            agenda_customer=self.customer, total=total, credit_applied=credit_applied,
+            requested_date=timezone.localdate(), requested_time=timezone.localtime().time(),
+            created_by=self.actor, **extra,
+        )
+
+    def test_add_customer_credit_increases_balance_and_logs_a_deposit_movement(self):
+        add_customer_credit(
+            customer=self.customer, amount="1000", payment_method=Order.PaymentMethod.CASH,
+            actor=self.actor, note="Depósito inicial",
+        )
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.credit_balance, Decimal("1000"))
+        movement = self.customer.credit_movements.get()
+        self.assertEqual(movement.action, CustomerCreditMovement.Action.DEPOSIT)
+        self.assertEqual(movement.amount, Decimal("1000"))
+
+    def test_add_customer_credit_rejects_a_zero_or_negative_amount(self):
+        with self.assertRaisesMessage(ValidationError, "mayor a cero"):
+            add_customer_credit(
+                customer=self.customer, amount="0", payment_method=Order.PaymentMethod.CASH, actor=self.actor,
+            )
+
+    def test_refund_customer_credit_decreases_balance_and_logs_a_refund_movement(self):
+        add_customer_credit(customer=self.customer, amount="1000", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        refund_customer_credit(customer=self.customer, amount="400", actor=self.actor, note="Se le devolvió en efectivo")
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.credit_balance, Decimal("600"))
+        self.assertEqual(
+            self.customer.credit_movements.filter(action=CustomerCreditMovement.Action.REFUND).get().amount,
+            Decimal("400"),
+        )
+
+    def test_refund_cannot_exceed_the_available_balance(self):
+        add_customer_credit(customer=self.customer, amount="200", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        with self.assertRaisesMessage(ValidationError, "no superar el saldo"):
+            refund_customer_credit(customer=self.customer, amount="500", actor=self.actor)
+
+    def test_apply_credit_covers_an_order_partially_and_leaves_a_remainder(self):
+        add_customer_credit(customer=self.customer, amount="200", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        order = self.make_order(total=350)
+        order.items.create(
+            item_type=OrderItem.ItemType.PRODUCT, product_name_snapshot="Comida",
+            tortillas=False, beans=False, unit_price=350, quantity=1, subtotal=350,
+        )
+        apply_customer_credit_to_order(order=order, actor=self.actor)
+        order.refresh_from_db()
+        self.customer.refresh_from_db()
+        self.assertEqual(order.credit_applied, Decimal("200"))
+        self.assertEqual(self.customer.credit_balance, Decimal("0"))
+        self.assertEqual(order.total - order.credit_applied, Decimal("150"))
+
+    def test_closing_capture_auto_applies_credit_and_skips_the_cash_check_when_fully_covered(self):
+        add_customer_credit(customer=self.customer, amount="500", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        order = self.make_order(
+            total=200, payment_method=Order.PaymentMethod.CASH, needs_change=True,
+        )
+        order.items.create(
+            item_type=OrderItem.ItemType.PRODUCT, product_name_snapshot="Comida",
+            tortillas=False, beans=False, unit_price=200, quantity=1, subtotal=200,
+        )
+        close_internal_order_capture(order=order, actor=self.actor)
+        order.refresh_from_db()
+        self.customer.refresh_from_db()
+        self.assertEqual(order.credit_applied, Decimal("200"))
+        self.assertEqual(self.customer.credit_balance, Decimal("300"))
+        self.assertNotEqual(order.status, Order.Status.DRAFT)
+
+    def test_marking_unpaid_only_charges_the_amount_not_covered_by_credit(self):
+        order = self.make_order(status=Order.Status.PREPARING, total=350, credit_applied=200)
+        debt = create_customer_debt(order=order, actor=self.actor)
+        self.assertEqual(debt.original_amount, Decimal("150"))
+
+    def test_marking_unpaid_is_blocked_when_credit_fully_covers_the_order(self):
+        order = self.make_order(status=Order.Status.PREPARING, total=200, credit_applied=200)
+        with self.assertRaisesMessage(ValidationError, "cubierto por completo"):
+            create_customer_debt(order=order, actor=self.actor)
+
+    def test_cashier_can_register_a_deposit_by_customer_name(self):
+        response = self.client.post(reverse("cashier:credit_deposit"), {
+            "customer_query": self.customer.name, "amount": "1000",
+            "payment_method": Order.PaymentMethod.CASH, "note": "Depósito del sábado",
+        })
+        self.assertRedirects(response, f"{reverse('cashier:credit_board')}?customer={self.customer.pk}")
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.credit_balance, Decimal("1000"))
+
+    def test_cashier_can_register_a_deposit_by_picking_a_customer_id(self):
+        # NOTA: simula al operador escribiendo en el buscador (customer-picker.js) y
+        # haciendo clic en una sugerencia — el formulario manda customer_id en vez de
+        # depender de que el nombre escrito coincida exactamente con uno solo.
+        another_customer = Customer.objects.create(name="Cliente con depósito extra", phone="5550001111")
+        response = self.client.post(reverse("cashier:credit_deposit"), {
+            "customer_query": "texto que ya no importa", "customer_id": str(another_customer.pk),
+            "amount": "300", "payment_method": Order.PaymentMethod.CASH, "note": "",
+        })
+        self.assertRedirects(response, f"{reverse('cashier:credit_board')}?customer={another_customer.pk}")
+        another_customer.refresh_from_db()
+        self.assertEqual(another_customer.credit_balance, Decimal("300"))
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.credit_balance, Decimal("0"))
+
+    def test_cashier_can_register_a_refund(self):
+        add_customer_credit(customer=self.customer, amount="1000", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        response = self.client.post(
+            reverse("cashier:credit_refund", args=(self.customer.pk,)), {"amount": "250", "note": "Se le devolvió"},
+        )
+        self.assertRedirects(response, f"{reverse('cashier:credit_board')}?customer={self.customer.pk}")
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.credit_balance, Decimal("750"))
+
+    def test_customer_page_shows_the_credit_balance_and_accepts_a_deposit(self):
+        response = self.client.post(reverse("orders:customer_edit", args=(self.customer.pk,)), {
+            "action": "credit_deposit", "amount": "500",
+            "payment_method": Order.PaymentMethod.CASH, "note": "",
+        })
+        self.assertRedirects(response, reverse("orders:customer_edit", args=(self.customer.pk,)))
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.credit_balance, Decimal("500"))
+        response = self.client.get(reverse("orders:customer_edit", args=(self.customer.pk,)))
+        self.assertContains(response, "$500.00")
+
+    def test_capture_form_warns_about_available_credit(self):
+        add_customer_credit(customer=self.customer, amount="200", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        order = self.make_order(total=350)
+        response = self.client.get(reverse("orders:internal_order_edit", args=(order.pk,)))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "saldo a favor")
+        self.assertContains(response, "150.00")
+
+    def test_customer_lookup_reports_the_credit_balance(self):
+        add_customer_credit(customer=self.customer, amount="200", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        response = self.client.get(reverse("orders:customer_lookup"), {"q": self.customer.name})
+        self.assertEqual(response.status_code, 200)
+        row = response.json()["customers"][0]
+        self.assertEqual(row["credit_balance"], "200.00")
+
+    def test_ticket_json_updates_the_credit_projection_live_as_items_are_added(self):
+        # NOTA: reproduce lo que reportó el desarrollador — el aviso de saldo a
+        # favor debe reflejar el total actual del ticket sin recargar la página,
+        # ni esperar a guardar/cerrar. Verifica el mismo payload que ya usa
+        # renderTicket() en el navegador cada vez que se agrega un producto.
+        add_customer_credit(customer=self.customer, amount="200", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        order = self.make_order(total=0)
+        category = Category.objects.create(name="Categoría saldo en vivo")
+        product = Product.objects.create(category=category, name="Producto saldo en vivo", price=350)
+
+        response = self.client.post(
+            reverse("orders:internal_order_product_add", args=(order.pk, product.pk)),
+        )
+        self.assertEqual(response.status_code, 200)
+        credit = response.json()["ticket"]["customer_credit"]
+        self.assertEqual(credit["balance"], "200.00")
+        self.assertEqual(credit["remaining_after_credit"], "150.00")
+
+    def test_ticket_json_shows_full_coverage_when_credit_covers_the_total(self):
+        add_customer_credit(customer=self.customer, amount="500", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        order = self.make_order(total=0)
+        category = Category.objects.create(name="Categoría saldo cubierto")
+        product = Product.objects.create(category=category, name="Producto saldo cubierto", price=200)
+
+        response = self.client.post(
+            reverse("orders:internal_order_product_add", args=(order.pk, product.pk)),
+        )
+        credit = response.json()["ticket"]["customer_credit"]
+        self.assertEqual(credit["balance"], "500.00")
+        self.assertEqual(credit["remaining_after_credit"], "0.00")
+
+    def test_amount_due_and_related_properties_discount_applied_credit(self):
+        order = self.make_order(status=Order.Status.PREPARING, total=350, credit_applied=200)
+        self.assertEqual(order.amount_due, Decimal("150"))
+        order.payment_method = Order.PaymentMethod.CASH
+        order.needs_change = True
+        order.cash_tendered = Decimal("150")
+        self.assertEqual(order.change_required, Decimal("0"))
+        self.assertEqual(order.courier_return_amount, Decimal("150"))
+
+    def test_cashier_payment_update_only_requires_cash_for_the_amount_still_due(self):
+        # NOTA: antes de este arreglo, esta llamada rechazaba $150 porque los
+        # comparaba contra order.total ($350) en vez de order.amount_due ($150) —
+        # el bug de Caja que el desarrollador pidió corregir junto con lo demás.
+        order = self.make_order(
+            status=Order.Status.PREPARING, order_type=Order.OrderType.DELIVERY,
+            total=350, credit_applied=200,
+        )
+        updated = update_cashier_payment(
+            order=order, payment_method=Order.PaymentMethod.CASH, cash_amount="150", actor=self.actor,
+        )
+        self.assertEqual(updated.cash_tendered, Decimal("150"))
+        self.assertFalse(updated.needs_change)
+
+    def test_cashier_payment_update_still_rejects_cash_below_the_amount_due(self):
+        order = self.make_order(
+            status=Order.Status.PREPARING, order_type=Order.OrderType.DELIVERY,
+            total=350, credit_applied=200,
+        )
+        with self.assertRaisesMessage(ValidationError, "no cubre el total"):
+            update_cashier_payment(
+                order=order, payment_method=Order.PaymentMethod.CASH, cash_amount="100", actor=self.actor,
+            )
+
+    def test_order_board_and_cashier_board_show_the_applied_credit(self):
+        order = self.make_order(status=Order.Status.PREPARING, total=350, credit_applied=200)
+        response = self.client.get(reverse("orders:order_list"))
+        self.assertContains(response, "Saldo a favor aplicado: $200.00")
+        self.assertContains(response, "Falta cobrar: $150.00")
+        response = self.client.get(reverse("cashier:cashier_board"), {"scope": "all"})
+        self.assertContains(response, "Saldo a favor aplicado: $200.00")
+
+    def test_selecting_an_existing_customer_for_delivery_links_it_before_the_address_is_typed(self):
+        # NOTA: reproduce el bug real detrás del reporte del desarrollador — al
+        # seleccionar un cliente de la agenda para Entrega a domicilio, antes de
+        # este arreglo agenda_customer_id NO se guardaba hasta que también se
+        # llenaran calle y número exterior. Como el aviso de saldo a favor (y el
+        # de adeudo) depende de agenda_customer_id, no aparecía justo al elegir
+        # al cliente, sólo después de completar el domicilio. Verifica que ahora
+        # el vínculo se guarda de inmediato, sin domicilio todavía.
+        order = Order.objects.create(
+            daily_number=2100, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.DRAFT, customer_name="Mostrador", total=0,
+            created_by=self.actor,
+        )
+        response = self.client.post(reverse("orders:internal_order_customer_autosave", args=(order.pk,)), {
+            "order_type": "delivery", "customer_name": self.customer.name,
+            "phone": self.customer.phone, "agenda_customer_id": str(self.customer.pk),
+            # street/exterior_number deliberadamente vacíos: el domicilio aún no
+            # se ha escrito cuando se elige al cliente.
+        })
+        self.assertEqual(response.status_code, 200)
+        order.refresh_from_db()
+        self.assertEqual(order.agenda_customer_id, self.customer.pk)
+
+    def test_ticket_json_reports_how_much_credit_would_be_applied_and_left_over(self):
+        # NOTA: el desarrollador pidió ver, en vivo, no sólo "cuánto falta cobrar"
+        # sino también "cuánto se está aplicando de saldo" y "cuánto le va a quedar
+        # de saldo disponible" conforme el ticket cambia.
+        add_customer_credit(customer=self.customer, amount="500", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        order = self.make_order(total=0)
+        category = Category.objects.create(name="Categoría saldo detallado")
+        product = Product.objects.create(category=category, name="Producto saldo detallado", price=200)
+
+        response = self.client.post(
+            reverse("orders:internal_order_product_add", args=(order.pk, product.pk)),
+        )
+        credit = response.json()["ticket"]["customer_credit"]
+        self.assertEqual(credit["balance"], "500.00")
+        self.assertEqual(credit["applied"], "200.00")
+        self.assertEqual(credit["remaining_balance"], "300.00")
+        self.assertEqual(credit["remaining_after_credit"], "0.00")
+
+    def test_internal_order_page_shows_a_partial_coverage_warning_when_credit_falls_short(self):
+        add_customer_credit(customer=self.customer, amount="200", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        order = self.make_order(total=350)
+        response = self.client.get(reverse("orders:internal_order_edit", args=(order.pk,)))
+        self.assertContains(response, "customer-credit-notice is-partial")
+        self.assertContains(response, "se hará un ajuste en el cobro por $150.00")
+
+    def test_internal_order_page_has_no_warning_when_credit_fully_covers_and_leaves_a_balance(self):
+        add_customer_credit(customer=self.customer, amount="500", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        order = self.make_order(total=200)
+        response = self.client.get(reverse("orders:internal_order_edit", args=(order.pk,)))
+        self.assertNotContains(response, "is-partial")
+        self.assertContains(response, "le quedarán $300.00 de saldo a favor para después")
+
+    def test_order_boards_and_delivery_board_show_the_customers_pending_debt(self):
+        # NOTA: el desarrollador pidió que el adeudo pendiente ("pedidos no pagados")
+        # se vea, igual que el saldo a favor, en Pedidos, Caja y también en Repartos —
+        # sin importar a qué otro pedido pertenezca ese adeudo.
+        debt_order = self.make_order(total=300, status=Order.Status.DELIVERED, daily_number=2200)
+        create_customer_debt(order=debt_order, actor=self.actor)
+        self.make_order(
+            total=150, status=Order.Status.PREPARING, daily_number=2201,
+            order_type=Order.OrderType.DELIVERY, street="Calle 1", exterior_number="10",
+        )
+
+        response = self.client.get(reverse("orders:order_list"))
+        self.assertContains(response, "Adeudo pendiente: $300.00 en 1 pedido(s)")
+
+        response = self.client.get(reverse("cashier:cashier_board"), {"scope": "all"})
+        self.assertContains(response, "Adeudo pendiente: $300.00 en 1 pedido(s)")
+
+        response = self.client.get(reverse("deliveries:delivery_board"))
+        self.assertContains(response, "Adeudo pendiente: $300.00 en 1 pedido(s)")
+
+    def test_ticket_json_reports_the_pending_debt_and_its_projected_total_live(self):
+        # NOTA: el desarrollador pidió el espejo de saldo a favor, pero para "saldo
+        # en contra" — mientras se captura un pedido NUEVO, mostrar cuánto debe ya
+        # el cliente y cuánto deberá en total si este pedido nuevo tampoco se paga,
+        # actualizándose conforme se agregan productos (sin recargar ni cerrar).
+        debt_order = self.make_order(total=100, status=Order.Status.DELIVERED, daily_number=2300)
+        create_customer_debt(order=debt_order, actor=self.actor)
+        order = self.make_order(total=0, daily_number=2301)
+        category = Category.objects.create(name="Categoría saldo en contra")
+        product = Product.objects.create(category=category, name="Producto saldo en contra", price=80)
+
+        response = self.client.post(
+            reverse("orders:internal_order_product_add", args=(order.pk, product.pk)),
+        )
+        debt = response.json()["ticket"]["customer_debt"]
+        self.assertEqual(debt["balance"], "100.00")
+        self.assertEqual(debt["count"], 1)
+        self.assertEqual(debt["projected_total"], "180.00")
+        self.assertEqual(debt["orders"][0]["id"], debt_order.pk)
+        self.assertEqual(debt["orders"][0]["balance"], "100.00")
+
+    def test_internal_order_page_shows_the_pending_debt_with_a_link_to_the_unpaid_order(self):
+        debt_order = self.make_order(total=100, status=Order.Status.DELIVERED, daily_number=2310)
+        create_customer_debt(order=debt_order, actor=self.actor)
+        order = self.make_order(total=50, daily_number=2311)
+
+        response = self.client.get(reverse("orders:internal_order_edit", args=(order.pk,)))
+        self.assertContains(response, "Este cliente debe $100.00 en 1 pedido(s) anterior(es).")
+        self.assertContains(response, "deberá $150.00 en total")
+        self.assertContains(response, reverse("orders:internal_order_edit", args=(debt_order.pk,)))
+
+    def test_customer_lookup_reports_the_open_debts_with_their_order_links(self):
+        debt_order = self.make_order(total=100, status=Order.Status.DELIVERED, daily_number=2320)
+        create_customer_debt(order=debt_order, actor=self.actor)
+
+        response = self.client.get(reverse("orders:customer_lookup"), {"q": self.customer.name})
+        row = response.json()["customers"][0]
+        self.assertEqual(row["outstanding_balance"], "100.00")
+        self.assertEqual(row["open_debts"][0]["id"], debt_order.pk)
+        self.assertEqual(row["open_debts"][0]["url"], reverse("orders:internal_order_edit", args=(debt_order.pk,)))
+
+    def test_settle_selected_debts_pays_the_chosen_orders_oldest_first(self):
+        # NOTA: el desarrollador confirmó que, cuando el monto no alcanza para todo
+        # lo seleccionado, se abona del adeudo más antiguo al más reciente.
+        older_debt_order = self.make_order(total=100, status=Order.Status.DELIVERED, daily_number=2400)
+        older_debt = create_customer_debt(order=older_debt_order, actor=self.actor)
+        older_debt.created_at = timezone.now() - timedelta(days=2)
+        older_debt.save(update_fields=("created_at",))
+        newer_debt_order = self.make_order(total=60, status=Order.Status.DELIVERED, daily_number=2401)
+        newer_debt = create_customer_debt(order=newer_debt_order, actor=self.actor)
+
+        settle_selected_debts_from_cashier(
+            customer=self.customer, debt_ids=[older_debt.pk, newer_debt.pk], amount="120",
+            payment_method=Order.PaymentMethod.CASH, actor=self.actor,
+        )
+        older_debt.refresh_from_db()
+        newer_debt.refresh_from_db()
+        self.assertEqual(older_debt.status, CustomerDebt.Status.PAID)
+        self.assertEqual(older_debt.balance, Decimal("0"))
+        self.assertEqual(newer_debt.balance, Decimal("40"))
+        self.assertEqual(newer_debt.status, CustomerDebt.Status.PARTIAL)
+
+    def test_settle_selected_debts_rejects_an_amount_above_what_was_selected(self):
+        debt_order = self.make_order(total=100, status=Order.Status.DELIVERED, daily_number=2410)
+        debt = create_customer_debt(order=debt_order, actor=self.actor)
+        with self.assertRaisesMessage(ValidationError, "no puede superar lo seleccionado"):
+            settle_selected_debts_from_cashier(
+                customer=self.customer, debt_ids=[debt.pk], amount="150",
+                payment_method=Order.PaymentMethod.CASH, actor=self.actor,
+            )
+
+    def test_cashier_board_shows_a_form_to_settle_the_customers_pending_debt(self):
+        debt_order = self.make_order(total=100, status=Order.Status.DELIVERED, daily_number=2420)
+        create_customer_debt(order=debt_order, actor=self.actor)
+        new_order = self.make_order(total=50, status=Order.Status.PREPARING, daily_number=2421)
+
+        response = self.client.get(reverse("cashier:cashier_board"), {"scope": "all"})
+        self.assertContains(response, "Debe $100.00 en 1 pedido(s) anterior(es)")
+        self.assertContains(response, reverse("cashier:settle_debts", args=(new_order.pk,)))
+
+    def test_cashier_can_settle_a_customers_debt_from_the_new_orders_payment_panel(self):
+        debt_order = self.make_order(total=100, status=Order.Status.DELIVERED, daily_number=2430)
+        debt = create_customer_debt(order=debt_order, actor=self.actor)
+        new_order = self.make_order(total=50, status=Order.Status.PREPARING, daily_number=2431)
+
+        response = self.client.post(reverse("cashier:settle_debts", args=(new_order.pk,)), {
+            "debt_ids": [str(debt.pk)], "amount": "100", "payment_method": Order.PaymentMethod.CASH,
+        })
+        self.assertEqual(response.status_code, 302)
+        debt.refresh_from_db()
+        self.assertEqual(debt.status, CustomerDebt.Status.PAID)

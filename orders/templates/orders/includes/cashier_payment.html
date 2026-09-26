@@ -30,3 +30,31 @@ Borra esta nota después de leerla. -->
   <small class="cashier-error" data-cashier-error hidden></small>
   {% csrf_token %}
 </div>
+{% if order.customer_debt_note %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: este bloque cobra por separado los adeudos
+VIEJOS del mismo cliente — el pedido nuevo se sigue cobrando arriba, sin cambios.
+Es un formulario normal (recarga la página al enviarlo), igual que "Registrar un
+pedido que no pagó"; no vale la pena meterlo al sistema de AJAX de arriba para algo
+que se usa poco. Borra esta nota después de leerla. -->
+<details class="cashier-debt-settle" data-cashier-debt-settle>
+  <summary>Debe ${{ order.customer_debt_note.balance|floatformat:2 }} en {{ order.customer_debt_note.count }} pedido(s) anterior(es)</summary>
+  <form method="post" action="{% url 'cashier:settle_debts' order.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <p>Selecciona qué pedido(s) adeudado(s) cobrar junto con éste:</p>
+    {% for debt in order.customer_debt_note.debts %}
+      <label class="cashier-debt-option">
+        <input type="checkbox" name="debt_ids" value="{{ debt.pk }}" checked data-debt-balance="{{ debt.balance }}">
+        <a href="{% url 'orders:internal_order_edit' debt.order_id %}" target="_blank" rel="noopener">#{{ debt.order.formatted_number }}</a> · ${{ debt.balance|floatformat:2 }}
+      </label>
+    {% endfor %}
+    <label>Monto a cobrar de adeudo
+      <input type="number" name="amount" min="0" step="0.01" value="{{ order.customer_debt_note.balance|floatformat:2 }}" data-debt-settle-amount>
+    </label>
+    <label>Método de pago del adeudo
+      <select name="payment_method">{% for value, label in payment_method_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+    </label>
+    <button type="submit">Registrar cobro de adeudo</button>
+  </form>
+</details>
+{% endif %}

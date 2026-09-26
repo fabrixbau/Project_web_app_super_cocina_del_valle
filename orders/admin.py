@@ -8,7 +8,10 @@
 
 from django.contrib import admin
 
-from .models import Customer, CustomerAddress, CustomerDebt, CustomerDebtMovement, DailyOrderCounter, Order, OrderItem, OrderStatusHistory, TerminalCut, TerminalMovement
+from .models import (
+    Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, CustomerDebtMovement,
+    DailyOrderCounter, Order, OrderItem, OrderStatusHistory, TerminalCut, TerminalMovement,
+)
 
 
 class OrderItemInline(admin.StackedInline):
@@ -51,3 +54,4 @@ admin.site.register(TerminalCut)
 admin.site.register(TerminalMovement)
 admin.site.register(CustomerDebt)
 admin.site.register(CustomerDebtMovement)
+admin.site.register(CustomerCreditMovement)

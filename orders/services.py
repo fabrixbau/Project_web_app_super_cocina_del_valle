@@ -22,7 +22,10 @@ from menu.packaging import selected_packaging_products
 from menu.selection import resolve_product_selection
 from notifications.models import InternalNotification
 
-from .models import Customer, CustomerAddress, CustomerDebt, CustomerDebtMovement, DailyOrderCounter, Order, OrderItem, OrderStatusHistory
+from .models import (
+    Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, CustomerDebtMovement,
+    DailyOrderCounter, Order, OrderItem, OrderStatusHistory,
+)
 from .phones import phone_key
 
 
@@ -177,8 +180,15 @@ def create_customer_debt(*, order, actor, note=""):
         raise ValidationError("Vincula un cliente de la agenda antes de dejar este pedido a cuenta.")
     if hasattr(order, "customer_debt"):
         raise ValidationError("Este pedido ya está registrado en cuentas por cobrar.")
+    # NOTA TEMPORAL PARA APRENDIZAJE: si el cliente ya cubrió parte del pedido con
+    # su saldo a favor (order.amount_due = total - credit_applied), sólo lo que
+    # falta por cubrir debe quedar a cuenta — no el total completo. Borra esta
+    # nota después de leerla.
+    outstanding = order.amount_due
+    if outstanding <= 0:
+        raise ValidationError("Este pedido ya está cubierto por completo con el saldo a favor del cliente.")
     return CustomerDebt.objects.create(
-        customer=order.agenda_customer, order=order, original_amount=order.total,
+        customer=order.agenda_customer, order=order, original_amount=outstanding,
         created_by=actor, note=" ".join(note.split()),
     )
 
@@ -207,6 +217,49 @@ def register_customer_debt_payment(*, debt, amount, payment_method, actor, note=
 
 
 @transaction.atomic
+def settle_selected_debts_from_cashier(*, customer, debt_ids, amount, payment_method, actor, note=""):
+    # NOTA TEMPORAL PARA APRENDIZAJE: cuando un cliente con adeudo previo trae un
+    # pedido nuevo, Caja puede cobrar ambas cosas en un solo movimiento: asociar
+    # todos sus adeudos abiertos (deja marcados todos los debt_ids), sólo algunos
+    # (deja marcados nomás esos), o cobrar otra cantidad distinta a la suma exacta
+    # (el desarrollador confirmó que, en ese caso, el monto se abona del adeudo más
+    # antiguo al más reciente hasta agotarse). Reutiliza el mismo abono
+    # (register_customer_debt_payment) que ya usa el tablero de Cuentas por cobrar,
+    # así que el historial de movimientos queda igual sea cual sea el origen del
+    # cobro. Borra esta nota después de leerla.
+    try:
+        amount = Decimal(amount)
+    except Exception as error:
+        raise ValidationError("Escribe un importe válido.") from error
+    if amount <= 0:
+        raise ValidationError("El importe debe ser mayor a cero.")
+    if payment_method not in Order.PaymentMethod.values:
+        raise ValidationError("Selecciona cómo se recibió el cobro.")
+    debt_ids = [str(debt_id) for debt_id in debt_ids]
+    debts = list(
+        CustomerDebt.objects.filter(
+            pk__in=debt_ids, customer=customer,
+            status__in=(CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL),
+        ).order_by("created_at")
+    )
+    if not debts or len(debts) != len(set(debt_ids)):
+        raise ValidationError("Selecciona al menos un pedido adeudado disponible.")
+    total_selected_balance = sum((debt.balance for debt in debts), Decimal("0"))
+    if amount > total_selected_balance:
+        raise ValidationError(f"El importe no puede superar lo seleccionado (${total_selected_balance:.2f}).")
+    remaining = amount
+    for debt in debts:
+        if remaining <= 0:
+            break
+        apply_amount = min(remaining, debt.balance)
+        register_customer_debt_payment(
+            debt=debt, amount=apply_amount, payment_method=payment_method, actor=actor, note=note,
+        )
+        remaining -= apply_amount
+    return debts
+
+
+@transaction.atomic
 def set_customer_debt_forgiven(*, debt, forgiven, actor, note=""):
     debt = CustomerDebt.objects.select_for_update().get(pk=debt.pk)
     if forgiven:
@@ -230,6 +283,79 @@ def set_customer_debt_forgiven(*, debt, forgiven, actor, note=""):
 
 
 @transaction.atomic
+def add_customer_credit(*, customer, amount, payment_method, actor, note=""):
+    """Register a customer's advance deposit ("saldo a favor")."""
+    customer = Customer.objects.select_for_update().get(pk=customer.pk)
+    try:
+        amount = Decimal(amount)
+    except Exception as error:
+        raise ValidationError("Escribe un importe válido.") from error
+    if amount <= 0:
+        raise ValidationError("El depósito debe ser mayor a cero.")
+    if payment_method not in Order.PaymentMethod.values:
+        raise ValidationError("Selecciona cómo se recibió el depósito.")
+    customer.credit_balance += amount
+    customer.save(update_fields=("credit_balance", "updated_at"))
+    CustomerCreditMovement.objects.create(
+        customer=customer, action=CustomerCreditMovement.Action.DEPOSIT, amount=amount,
+        payment_method=payment_method, note=" ".join(note.split()), registered_by=actor,
+    )
+    return customer
+
+
+@transaction.atomic
+def refund_customer_credit(*, customer, amount, actor, note=""):
+    """Return unused deposit balance to the customer (e.g. in cash)."""
+    customer = Customer.objects.select_for_update().get(pk=customer.pk)
+    try:
+        amount = Decimal(amount)
+    except Exception as error:
+        raise ValidationError("Escribe un importe válido.") from error
+    if amount <= 0 or amount > customer.credit_balance:
+        raise ValidationError(
+            f"La devolución debe ser mayor a cero y no superar el saldo de ${customer.credit_balance:.2f}."
+        )
+    customer.credit_balance -= amount
+    customer.save(update_fields=("credit_balance", "updated_at"))
+    CustomerCreditMovement.objects.create(
+        customer=customer, action=CustomerCreditMovement.Action.REFUND, amount=amount,
+        note=" ".join(note.split()), registered_by=actor,
+    )
+    return customer
+
+
+@transaction.atomic
+def apply_customer_credit_to_order(*, order, actor):
+    # NOTA TEMPORAL PARA APRENDIZAJE: se aplica automáticamente al cerrar la
+    # captura (close_internal_order_capture), nunca antes, porque el total del
+    # pedido todavía puede cambiar mientras se sigue editando — aplicar saldo
+    # contra un total que luego baja dejaría crédito de más descontado. Se aplica
+    # el mínimo entre el saldo disponible del cliente y lo que falte por cubrir del
+    # pedido; si ya se había aplicado algo antes (no debería, pero es seguro
+    # llamarla dos veces), sólo completa la diferencia. Borra esta nota al leerla.
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if not order.agenda_customer_id:
+        return order
+    remaining_total = order.total - order.credit_applied
+    if remaining_total <= 0:
+        return order
+    customer = Customer.objects.select_for_update().get(pk=order.agenda_customer_id)
+    to_apply = min(customer.credit_balance, remaining_total)
+    if to_apply <= 0:
+        return order
+    customer.credit_balance -= to_apply
+    customer.save(update_fields=("credit_balance", "updated_at"))
+    order.credit_applied += to_apply
+    order.save(update_fields=("credit_applied", "updated_at"))
+    CustomerCreditMovement.objects.create(
+        customer=customer, order=order, action=CustomerCreditMovement.Action.REDEMPTION,
+        amount=to_apply, registered_by=actor,
+        note=f"Aplicado automáticamente al cerrar {order.formatted_number}.",
+    )
+    return order
+
+
+@transaction.atomic
 def update_cashier_payment(*, order, payment_method, cash_amount, actor):
     """Persist the payment instruction selected at the cash desk."""
     # NOTA TEMPORAL PARA APRENDIZAJE: al cambiar cómo pagará el cliente anulamos una
@@ -246,22 +372,26 @@ def update_cashier_payment(*, order, payment_method, cash_amount, actor):
     order.cash_settlement_confirmed = False
     order.cash_settlement_by = None
     order.cash_settlement_at = None
+    # NOTA TEMPORAL PARA APRENDIZAJE: usa amount_due (total menos el saldo a favor
+    # ya aplicado a este pedido), no total — si el cliente ya cubrió parte con su
+    # depósito, Caja sólo debe exigir efectivo suficiente para lo que realmente
+    # falta, no el total completo del pedido. Borra esta nota después de leerla.
     if payment_method == Order.PaymentMethod.CASH:
         if cash_amount == "":
             order.needs_change = False
             order.cash_tendered = None
         elif cash_amount == "exact":
             order.needs_change = False
-            order.cash_tendered = order.total
+            order.cash_tendered = order.amount_due
         else:
             try:
                 tendered = Decimal(cash_amount)
             except Exception as error:
                 raise ValidationError("Selecciona el billete o indica pago exacto.") from error
-            if tendered < order.total:
+            if tendered < order.amount_due:
                 raise ValidationError("El efectivo indicado no cubre el total del pedido.")
             order.cash_tendered = tendered
-            order.needs_change = tendered > order.total
+            order.needs_change = tendered > order.amount_due
     else:
         order.needs_change = False
         order.cash_tendered = None
@@ -379,12 +509,24 @@ def sync_order_customer_agenda(order, form_data):
     name = " ".join(form_data.get("customer_name", "").split())
     street = form_data.get("street", "").strip()
     exterior = form_data.get("exterior_number", "").strip()
-    if not name or not street or not exterior:
-        return order
     phone = form_data.get("phone", "").strip()
     normalized_phone = _normalize_phone(phone)
     customer_id = form_data.get("agenda_customer_id")
     customer = Customer.objects.filter(pk=customer_id).first() if customer_id else None
+    # NOTA TEMPORAL PARA APRENDIZAJE: un cliente elegido explícitamente en el
+    # buscador de la agenda (agenda_customer_id ya conocido) se vincula de
+    # inmediato al pedido, aunque el domicilio de esta entrega todavía no se
+    # haya terminado de escribir. Antes, en Entrega, la selección se perdía
+    # hasta llenar calle y número exterior — lo cual rompía cualquier aviso
+    # que depende de agenda_customer_id (adeudo, saldo a favor) justo en el
+    # momento de elegir al cliente, en vez de mostrarse de inmediato. El resto
+    # de la función (crear/actualizar domicilio) sigue exigiendo esos campos,
+    # sin cambios. Borra esta nota después de leerla.
+    if customer is not None and order.agenda_customer_id != customer.pk:
+        order.agenda_customer = customer
+        order.save(update_fields=("agenda_customer", "updated_at"))
+    if not name or not street or not exterior:
+        return order
     phone_match = Customer.objects.filter(phone_key=normalized_phone).first() if normalized_phone else None
     # Si el teléfono pertenece a otra ficha, conservamos el pedido pero no tocamos
     # la agenda hasta que el operador elija expresamente ese contacto.
@@ -548,8 +690,9 @@ def close_internal_order_capture(*, order, actor):
         required = (order.street, order.exterior_number)
         if not all(value.strip() for value in required):
             raise ValidationError("Completa la calle y el número exterior de la entrega.")
-    if order.payment_method == Order.PaymentMethod.CASH and order.needs_change:
-        if order.cash_tendered is None or order.cash_tendered < order.total:
+    order = apply_customer_credit_to_order(order=order, actor=actor)
+    if order.payment_method == Order.PaymentMethod.CASH and order.needs_change and order.amount_due > 0:
+        if order.cash_tendered is None or order.cash_tendered < order.amount_due:
             raise ValidationError("Actualiza el efectivo: la cantidad no cubre el total.")
     previous = order.status
     order.status = scheduled_initial_status(order)

@@ -36,7 +36,7 @@ from .coffee_report import coffee_sales_for_date
 from .phones import phone_key as normalize_customer_phone
 from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm, PublicOrderModeForm
 from .models import CoffeeSettlement, Customer, CustomerAddress, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
-from .services import ACTION_LABELS, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, start_internal_order, transition_order, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
+from .services import ACTION_LABELS, add_customer_credit, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, settle_selected_debts_from_cashier, start_internal_order, transition_order, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
 
 
 INTERNAL_MENU_MODE_KEY = "internal_order_menu_mode"
@@ -183,6 +183,81 @@ def clear_internal_auto_meals(request, order_id):
         request.session.modified = True
 
 
+def _customer_credit_projection(order):
+    # NOTA TEMPORAL PARA APRENDIZAJE: proyección informativa, en vivo, de lo que
+    # pasaría con el saldo a favor del cliente SI el pedido se cerrara ahora mismo
+    # con el total actual — no aplica ni descuenta nada todavía (eso sigue pasando
+    # sólo al cerrar la captura, en apply_customer_credit_to_order). Se usa tanto
+    # en la carga inicial de la página como en cada respuesta AJAX que ya devuelve
+    # el ticket (internal_order_ticket), para que el aviso se mantenga al día sin
+    # recargar. Borra esta nota después de leerla.
+    if not order.agenda_customer_id:
+        return None
+    balance = order.agenda_customer.credit_balance
+    if balance <= 0:
+        return None
+    return {
+        "balance": f"{balance:.2f}",
+        "applied": f"{min(balance, order.total):.2f}",
+        "remaining_balance": f"{max(balance - order.total, Decimal('0')):.2f}",
+        "remaining_after_credit": f"{max(order.total - balance, Decimal('0')):.2f}",
+    }
+
+
+def _order_debt_badge(order):
+    # NOTA TEMPORAL PARA APRENDIZAJE: a diferencia del saldo a favor (que vive en
+    # Customer.credit_balance, un solo número cacheado), el adeudo se guarda como un
+    # CustomerDebt por pedido — así que "cuánto debe este cliente en total" es la
+    # suma de todos sus adeudos todavía abiertos (pendiente o parcial), sin importar
+    # a qué otro pedido pertenezca cada uno. Se usa en los tableros (Pedidos, Caja,
+    # Repartos) para avisar de un vistazo si vale la pena cobrar ese adeudo también.
+    # Borra esta nota después de leerla.
+    if not order.agenda_customer_id:
+        return None
+    open_debts = [
+        debt for debt in order.agenda_customer.debts.all()
+        if debt.status in (CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL)
+    ]
+    if not open_debts:
+        return None
+    open_debts.sort(key=lambda debt: debt.created_at)
+    return {
+        "balance": sum((debt.balance for debt in open_debts), Decimal("0")),
+        "count": len(open_debts),
+        "debts": open_debts,
+    }
+
+
+def _customer_debt_projection(order):
+    # NOTA TEMPORAL PARA APRENDIZAJE: espejo de _customer_credit_projection, pero
+    # para "saldo en contra" — informativo, en vivo, durante la captura de un pedido
+    # NUEVO. No decide nada sobre cómo se van a cobrar los adeudos viejos (eso pasa
+    # en Caja, al registrar el pago); aquí sólo mostramos cuánto debe ya el cliente,
+    # en qué pedidos, y cuánto deberá en total si este pedido nuevo también quedara
+    # sin pagar. A diferencia de _order_debt_badge (que usa agenda_customer.debts.all()
+    # ya prefetcheado en los tableros), esta función se llama una sola vez por
+    # respuesta del ticket, así que puede consultar directo sin prefetch previo.
+    # Borra esta nota después de leerla.
+    if not order.agenda_customer_id:
+        return None
+    open_debts = list(order.agenda_customer.debts.select_related("order").filter(
+        status__in=(CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL),
+    ))
+    if not open_debts:
+        return None
+    balance = sum((debt.balance for debt in open_debts), Decimal("0"))
+    return {
+        "balance": f"{balance:.2f}",
+        "count": len(open_debts),
+        "projected_total": f"{balance + order.total:.2f}",
+        "orders": [{
+            "id": debt.order_id, "number": debt.order.formatted_number,
+            "balance": f"{debt.balance:.2f}",
+            "url": reverse("orders:internal_order_edit", args=(debt.order_id,)),
+        } for debt in open_debts],
+    }
+
+
 def internal_order_ticket(order):
     items = []
     quantities = {}
@@ -227,6 +302,8 @@ def internal_order_ticket(order):
         "items": items, "total": f"{order.total:.2f}",
         "count": sum(item["quantity"] for item in items), "quantities": quantities,
         "candidate_quantities": candidate_quantities, "note": order.notes,
+        "customer_credit": _customer_credit_projection(order),
+        "customer_debt": _customer_debt_projection(order),
     }
 
 
@@ -468,7 +545,7 @@ def order_list(request):
     # consulta adicional por cada fila. Borra esta nota después de leerla.
     orders = Order.objects.select_related(
         "delivery_person", "agenda_customer", "customer_debt",
-    ).prefetch_related("items")
+    ).prefetch_related("items", "agenda_customer__debts")
     today = timezone.localdate()
     date_from = _report_date(request.GET.get("date_from"), today)
     date_to = _report_date(request.GET.get("date_to"), today)
@@ -538,6 +615,7 @@ def order_list(request):
             and not hasattr(order, "customer_debt")
         )
         order.can_edit_payment = can_update_order_payment(order=order, actor=request.user)
+        order.customer_debt_note = _order_debt_badge(order)
     return render(request, "orders/order_list.html", {
         "orders": orders,
         "delivery_orders": [order for order in orders if order.order_type == Order.OrderType.DELIVERY],
@@ -669,7 +747,10 @@ def customer_create(request):
 @role_required(ADMIN, ORDER_TAKER)
 def customer_edit(request, customer_id):
     customer = get_object_or_404(
-        Customer.objects.prefetch_related("addresses", "debts__order", "debts__movements__registered_by"),
+        Customer.objects.prefetch_related(
+            "addresses", "debts__order", "debts__movements__registered_by",
+            "credit_movements__order", "credit_movements__registered_by",
+        ),
         pk=customer_id,
     )
     form = CustomerForm(instance=customer)
@@ -696,6 +777,29 @@ def customer_edit(request, customer_id):
                 address_form.save()
                 messages.success(request, "La dirección fue actualizada.")
                 return redirect("orders:customer_edit", customer_id=customer.pk)
+        elif action == "credit_deposit" and user_has_any_role(request.user, (ADMIN,)):
+            try:
+                add_customer_credit(
+                    customer=customer, amount=request.POST.get("amount", ""),
+                    payment_method=request.POST.get("payment_method", ""), actor=request.user,
+                    note=request.POST.get("note", ""),
+                )
+            except ValidationError as error:
+                messages.error(request, error.message)
+            else:
+                messages.success(request, "El depósito fue registrado.")
+            return redirect("orders:customer_edit", customer_id=customer.pk)
+        elif action == "credit_refund" and user_has_any_role(request.user, (ADMIN,)):
+            try:
+                refund_customer_credit(
+                    customer=customer, amount=request.POST.get("amount", ""),
+                    actor=request.user, note=request.POST.get("note", ""),
+                )
+            except ValidationError as error:
+                messages.error(request, error.message)
+            else:
+                messages.success(request, "La devolución fue registrada.")
+            return redirect("orders:customer_edit", customer_id=customer.pk)
     address_forms = [(address, CustomerAddressForm(instance=address, prefix=f"address-{address.pk}")) for address in customer.addresses.all()]
     return render(request, "orders/customer_form.html", {
         "customer": customer, "form": form, "address_forms": address_forms,
@@ -705,6 +809,9 @@ def customer_edit(request, customer_id):
             (debt.balance for debt in customer.debts.all() if debt.status in {CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL}),
             Decimal("0"),
         ),
+        "customer_credit_movements": customer.credit_movements.all()[:20],
+        "can_manage_credit": user_has_any_role(request.user, (ADMIN,)),
+        "payment_method_choices": Order.PaymentMethod.choices,
     })
 
 
@@ -712,7 +819,7 @@ def customer_edit(request, customer_id):
 def customer_lookup(request):
     query = request.GET.get("q", "").strip()
     phone_query = normalize_customer_phone(query)
-    customers = Customer.objects.prefetch_related("addresses", "debts")
+    customers = Customer.objects.prefetch_related("addresses", "debts__order")
     if query:
         phone_filter = Q(phone_key__icontains=phone_query) if phone_query else Q(pk__isnull=True)
         customers = customers.filter(
@@ -732,6 +839,12 @@ def customer_lookup(request):
         "outstanding_balance": f"{sum((debt.balance for debt in open_debts), Decimal('0')):.2f}",
         "open_debt_count": len(open_debts),
         "debt_url": f"{reverse('cashier:debt_board')}?customer={customer.pk}",
+        "open_debts": [{
+            "id": debt.order_id, "number": debt.order.formatted_number,
+            "balance": f"{debt.balance:.2f}",
+            "url": reverse("orders:internal_order_edit", args=(debt.order_id,)),
+        } for debt in open_debts],
+        "credit_balance": f"{customer.credit_balance:.2f}",
         "addresses": [{
             "id": address.pk, "street": address.street,
             "exterior_number": address.exterior_number,
@@ -872,7 +985,7 @@ def internal_order_edit(request, order_id):
             })
     current_customer_debts = []
     if order.agenda_customer_id:
-        current_customer_debts = list(order.agenda_customer.debts.filter(
+        current_customer_debts = list(order.agenda_customer.debts.select_related("order").filter(
             status__in=(CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL),
         ))
     egg_choices = list(egg_products())
@@ -897,7 +1010,23 @@ def internal_order_edit(request, order_id):
             "balance": sum((debt.balance for debt in current_customer_debts), Decimal("0")),
             "count": len(current_customer_debts),
             "url": f"{reverse('cashier:debt_board')}?customer={order.agenda_customer_id}",
+            "projected_total": sum((debt.balance for debt in current_customer_debts), Decimal("0")) + order.total,
+            "orders": [{
+                "id": debt.order_id, "number": debt.order.formatted_number,
+                "balance": debt.balance,
+                "url": reverse("orders:internal_order_edit", args=(debt.order_id,)),
+            } for debt in current_customer_debts],
         } if current_customer_debts else None,
+        # NOTA TEMPORAL PARA APRENDIZAJE: sólo informativo durante la captura — el
+        # saldo todavía no se descuenta aquí (eso pasa hasta cerrar la captura, en
+        # apply_customer_credit_to_order, porque el total puede seguir cambiando).
+        # Borra esta nota después de leerla.
+        "customer_credit_summary": {
+            "balance": order.agenda_customer.credit_balance,
+            "applied": min(order.agenda_customer.credit_balance, order.total),
+            "remaining_balance": max(order.agenda_customer.credit_balance - order.total, Decimal("0")),
+            "remaining_after_credit": max(order.total - order.agenda_customer.credit_balance, Decimal("0")),
+        } if order.agenda_customer_id and order.agenda_customer.credit_balance > 0 else None,
     })
 
 
@@ -1364,8 +1493,8 @@ def delivery_board(request):
         operating_date__range=(date_from, date_to),
     ).select_related(
         "delivery_person", "delivery_assigned_by", "delivery_tip_recipient",
-        "delivery_tip_updated_by",
-    )
+        "delivery_tip_updated_by", "agenda_customer",
+    ).prefetch_related("agenda_customer__debts")
     repartidores = get_user_model().objects.filter(
         is_active=True, groups__name=DELIVERY,
     ).distinct().order_by("first_name", "username")
@@ -1396,6 +1525,7 @@ def delivery_board(request):
         # decide qué controles se dibujan. Así no ofrecemos botones que el
         # servidor tendría que rechazar cuando el pedido ya salió. Borra esta nota.
         order.is_locked_for_user = _order_locked_for_edit(order, request.user)
+        order.customer_debt_note = _order_debt_badge(order)
         order.can_edit_delivery_tip = _can_edit_delivery_tip_on_board(order, request.user)
         order.can_assign_delivery = can_assign_any_delivery and not order.is_locked_for_user
         order.can_update_delivery_status = (
@@ -1752,6 +1882,35 @@ def cashier_debt_payment(request, debt_id):
 
 @require_POST
 @role_required(ADMIN)
+def cashier_settle_debts(request, order_id):
+    # NOTA TEMPORAL PARA APRENDIZAJE: el desarrollador pidió que, cuando un cliente
+    # con adeudo previo trae un pedido nuevo, Caja pueda cobrar ambas cosas juntas
+    # sin ir aparte a Cuentas por cobrar — el pedido nuevo se cobra como siempre
+    # (botones de arriba, sin cambios); este formulario aparte sólo cobra el
+    # adeudo viejo, asociando todos sus pedidos pendientes, sólo algunos, o el
+    # monto que el cajero indique. Borra esta nota después de leerla.
+    order = get_object_or_404(Order, pk=order_id)
+    if not order.agenda_customer_id:
+        messages.error(request, "Este pedido no tiene un cliente de la agenda vinculado.")
+    else:
+        try:
+            settle_selected_debts_from_cashier(
+                customer=order.agenda_customer, debt_ids=request.POST.getlist("debt_ids"),
+                amount=request.POST.get("amount", ""), payment_method=request.POST.get("payment_method", ""),
+                actor=request.user, note=f"Cobrado junto con el pedido {order.formatted_number}",
+            )
+        except ValidationError as error:
+            messages.error(request, error.message)
+        else:
+            messages.success(request, f"Se registró el cobro de adeudo de {order.agenda_customer.name}.")
+    next_url = request.POST.get("next", "")
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return redirect(next_url)
+    return redirect("cashier:cashier_board")
+
+
+@require_POST
+@role_required(ADMIN)
 def cashier_debt_status(request, debt_id):
     debt = get_object_or_404(CustomerDebt, pk=debt_id)
     try:
@@ -1764,6 +1923,88 @@ def cashier_debt_status(request, debt_id):
     else:
         messages.success(request, f"El adeudo de {debt.customer.name} ahora está {debt.get_status_display().lower()}.")
     return redirect(f"{reverse('cashier:debt_board')}?customer={debt.customer_id}&scope=all")
+
+
+@role_required(ADMIN, ORDER_TAKER)
+def cashier_credit_board(request):
+    # NOTA TEMPORAL PARA APRENDIZAJE: a diferencia de CustomerDebt, el saldo a favor
+    # vive a nivel cliente (no de un pedido en particular), así que este panel lista
+    # clientes con saldo en vez de movimientos sueltos. Telefonista puede consultarlo
+    # para avisar al cliente; sólo Administrador puede registrar depósitos/devoluciones.
+    # Borra esta nota después de leerla.
+    customers = Customer.objects.filter(credit_balance__gt=0).order_by("name")
+    search = request.GET.get("q", "").strip()
+    if search:
+        customers = customers.filter(Q(name__icontains=search) | Q(phone__icontains=search))
+    customers = list(customers)
+    customer_id = request.GET.get("customer", "").strip()
+    selected_customer = None
+    movements = []
+    if customer_id.isdigit():
+        selected_customer = Customer.objects.filter(pk=int(customer_id)).first()
+        if selected_customer:
+            movements = list(
+                selected_customer.credit_movements.select_related("order", "registered_by")[:50]
+            )
+    return render(request, "orders/cashier_credit_board.html", {
+        "customers": customers, "search": search,
+        "can_manage_credit": user_has_any_role(request.user, (ADMIN,)),
+        "payment_method_choices": Order.PaymentMethod.choices,
+        "balance_total": sum((customer.credit_balance for customer in customers), Decimal("0")),
+        "selected_customer": selected_customer, "movements": movements,
+    })
+
+
+@require_POST
+@role_required(ADMIN)
+def cashier_credit_deposit(request):
+    # NOTA TEMPORAL PARA APRENDIZAJE: customer_id llega lleno cuando el operador
+    # eligió una sugerencia del buscador (customer-picker.js) — en ese caso no hay
+    # ambigüedad y se usa directo. Si llega vacío (JS deshabilitado, o escribió y no
+    # seleccionó nada), se recurre a la búsqueda difusa de antes como respaldo.
+    # Borra esta nota después de leerla.
+    customer_id = request.POST.get("customer_id", "").strip()
+    customer = Customer.objects.filter(pk=customer_id).first() if customer_id.isdigit() else None
+    if not customer:
+        query = request.POST.get("customer_query", "").strip()
+        if not query:
+            messages.error(request, "Escribe el nombre o teléfono del cliente.")
+            return redirect("cashier:credit_board")
+        candidates = list(Customer.objects.filter(Q(name__icontains=query) | Q(phone__icontains=query))[:2])
+        if not candidates:
+            messages.error(request, "No encontramos un cliente con ese nombre o teléfono. Regístralo primero en Clientes.")
+            return redirect("cashier:credit_board")
+        if len(candidates) > 1:
+            messages.error(request, "Hay más de un cliente que coincide; selecciónalo de la lista o sé más específico.")
+            return redirect("cashier:credit_board")
+        customer = candidates[0]
+    try:
+        add_customer_credit(
+            customer=customer, amount=request.POST.get("amount", ""),
+            payment_method=request.POST.get("payment_method", ""), actor=request.user,
+            note=request.POST.get("note", ""),
+        )
+    except ValidationError as error:
+        messages.error(request, error.message)
+    else:
+        messages.success(request, f"Depósito registrado para {customer.name}.")
+    return redirect(f"{reverse('cashier:credit_board')}?customer={customer.pk}")
+
+
+@require_POST
+@role_required(ADMIN)
+def cashier_credit_refund(request, customer_id):
+    customer = get_object_or_404(Customer, pk=customer_id)
+    try:
+        refund_customer_credit(
+            customer=customer, amount=request.POST.get("amount", ""),
+            actor=request.user, note=request.POST.get("note", ""),
+        )
+    except ValidationError as error:
+        messages.error(request, error.message)
+    else:
+        messages.success(request, f"Devolución registrada para {customer.name}.")
+    return redirect(f"{reverse('cashier:credit_board')}?customer={customer.pk}")
 
 
 @role_required(ADMIN)
@@ -1792,8 +2033,8 @@ def cashier_board(request):
         scope = "active"
         queryset = queryset.filter(status__in=active_statuses, cashier_released_at__isnull=True)
     queryset = queryset.select_related(
-        "delivery_person", "cash_settlement_by", "customer_debt",
-    ).prefetch_related("items").order_by("order_type", "requested_for", "created_at")
+        "delivery_person", "cash_settlement_by", "customer_debt", "agenda_customer",
+    ).prefetch_related("items", "agenda_customer__debts__order").order_by("order_type", "requested_for", "created_at")
     search = request.GET.get("q", "").strip()
     order_type = request.GET.get("type", "").strip()
     delivery_person = request.GET.get("delivery_person", "").strip()
@@ -1829,6 +2070,7 @@ def cashier_board(request):
         order.can_mark_unpaid = (
             order.status != Order.Status.CANCELED and not hasattr(order, "customer_debt")
         )
+        order.customer_debt_note = _order_debt_badge(order)
     repartidores = get_user_model().objects.filter(
         is_active=True, groups__name=DELIVERY,
     ).distinct().order_by("first_name", "username")

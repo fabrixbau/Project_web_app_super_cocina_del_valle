@@ -1,0 +1,31 @@
+{% extends "base_internal.html" %}
+{% load l10n static %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: espejo de cashier_debt_board.html, pero el
+saldo a favor vive a nivel cliente (no de un pedido), así que aquí se lista un
+renglón por cliente con saldo, y el historial de movimientos se expande sólo
+para el cliente seleccionado (?customer=) en vez de vivir siempre abierto en
+cada fila. Borra esta nota después de leerla. -->
+{% block title %}Saldos a favor{% endblock %}
+{% block content %}
+<div class="page-heading"><div><h1>Saldos a favor</h1><p>Depósitos adelantados de clientes, para ir descontando en sus próximos pedidos.</p></div><div class="page-heading-actions">{% if can_manage_credit %}<a class="button-link" href="{% url 'cashier:cashier_board' %}">Caja</a>{% endif %}<a class="button-link" href="{% url 'cashier:debt_board' %}">Cuentas por cobrar</a><a class="button-link" href="{% url 'orders:customer_list' %}">Agenda</a></div></div>
+{% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+
+{% if can_manage_credit %}<section class="card debt-create-card"><div><h2>Registrar depósito</h2><p>Escribe el nombre o teléfono del cliente y selecciónalo de la lista; debe estar registrado en la agenda.</p></div><form method="post" action="{% url 'cashier:credit_deposit' %}">{% csrf_token %}<label class="customer-picker" data-customer-picker data-customer-lookup-url="{% url 'orders:customer_lookup' %}">Cliente<input type="text" name="customer_query" data-customer-picker-input placeholder="Nombre o teléfono" autocomplete="off" required><input type="hidden" name="customer_id" data-customer-picker-id><div class="customer-picker-results" data-customer-picker-results hidden></div></label><label>Monto<input type="number" name="amount" min="0.01" step="0.01" required></label><label>Método<select name="payment_method" required><option value="">Selecciona</option>{% for value, label in payment_method_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label><label>Nota<input name="note" maxlength="250" placeholder="Ej. Depósito para la semana"></label><button type="submit">Registrar depósito</button></form></section>{% endif %}
+
+<section class="card debt-filter-card"><form method="get"><label>Buscar<input name="q" value="{{ search }}" placeholder="Cliente o teléfono"></label><button type="submit">Buscar</button></form></section>
+
+<section class="debt-summary-grid"><article class="card credit-balance-card"><small>Saldo total a favor</small><strong>${{ balance_total|floatformat:2 }}</strong></article></section>
+
+<section class="card debt-list">
+  <header><span>Cliente</span><span>Saldo a favor</span></header>
+  {% for customer in customers %}<details class="debt-row" id="cliente-{{ customer.id }}" {% if selected_customer.id == customer.id %}open{% endif %}>
+    <summary><span data-column="Cliente"><strong>{{ customer.name }}</strong><small>{{ customer.phone|default:'Sin teléfono' }}</small></span><strong data-column="Saldo a favor">${{ customer.credit_balance|floatformat:2 }}</strong></summary>
+    <div class="debt-detail">
+      <div><a href="{% url 'orders:customer_edit' customer.id %}">Abrir cliente</a>{% if not selected_customer or selected_customer.id != customer.id %} · <a href="?customer={{ customer.id }}">Ver movimientos</a>{% endif %}</div>
+      {% if can_manage_credit %}<form method="post" action="{% url 'cashier:credit_refund' customer.id %}" class="debt-payment-form"><h3>Devolver saldo</h3>{% csrf_token %}<label>Monto<input type="number" name="amount" min="0.01" max="{{ customer.credit_balance|unlocalize }}" step="0.01" required></label><label>Nota<input name="note" maxlength="250" placeholder="Ej. Se le devolvió en efectivo"></label><button type="submit" class="danger">Registrar devolución</button></form>{% endif %}
+      {% if selected_customer.id == customer.id %}<div class="debt-history"><h3>Historial</h3>{% for movement in movements %}<p><strong>{{ movement.get_action_display }}</strong> · ${{ movement.amount|floatformat:2 }}{% if movement.payment_method %} · {{ movement.get_payment_method_display }}{% endif %}{% if movement.order %} · <a href="{% url 'orders:order_detail' movement.order_id %}">{{ movement.order.formatted_number }}</a>{% endif %}<br><small>{{ movement.created_at|date:'d/m/Y H:i' }} · {{ movement.registered_by.get_full_name|default:movement.registered_by.username }}{% if movement.note %} · {{ movement.note }}{% endif %}</small></p>{% empty %}<p>Sin movimientos.</p>{% endfor %}</div>{% endif %}
+    </div>
+  </details>{% empty %}<p>No hay clientes con saldo a favor.</p>{% endfor %}
+</section>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/customer-picker.js' %}?v=1"></script>{% endblock %}

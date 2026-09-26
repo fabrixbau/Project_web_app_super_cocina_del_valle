@@ -23,6 +23,7 @@
   const agendaHelp = form.querySelector("[data-customer-agenda-help]");
   const duplicatePhoneWarning = form.querySelector("[data-duplicate-phone-warning]");
   const customerDebtWarning = form.querySelector("[data-customer-debt-warning]");
+  const customerCreditNotice = form.querySelector("[data-customer-credit-notice]");
   const paymentControl = document.querySelector(".ticket-payment-control");
   const paymentDetails = document.createElement("div");
   paymentDetails.className = "ticket-payment-details";
@@ -220,18 +221,72 @@
     const field = form.querySelector(`[name='${name}']`);
     if (field) field.value = value || "";
   };
-  function showCustomerDebt(customer) {
+  // NOTA TEMPORAL PARA APRENDIZAJE: espejo de updateCreditNotice, pero para "saldo
+  // en contra" — se llama tanto al elegir cliente (customer_lookup ya trae
+  // open_debts/outstanding_balance) como en cada repintado del ticket
+  // (renderTicket, con customer_debt del JSON, que además trae projected_total ya
+  // calculado con el total real del pedido en el servidor). Borra esta nota.
+  function updateDebtNotice(debt) {
     if (!customerDebtWarning) return;
-    const balance = Number(customer?.outstanding_balance || 0);
     customerDebtWarning.replaceChildren();
+    const balance = Number(debt?.balance || debt?.outstanding_balance || 0);
     if (!balance) { customerDebtWarning.hidden = true; return; }
-    const message = document.createElement("strong");
-    message.textContent = `Este cliente tiene $${balance.toFixed(2)} pendientes en ${customer.open_debt_count} pedido(s). `;
-    const link = document.createElement("a");
-    link.href = customer.debt_url;
-    link.textContent = "Revisar adeudo";
-    customerDebtWarning.append(message, link);
+    const count = Number(debt?.count ?? debt?.open_debt_count ?? 0);
+    const projected = Number(debt?.projected_total || 0);
+    const currentTotal = Number(form.dataset.orderTotal || 0);
+    const headline = document.createElement("strong");
+    headline.textContent = `Este cliente debe $${balance.toFixed(2)} en ${count} pedido(s) anterior(es).`;
+    customerDebtWarning.append(headline);
+    customerDebtWarning.append(document.createTextNode(
+      ` Con este pedido, deberá $${(projected || balance + currentTotal).toFixed(2)} en total.`
+    ));
+    const debtOrders = debt?.orders || debt?.open_debts || [];
+    if (debtOrders.length) {
+      customerDebtWarning.append(document.createTextNode(" Pedidos: "));
+      debtOrders.forEach((debtOrder, index) => {
+        if (index > 0) customerDebtWarning.append(document.createTextNode(", "));
+        const link = document.createElement("a");
+        link.href = debtOrder.url;
+        link.textContent = `#${debtOrder.number} ($${Number(debtOrder.balance).toFixed(2)})`;
+        customerDebtWarning.append(link);
+      });
+    }
     customerDebtWarning.hidden = false;
+  }
+  // NOTA TEMPORAL PARA APRENDIZAJE: a diferencia del adeudo (que no depende del
+  // total de ESTE pedido), el saldo a favor sí — por eso esta función se llama
+  // tanto al elegir cliente (con el total que el ticket tenga en ese momento)
+  // como cada vez que el ticket se repinta (renderTicket, más abajo), para que
+  // "cuánto queda por cobrar" se recalcule solo conforme se agregan productos,
+  // sin depender de guardar/recargar. Borra esta nota después de leerla.
+  function updateCreditNotice(credit) {
+    if (!customerCreditNotice) return;
+    customerCreditNotice.replaceChildren();
+    customerCreditNotice.classList.remove("is-partial");
+    const balance = Number(credit?.balance || 0);
+    if (!balance) { customerCreditNotice.hidden = true; return; }
+    const applied = Number(credit?.applied || 0);
+    const remainingBalance = Number(credit?.remaining_balance || 0);
+    const remainingDue = Number(credit?.remaining_after_credit || 0);
+    const headline = document.createElement("strong");
+    headline.textContent = `Saldo a favor: $${balance.toFixed(2)}`;
+    customerCreditNotice.append(headline);
+    customerCreditNotice.append(document.createTextNode(` · Se aplicará a este pedido: $${applied.toFixed(2)}`));
+    if (remainingDue > 0) {
+      customerCreditNotice.classList.add("is-partial");
+      const warning = document.createElement("strong");
+      warning.textContent = " Aviso:";
+      customerCreditNotice.append(document.createTextNode(" · "), warning, document.createTextNode(
+        ` el saldo a favor no alcanza a cubrir el pedido; se hará un ajuste en el cobro por $${remainingDue.toFixed(2)}.`
+      ));
+    } else if (remainingBalance > 0) {
+      customerCreditNotice.append(document.createTextNode(
+        ` · Cubre el total; le quedarán $${remainingBalance.toFixed(2)} de saldo a favor para después.`
+      ));
+    } else {
+      customerCreditNotice.append(document.createTextNode(" · Cubre exactamente el total de este pedido."));
+    }
+    customerCreditNotice.hidden = false;
   }
   function selectAgendaAddress(customer, address) {
     // NOTA TEMPORAL PARA APRENDIZAJE: invalidamos cualquier consulta anterior para
@@ -258,7 +313,20 @@
     customerPanel.hidden = true;
     closeCustomerField();
     if (duplicatePhoneWarning) duplicatePhoneWarning.hidden = true;
-    showCustomerDebt(customer);
+    const creditBalance = Number(customer.credit_balance || 0);
+    const currentTotal = Number(form.dataset.orderTotal || 0);
+    updateDebtNotice({
+      outstanding_balance: customer.outstanding_balance,
+      open_debt_count: customer.open_debt_count,
+      open_debts: customer.open_debts,
+      projected_total: Number(customer.outstanding_balance || 0) + currentTotal,
+    });
+    updateCreditNotice({
+      balance: customer.credit_balance,
+      applied: Math.min(creditBalance, currentTotal),
+      remaining_balance: Math.max(creditBalance - currentTotal, 0),
+      remaining_after_credit: Math.max(currentTotal - creditBalance, 0),
+    });
     refresh();
     window.clearTimeout(autosaveTimer);
     autosaveCustomer();
@@ -619,6 +687,8 @@
     refresh();
     renderQuantities(ticket.quantities || {});
     renderCandidateQuantities(ticket.candidate_quantities || {});
+    updateCreditNotice(ticket.customer_credit);
+    updateDebtNotice(ticket.customer_debt);
   }
 
   async function send(url, body) {

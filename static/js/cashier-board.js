@@ -285,6 +285,20 @@ document.addEventListener("submit", async (event) => {
   }
 });
 
+// NOTA TEMPORAL PARA APRENDIZAJE: sólo recalcula el monto sugerido al (des)marcar
+// un pedido adeudado — si el cajero ya escribió "otra cantidad" a mano y sigue
+// tocando checkboxes, se sobreescribe a propósito (mismo criterio que "asociar
+// todos"/"sólo algunos" son sólo el punto de partida del monto). Borra esta nota.
+document.addEventListener("change", (event) => {
+  const checkbox = event.target.closest("[data-cashier-debt-settle] input[type='checkbox']");
+  if (!checkbox) return;
+  const panel = checkbox.closest("[data-cashier-debt-settle]");
+  const total = Array.from(panel.querySelectorAll("input[type='checkbox']:checked"))
+    .reduce((sum, box) => sum + Number(box.dataset.debtBalance || 0), 0);
+  const amountField = panel.querySelector("[data-debt-settle-amount]");
+  if (amountField) amountField.value = total.toFixed(2);
+});
+
 const filters = document.querySelector("[data-cashier-filters]");
 // NOTA TEMPORAL PARA APRENDIZAJE: el campo de texto ya NO se auto-envía mientras se
 // escribe (antes lo hacía 450ms después de cada tecla, recargando la página entera y

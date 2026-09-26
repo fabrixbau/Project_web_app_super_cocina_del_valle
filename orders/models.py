@@ -13,6 +13,7 @@
 
 import uuid
 from datetime import timedelta
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
@@ -38,6 +39,15 @@ class Customer(models.Model):
     phone = models.CharField(max_length=30, blank=True)
     phone_key = models.CharField(max_length=30, blank=True, db_index=True, editable=False)
     notes = models.TextField(blank=True)
+    # NOTA TEMPORAL PARA APRENDIZAJE: saldo a favor por depósitos adelantados (ver
+    # CustomerCreditMovement, al final de este archivo). Es un total cacheado —igual
+    # que available_quantity en DailyProductStock— para no tener que sumar todo el
+    # historial de movimientos cada vez que se muestra durante la captura de un
+    # pedido; el ledger sigue siendo la fuente de verdad para auditoría. Borra esta
+    # nota después de leerla.
+    credit_balance = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)],
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -153,6 +163,16 @@ class Order(models.Model):
         related_name="cashier_orders_released",
     )
     total = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    # NOTA TEMPORAL PARA APRENDIZAJE: el saldo a favor de un cliente (ver
+    # CustomerCreditMovement) se aplica de forma automática, hasta cubrir el total,
+    # al cerrar la captura del pedido — nunca antes, porque el total todavía puede
+    # cambiar mientras se sigue editando. `credit_applied` guarda cuánto se descontó
+    # así, para que el ticket/recibo y el cálculo de lo que falta por cobrar (para
+    # Caja o para dejarlo a cuenta) usen `total - credit_applied` en vez del total
+    # completo. Borra esta nota después de leerla.
+    credit_applied = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)],
+    )
     # NOTA TEMPORAL PARA APRENDIZAJE: la propina de reparto no modifica el consumo.
     # Se guarda aparte para saber cuánto devolver al repartidor cuando el restaurante
     # la cobró por Terminal o Transferencia. Borra esta nota después de leerla.
@@ -203,8 +223,12 @@ class Order(models.Model):
 
     @property
     def change_required(self):
+        # NOTA TEMPORAL PARA APRENDIZAJE: usa amount_due (total menos el saldo a
+        # favor ya aplicado), no total — si el cliente ya cubrió parte con su
+        # depósito, sólo necesitaba tender lo suficiente para cubrir lo restante.
+        # Borra esta nota después de leerla.
         if self.needs_change and self.cash_tendered is not None:
-            return self.cash_tendered - self.total
+            return self.cash_tendered - self.amount_due
         return None
 
     @property
@@ -212,11 +236,20 @@ class Order(models.Model):
         """Efectivo total que el repartidor debe reintegrar a Caja."""
         if self.payment_method != self.PaymentMethod.CASH:
             return None
-        return self.cash_tendered if self.cash_tendered is not None else self.total
+        return self.cash_tendered if self.cash_tendered is not None else self.amount_due
 
     @property
     def total_with_delivery_tip(self):
         return self.total + self.delivery_tip_amount
+
+    @property
+    def amount_due(self):
+        # NOTA TEMPORAL PARA APRENDIZAJE: lo que realmente falta cobrar después de
+        # descontar el saldo a favor ya aplicado (credit_applied, ver
+        # CustomerCreditMovement) — `total` en sí nunca se reduce, sigue siendo el
+        # valor real del pedido; esto es lo que Caja debe exigir en efectivo/tarjeta/
+        # transferencia. Borra esta nota después de leerla.
+        return max(self.total - self.credit_applied, Decimal("0"))
 
     @property
     def is_advance_order(self):
@@ -467,3 +500,38 @@ class CustomerDebtMovement(models.Model):
 
     def __str__(self):
         return f"{self.debt} · {self.get_action_display()}"
+
+
+class CustomerCreditMovement(models.Model):
+    # NOTA TEMPORAL PARA APRENDIZAJE: espejo de CustomerDebtMovement, pero para
+    # saldo a favor: un cliente deja un depósito adelantado (ej. $1000 un sábado) y
+    # lo va consumiendo en varios pedidos a lo largo de la semana — por eso, a
+    # diferencia de CustomerDebt, esto NO se ata 1 a 1 con un pedido (order es
+    # opcional, sólo se llena en los renglones de tipo "redemption"). Cada renglón
+    # es un movimiento permanente del ledger; el saldo actual vive cacheado en
+    # Customer.credit_balance y se recalcula sumando/restando aquí, nunca editando
+    # un renglón existente. Borra esta nota después de leerla.
+    class Action(models.TextChoices):
+        DEPOSIT = "deposit", "Depósito"
+        REDEMPTION = "redemption", "Aplicado a pedido"
+        REFUND = "refund", "Devolución"
+
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name="credit_movements")
+    order = models.ForeignKey(
+        Order, on_delete=models.PROTECT, null=True, blank=True, related_name="credit_movements",
+    )
+    action = models.CharField(max_length=15, choices=Action.choices)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    payment_method = models.CharField(max_length=20, choices=Order.PaymentMethod.choices, blank=True)
+    note = models.CharField(max_length=250, blank=True)
+    registered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="customer_credit_movements",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+        indexes = [models.Index(fields=("customer", "action"), name="credit_customer_action_idx")]
+
+    def __str__(self):
+        return f"{self.customer} · {self.get_action_display()} · ${self.amount}"
