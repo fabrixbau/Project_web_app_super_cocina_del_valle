@@ -19,6 +19,7 @@ from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count, Max, Prefetch, Q, Sum
+from django.db.models.deletion import ProtectedError
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -714,16 +715,44 @@ def product_toggle_availability(request, product_id):
     return redirect("menu:configuration")
 
 
+def _product_delete_blocker(product):
+    # NOTA TEMPORAL PARA APRENDIZAJE: DailyMenu protege sus 9 componentes (agua,
+    # consomé, tiempos, guisados, complemento) y DailyProductStock protege su
+    # producto con on_delete=PROTECT, a propósito, para no perder el histórico de
+    # menús/inventario ya publicados. Antes de este arreglo, intentar borrar un
+    # producto usado en cualquiera de esos lugares tiraba un ProtectedError sin
+    # capturar y el usuario veía un error 500. Borra esta nota después de leerla.
+    daily_menu_relations = (
+        "daily_menus_as_water", "daily_menus_as_chicken_consomme", "daily_menus_as_variable_first_course",
+        "daily_menus_as_second_course_one", "daily_menus_as_second_course_two", "daily_menus_as_chicken_stew",
+        "daily_menus_as_beef_stew", "daily_menus_as_varied_stew", "daily_menus_as_beans_order",
+    )
+    if any(getattr(product, relation).exists() for relation in daily_menu_relations):
+        return "está asignado como componente en uno o más menús diarios"
+    if product.daily_stocks.exists():
+        return "tiene existencias registradas en el inventario diario"
+    return ""
+
+
 @role_required(*SECTION_ROLE_MATRIX["menu"])
 def product_delete(request, product_id):
     product = get_object_or_404(Product, id=product_id)
+    blocked_reason = _product_delete_blocker(product)
     if request.method == "POST":
+        if blocked_reason:
+            messages.error(request, f"No puedes eliminar {product.name} porque {blocked_reason}.")
+            return redirect("menu:configuration")
         name = product.name
-        product.delete()
+        try:
+            product.delete()
+        except ProtectedError:
+            messages.error(request, f"No puedes eliminar {name} porque está en uso en otros registros.")
+            return redirect("menu:configuration")
         messages.success(request, f"El producto {name} fue eliminado.")
         return redirect("menu:configuration")
     return render(request, "menu/confirm_delete.html", {
-        "object": product, "object_type": "producto", "blocked": False,
+        "object": product, "object_type": "producto", "blocked": bool(blocked_reason),
+        "blocked_reason": blocked_reason,
     })
 
 

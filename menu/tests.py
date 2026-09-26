@@ -208,3 +208,49 @@ class InventoryControlViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.context["page"].object_list), 30)
         self.assertContains(response, "Página 1 de 2")
+
+
+class ProductDeleteViewTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser(
+            username="product_delete_admin", password="test-password",
+        )
+        self.category = Category.objects.create(name="Categoría de prueba")
+        self.client.force_login(self.admin)
+
+    def test_deletes_product_without_protected_relations(self):
+        product = Product.objects.create(category=self.category, name="Sin uso", price=30)
+
+        response = self.client.post(
+            reverse("menu:product_delete", args=(product.pk,)), follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Product.objects.filter(pk=product.pk).exists())
+
+    def test_deleting_a_product_with_daily_stock_shows_error_instead_of_500(self):
+        # NOTA TEMPORAL PARA APRENDIZAJE: reproduce el bug reportado en producción
+        # (500 al eliminar un producto en /app/menu/productos/<id>/eliminar/) — el
+        # producto tenía un registro de `DailyProductStock`, protegido con
+        # `on_delete=PROTECT`, y la vista no capturaba el `ProtectedError`. Borra
+        # esta nota después de leerla.
+        product = Product.objects.create(category=self.category, name="Con existencias", price=30)
+        DailyProductStock.objects.create(product=product, initial_quantity=5)
+
+        response = self.client.post(
+            reverse("menu:product_delete", args=(product.pk,)), follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Product.objects.filter(pk=product.pk).exists())
+        self.assertContains(response, "No puedes eliminar")
+
+    def test_confirm_page_shows_blocked_state_for_product_with_daily_stock(self):
+        product = Product.objects.create(category=self.category, name="Con existencias", price=30)
+        DailyProductStock.objects.create(product=product, initial_quantity=5)
+
+        response = self.client.get(reverse("menu:product_delete", args=(product.pk,)))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["blocked"])
+        self.assertContains(response, "inventario diario")

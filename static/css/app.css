@@ -1148,6 +1148,14 @@ devuelve overflow:visible sólo a esta sección. Borra esta nota al leerla. */
 .order-more-actions[open] > summary { border-color: #285943; background: #edf4f0; }
 .order-more-actions-menu { position: absolute; z-index: 40; top: calc(100% + .35rem); right: 0; width: 175px; padding: .4rem; border: 1px solid #d4dcd7; border-radius: .65rem; background: #fff; box-shadow: 0 10px 24px rgb(25 57 44 / 18%); }
 .order-more-actions-menu button { min-height: 2.55rem; font-size: .78rem; }
+/* NOTA TEMPORAL PARA APRENDIZAJE: en Caja, el botón "•••" vive al inicio (izquierda)
+   de una columna angosta (`.cashier-status-action`, alineada con `flex-start`), a
+   diferencia de Pedidos donde vive al final (derecha) de su fila. El menú, anclado
+   con `right: 0`, se abre hacia la izquierda del botón — en Caja eso lo saca de la
+   pantalla/tarjeta por el lado izquierdo (el bug reportado en iPhone SE y tablet
+   horizontal). Aquí se ancla al revés (`left: 0`) sólo para Caja, para que se abra
+   hacia la derecha, donde sí hay espacio dentro de la tarjeta. Borra esta nota. */
+.cashier-status-action .order-more-actions-menu { right: auto; left: 0; }
 .row-status-error { margin-top: .35rem; color: #a92b27 !important; font-weight: 800; line-height: 1.25; }
 .order-row-actions a.row-status-error { padding: .35rem; border-color: #a92b27; color: #a92b27; background: #fff3f2; font-size: .82rem; }
 .row-status-error[hidden], [data-delivery-error][hidden], [data-order-board-feedback][hidden], [data-delivery-feedback][hidden] { display: none !important; }
@@ -8990,7 +8998,8 @@ siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un ta
     overflow-y: auto !important;
   }
   .internal-live-ticket > .table-ticket-items {
-    min-height: 28rem !important;
+    max-height: 28rem !important;
+    flex-shrink: 0 !important;
   }
   .internal-live-ticket .ticket-payment-details {
     flex-shrink: 0 !important;
