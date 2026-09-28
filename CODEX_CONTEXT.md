@@ -1,5 +1,12 @@
 # CODEX_CONTEXT — Super Cocina del Valle
 
+### Mesas: registrar cuenta no pagada y selector de mesa sin teclado (2026-09-28)
+
+- En `/app/pedidos/`, el selector `table_id` de "Pasar a mesa" dejó de ser un campo de búsqueda: ahora es un botón desplegable que abre/cierra las mesas disponibles al tocarlo, sin enfocar un input ni abrir el teclado. Se actualizó `custom-select.js` a v6.
+- En `/app/mesas/`, el menú `•••` de cada mesa ocupada ahora incorpora "Registrar mesa como no pagada" para Administrador y Mesero. Abre un diálogo con búsqueda por coincidencia de nombre o teléfono, exige elegir un cliente existente de la agenda y, al confirmar, reutiliza la transferencia Mesa→Pedido, vincula el cliente, crea el `CustomerDebt` por el saldo pendiente y deja libre la mesa.
+- Se creó un endpoint de búsqueda propio de Mesas que sólo entrega id/nombre/teléfono; así el Mesero no recibe saldos, adeudos ni direcciones. La operación completa es atómica: si falla la transferencia o el adeudo, la mesa permanece abierta.
+- Se añadieron estilos responsivos y pruebas para éxito, cliente omitido, búsqueda, visibilidad y permisos. Suite completa: 221/221 pruebas pasando. `app.css` v285. No requiere migración.
+
 > Archivo de contexto operativo para agentes de desarrollo.
 > Debe mantenerse compacto, actualizado y orientado a evitar que el agente tenga que reconstruir el contexto completo del proyecto en cada sesión.
 

@@ -15,6 +15,7 @@ from . import views
 app_name = "tables"
 urlpatterns = [
     path("", views.table_map, name="table_map"),
+    path("clientes/buscar/", views.table_customer_lookup, name="table_customer_lookup"),
     path("historial/", views.table_account_history, name="table_account_history"),
     path("modo-captura/", views.table_capture_mode_switch, name="table_capture_mode_switch"),
     path("<int:table_id>/abrir/", views.table_open, name="table_open"),
@@ -34,5 +35,6 @@ urlpatterns = [
     path("cuentas/<int:account_id>/cliente/", views.table_customer_name_update, name="table_customer_name_update"),
     path("cuentas/<int:account_id>/cerrar/", views.table_close, name="table_close"),
     path("cuentas/<int:account_id>/pasar-a-pedido/", views.table_transfer_to_order, name="table_transfer_to_order"),
+    path("cuentas/<int:account_id>/registrar-no-pagada/", views.table_register_unpaid, name="table_register_unpaid"),
     path("cuentas/<int:account_id>/dividir/", views.table_split_close, name="table_split_close"),
 ]

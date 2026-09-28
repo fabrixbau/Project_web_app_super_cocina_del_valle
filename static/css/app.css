@@ -4186,6 +4186,40 @@ input[type="reset"],
   .table-operation-header .table-package-launcher button { min-height: 2.8rem; }
 }
 
+/* Panel del mapa de mesas para convertir el consumo en un adeudo de agenda. */
+.table-unpaid-dialog {
+  width: min(34rem, calc(100vw - 2rem));
+  padding: 0;
+  border: 0;
+  border-radius: 1rem;
+  overflow: visible;
+  box-shadow: 0 1rem 3rem rgb(8 42 31 / 35%);
+}
+.table-unpaid-dialog::backdrop { background: rgb(5 28 21 / 65%); }
+.table-unpaid-dialog form { display: grid; gap: 1rem; padding: 1rem; }
+.table-unpaid-dialog header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.table-unpaid-dialog h2,
+.table-unpaid-dialog p { margin: 0; }
+.table-unpaid-dialog header > button {
+  flex: 0 0 2.75rem;
+  width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+}
+.table-unpaid-dialog .customer-picker { display: grid; gap: .35rem; }
+.table-unpaid-dialog .customer-picker-results { z-index: 100; }
+.table-unpaid-dialog form > button[type="submit"] { width: 100%; }
+
+@media (max-width: 600px) {
+  .table-unpaid-dialog { width: calc(100vw - 1rem); }
+  .table-unpaid-dialog form { padding: .8rem; }
+}
+
 @media (max-width: 900px) {
   .table-map-heading {
     display: grid;

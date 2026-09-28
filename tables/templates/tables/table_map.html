@@ -1,4 +1,5 @@
 {% extends "base_internal.html" %}
+{% load static %}
 <!-- NOTA TEMPORAL PARA APRENDIZAJE:
 El mapa usa dos filas horizontales para mantener las nueve mesas visibles. Administrador
 y Telefonista abren tocando directamente el nombre del mesero; Mesero se autoasigna y
@@ -23,4 +24,6 @@ solo toca Abrir ticket. El switch guarda el modo de captura en sesión. Borra la
       {% endwith %}
     {% empty %}<p>Todavía no se aplicó la migración que crea las nueve mesas.</p>{% endfor %}
   </section>
+  {% if can_transfer_to_order %}<dialog class="table-unpaid-dialog" data-table-unpaid-dialog><form method="post" data-table-unpaid-form>{% csrf_token %}<header><div><h2>Registrar mesa como no pagada</h2><p>Busca y selecciona el cliente responsable del ticket.</p></div><button type="button" data-table-unpaid-close aria-label="Cerrar">×</button></header><label class="customer-picker" data-customer-picker data-customer-lookup-url="{% url 'tables:table_customer_lookup' %}">Nombre de cliente<input type="text" data-customer-picker-input placeholder="Nombre o teléfono" autocomplete="off" required><input type="hidden" name="customer_id" data-customer-picker-id required><div class="customer-picker-results" data-customer-picker-results hidden></div></label><button type="submit">Registrar como no pagada y liberar mesa</button></form></dialog>{% endif %}
 {% endblock %}
+{% block extra_js %}<script src="{% static 'js/customer-picker.js' %}?v=2"></script><script src="{% static 'js/table-map-actions.js' %}?v=1"></script>{% endblock %}

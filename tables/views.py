@@ -27,6 +27,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Prefetch, Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -34,7 +35,7 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from accounts.roles import ADMIN, ORDER_TAKER, SECTION_ROLE_MATRIX, WAITER, role_required, user_has_any_role
 from config.printing import printable_item, selected_printable_items, table_print_context
@@ -262,6 +263,29 @@ def table_map(request):
     }
     context.update(capture_mode_context(request))
     return render(request, "tables/table_map.html", context)
+
+
+@require_GET
+@role_required(ADMIN, WAITER)
+def table_customer_lookup(request):
+    """Buscador mínimo para asignar un adeudo sin exponer datos financieros."""
+    from orders.models import Customer
+    from orders.phones import phone_key
+
+    query = request.GET.get("q", "").strip()
+    normalized_phone = phone_key(query)
+    customers = Customer.objects.none()
+    if len(query) >= 2:
+        phone_filter = Q(phone_key__icontains=normalized_phone) if normalized_phone else Q(pk__isnull=True)
+        customers = Customer.objects.filter(
+            Q(name__icontains=query) | Q(phone__icontains=query) | phone_filter,
+        ).distinct()[:10]
+    return JsonResponse({
+        "customers": [
+            {"id": customer.pk, "name": customer.name, "phone": customer.phone}
+            for customer in customers
+        ],
+    })
 
 
 @require_POST
@@ -936,6 +960,34 @@ def table_transfer_to_order(request, account_id):
     # de Pedidos sí es visible para los tres roles, y el mensaje de arriba ya dice
     # el folio resultante. Borra esta nota después de leerla.
     return redirect("orders:order_list")
+
+
+@require_POST
+@role_required(ADMIN, WAITER)
+def table_register_unpaid(request, account_id):
+    # La cuenta se convierte primero en pedido para reutilizar el libro de adeudos.
+    from orders.models import Customer
+    from orders.services import create_customer_debt, transfer_table_to_order
+
+    account = get_object_or_404(TableAccount, pk=account_id)
+    customer_id = request.POST.get("customer_id", "").strip()
+    if not customer_id:
+        messages.error(request, "Busca y selecciona un cliente de la agenda.")
+        return redirect("tables:table_map")
+    customer = get_object_or_404(Customer, pk=customer_id)
+    try:
+        with transaction.atomic():
+            order = transfer_table_to_order(table_account=account, actor=request.user)
+            order.agenda_customer = customer
+            order.customer_name = customer.name
+            order.phone = customer.phone
+            order.save(update_fields=("agenda_customer", "customer_name", "phone", "updated_at"))
+            create_customer_debt(order=order, actor=request.user, note=f"Cuenta no pagada de {account.table.name}.")
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        messages.success(request, f"{account.table.name} quedó a cuenta de {customer.name} y fue liberada.")
+    return redirect("tables:table_map")
 
 
 @require_POST

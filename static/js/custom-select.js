@@ -68,7 +68,7 @@
     wrapper.className = "app-select";
     // Every simple select is a searchable combobox by default. Screens that truly need
     // the browser control can opt out with data-native-select; multiple selects remain native.
-    const searchable = true;
+    const searchable = select.name !== "table_id";
     const trigger = document.createElement(searchable ? "input" : "button");
     trigger.type = searchable ? "text" : "button";
     trigger.className = "app-select-trigger";

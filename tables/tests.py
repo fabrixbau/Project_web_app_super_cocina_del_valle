@@ -11,10 +11,11 @@ from django.utils import timezone
 
 from accounts.roles import ORDER_TAKER, WAITER
 from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product, StockMovement
+from orders.models import Customer, CustomerDebt
 
 from .models import DiningTable, TableAccount, TableAccountItem, TableActivity
 from .services import (
-    add_daily_menu_product_to_table, change_item_in_ticket, close_table_account,
+    add_daily_menu_product_to_table, add_product_to_table, change_item_in_ticket, close_table_account,
     split_and_close_table_account,
 )
 
@@ -435,13 +436,56 @@ class TableMapTransferMenuTests(TestCase):
         self.account = TableAccount.objects.create(
             table=table, assigned_waiter=self.waiter, opened_by=self.waiter,
         )
+        self.customer = Customer.objects.create(name="Ana Adeudo", phone="5551234567")
+        category = Category.objects.create(name="Producto para adeudo")
+        self.product = Product.objects.create(category=category, name="Consumo de prueba", price=85)
 
     def test_waiter_sees_the_transfer_menu_on_an_occupied_table(self):
         self.client.force_login(self.waiter)
         response = self.client.get(reverse("tables:table_map"))
         self.assertContains(response, "table-tile-more-actions")
         self.assertContains(response, "Pasar a pedido (Recoger)")
+        self.assertContains(response, "Registrar mesa como no pagada")
         self.assertContains(response, reverse("tables:table_transfer_to_order", args=(self.account.pk,)))
+
+    def test_waiter_registers_the_table_as_unpaid_and_releases_it(self):
+        add_product_to_table(account=self.account, product=self.product, added_by=self.waiter)
+        self.client.force_login(self.waiter)
+
+        response = self.client.post(
+            reverse("tables:table_register_unpaid", args=(self.account.pk,)),
+            {"customer_id": self.customer.pk},
+        )
+
+        self.assertRedirects(response, reverse("tables:table_map"))
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.status, TableAccount.Status.TRANSFERRED)
+        debt = CustomerDebt.objects.select_related("order").get(customer=self.customer)
+        self.assertEqual(debt.original_amount, self.product.price)
+        self.assertEqual(debt.order.transferred_from_table_id, self.account.pk)
+        self.assertFalse(
+            TableAccount.objects.filter(table=self.account.table, status=TableAccount.Status.OPEN).exists(),
+        )
+
+    def test_missing_customer_does_not_release_the_table(self):
+        add_product_to_table(account=self.account, product=self.product, added_by=self.waiter)
+        self.client.force_login(self.waiter)
+
+        response = self.client.post(
+            reverse("tables:table_register_unpaid", args=(self.account.pk,)),
+            {"customer_id": ""},
+        )
+
+        self.assertRedirects(response, reverse("tables:table_map"))
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.status, TableAccount.Status.OPEN)
+        self.assertFalse(CustomerDebt.objects.exists())
+
+    def test_waiter_can_search_the_customer_agenda_for_the_unpaid_dialog(self):
+        self.client.force_login(self.waiter)
+        response = self.client.get(reverse("tables:table_customer_lookup"), {"q": "Ana Ade"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["customers"][0]["id"], self.customer.pk)
 
     def test_order_taker_does_not_see_the_transfer_menu(self):
         self.client.force_login(self.telefonista)
