@@ -1141,14 +1141,26 @@ def internal_order_package_extras(request, order_id, item_id):
 @require_POST
 @role_required(ADMIN, ORDER_TAKER)
 def internal_order_close_capture(request, order_id):
+    # NOTA TEMPORAL PARA APRENDIZAJE: el desarrollador pidió que "Imprimir cobro"
+    # cierre la captura primero cuando haga falta (entrega sin forma de pago
+    # elegida, o cualquier pedido cuyo saldo a favor ya cubra el total) — así el
+    # ticket refleja números reales en vez de "Pendiente". Este endpoint ya
+    # existía para un cierre directo con redirección; ahora también responde en
+    # JSON cuando internal-order-form.js lo llama por fetch antes de imprimir,
+    # sin duplicar la llamada a close_internal_order_capture. Borra esta nota.
     order = get_object_or_404(Order, pk=order_id)
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if _order_locked_for_edit(order, request.user):
         return _locked_order_response(request, order)
     try:
         close_internal_order_capture(order=order, actor=request.user)
     except ValidationError as error:
+        if is_ajax:
+            return JsonResponse({"ok": False, "error": error.message}, status=400)
         messages.error(request, error.message)
         return redirect("orders:internal_order_edit", order_id=order.pk)
+    if is_ajax:
+        return JsonResponse({"ok": True})
     messages.success(request, f"{order.formatted_number} quedó confirmado y continúa disponible para modificaciones.")
     return redirect("orders:order_list")
 

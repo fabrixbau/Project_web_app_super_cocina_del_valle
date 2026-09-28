@@ -733,6 +733,50 @@
   document.querySelectorAll("[data-ticket-note-close]").forEach((button) => {
     button.addEventListener("click", () => noteDialog.close());
   });
+  // NOTA TEMPORAL PARA APRENDIZAJE: el desarrollador reportó que imprimir cobro
+  // sin cerrar la captura salía con "Método de pago: Pendiente" — el saldo a
+  // favor tampoco se refleja hasta que se cierra, porque ambos sólo se
+  // resuelven dentro de close_internal_order_capture. Antes de abrir el ticket:
+  // 1) se fuerza a guardar cualquier cambio pendiente (el botón de método de
+  // pago ya guarda al tocarlo, pero si se imprime justo después esa petición
+  // podría no haber terminado); 2) si es Entrega a domicilio, o si el saldo a
+  // favor ya cubre el total (sin importar la modalidad), se cierra la captura
+  // primero — así el ticket sale con la forma de pago y el saldo reales, nunca
+  // "Pendiente". Recoger sin saldo suficiente conserva su comportamiento de
+  // siempre (la forma de pago puede definirse después en Caja). Borra esta nota.
+  document.addEventListener("click", async (event) => {
+    const link = event.target.closest("[data-print-cobro]");
+    if (!link || link.getAttribute("aria-disabled") === "true") return;
+    event.preventDefault();
+    const errorBox = document.querySelector("[data-print-cobro-error]");
+    if (errorBox) { errorBox.hidden = true; errorBox.textContent = ""; }
+    window.clearTimeout(autosaveTimer);
+    await autosaveCustomer();
+    const orderType = form.querySelector("input[name='order_type']:checked")?.value || "pickup";
+    const shouldCloseFirst = orderType === "delivery" || creditFullyCovers;
+    if (shouldCloseFirst) {
+      try {
+        const response = await fetch(link.dataset.closeCaptureUrl, {
+          method: "POST",
+          headers: {"X-CSRFToken": csrf, "X-Requested-With": "XMLHttpRequest"},
+        });
+        const data = await response.json();
+        if (!data.ok) {
+          // NOTA TEMPORAL PARA APRENDIZAJE: el error viene de la misma
+          // validación que "Cerrar captura" (habla de "cerrar"), pero aquí lo
+          // disparó el botón de imprimir — se reescribe para que el mensaje
+          // tenga sentido en este contexto. Borra esta nota después de leerla.
+          const reason = (data.error || "Completa los datos del pedido.").replace(/antes de cerrar\.?$/i, "antes de imprimir el cobro.");
+          if (errorBox) { errorBox.textContent = reason; errorBox.hidden = false; }
+          return;
+        }
+      } catch (error) {
+        if (errorBox) { errorBox.textContent = "No se pudo conectar. Intenta de nuevo."; errorBox.hidden = false; }
+        return;
+      }
+    }
+    window.location.href = link.href;
+  });
   noteForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const errorBox = noteForm.querySelector("[data-ticket-note-error]");

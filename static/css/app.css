@@ -1673,6 +1673,8 @@ después de leerla. */
 .ticket-print-actions a:first-child { color: #fff; background: #7e4324; border-color: #7e4324; }
 .ticket-print-actions .ticket-print-custom { grid-column: 1 / -1; color: #713712; background: #fff4dc; border-color: #c56a2d; }
 .ticket-print-actions.is-disabled a { opacity: .45; pointer-events: none; }
+.print-cobro-error { display: block; margin-top: .5rem; padding: .5rem .65rem; border: 2px solid #b52a25; border-radius: .5rem; background: #fff0ee; color: #7f1f1a; font-weight: 700; font-size: .8rem; }
+.print-cobro-error[hidden] { display: none; }
 /* Pedidos: nota general, guardar/cerrar e imprimir arriba del ticket, en una sola
    cuadrícula de 3 columnas × 2 filas (fila 1: nota, guardar, cerrar; fila 2: los tres
    de imprimir) — .ticket-print-actions pasa a "display: contents" para que sus tres

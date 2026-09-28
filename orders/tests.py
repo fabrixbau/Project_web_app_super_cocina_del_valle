@@ -1495,6 +1495,56 @@ class CustomerCreditTests(TestCase):
         with self.assertRaisesMessage(ValidationError, "Selecciona la forma de pago"):
             close_internal_order_capture(order=order, actor=self.actor)
 
+    def test_close_capture_endpoint_returns_json_and_closes_when_called_via_ajax(self):
+        # NOTA: el desarrollador pidió que "Imprimir cobro" pueda cerrar la
+        # captura primero (por fetch) para que el ticket refleje datos reales.
+        # Este endpoint ya existía sólo con redirección; ahora también responde
+        # en JSON cuando se llama por AJAX.
+        order = self.make_order(total=200)
+        order.items.create(
+            item_type=OrderItem.ItemType.PRODUCT, product_name_snapshot="Comida",
+            tortillas=False, beans=False, unit_price=200, quantity=1, subtotal=200,
+        )
+        response = self.client.post(
+            reverse("orders:internal_order_close_capture", args=(order.pk,)),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True})
+        order.refresh_from_db()
+        self.assertNotEqual(order.status, Order.Status.DRAFT)
+
+    def test_close_capture_endpoint_returns_json_error_when_delivery_is_missing_a_payment_method(self):
+        order = self.make_order(total=200, order_type=Order.OrderType.DELIVERY, street="Calle 1", exterior_number="10")
+        order.items.create(
+            item_type=OrderItem.ItemType.PRODUCT, product_name_snapshot="Comida",
+            tortillas=False, beans=False, unit_price=200, quantity=1, subtotal=200,
+        )
+        response = self.client.post(
+            reverse("orders:internal_order_close_capture", args=(order.pk,)),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Selecciona la forma de pago", response.json()["error"])
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.DRAFT)
+
+    def test_close_capture_endpoint_closes_a_delivery_order_fully_covered_by_credit_via_ajax(self):
+        add_customer_credit(customer=self.customer, amount="500", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        order = self.make_order(total=200, order_type=Order.OrderType.DELIVERY, street="Calle 1", exterior_number="10")
+        order.items.create(
+            item_type=OrderItem.ItemType.PRODUCT, product_name_snapshot="Comida",
+            tortillas=False, beans=False, unit_price=200, quantity=1, subtotal=200,
+        )
+        response = self.client.post(
+            reverse("orders:internal_order_close_capture", args=(order.pk,)),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.json(), {"ok": True})
+        order.refresh_from_db()
+        self.assertEqual(order.payment_method, Order.PaymentMethod.CREDIT)
+        self.assertEqual(order.credit_applied, Decimal("200"))
+
     def test_close_internal_order_capture_does_not_override_an_explicit_payment_method(self):
         add_customer_credit(customer=self.customer, amount="500", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
         order = self.make_order(
