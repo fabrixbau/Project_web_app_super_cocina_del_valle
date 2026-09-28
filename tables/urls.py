@@ -33,5 +33,6 @@ urlpatterns = [
     path("cuentas/<int:account_id>/reasignar/", views.table_reassign, name="table_reassign"),
     path("cuentas/<int:account_id>/cliente/", views.table_customer_name_update, name="table_customer_name_update"),
     path("cuentas/<int:account_id>/cerrar/", views.table_close, name="table_close"),
+    path("cuentas/<int:account_id>/pasar-a-pedido/", views.table_transfer_to_order, name="table_transfer_to_order"),
     path("cuentas/<int:account_id>/dividir/", views.table_split_close, name="table_split_close"),
 ]

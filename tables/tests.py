@@ -9,8 +9,8 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.roles import WAITER
-from menu.models import Category, DailyMenu, DailyProductStock, Product, StockMovement
+from accounts.roles import ORDER_TAKER, WAITER
+from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product, StockMovement
 
 from .models import DiningTable, TableAccount, TableAccountItem, TableActivity
 from .services import (
@@ -338,3 +338,113 @@ class TableLooseProductVisibilityTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(self.bread, response.context["daily_order_loose_products"])
+
+
+class AutoMealOutOfOrderTests(TestCase):
+    # NOTA TEMPORAL PARA APRENDIZAJE: cubre el arreglo del "stopper" reportado por el
+    # desarrollador — antes, capturar el mismo tiempo (primero/segundo/tercero) dos
+    # veces seguidas bloqueaba con "Completa la comida actual antes de iniciar otra",
+    # obligando a armar las comidas corridas/ejecutivas una por una y en orden estricto.
+    # Borra esta nota después de leerla.
+    def setUp(self):
+        self.waiter = get_user_model().objects.create_user(username="auto_meal_table_waiter")
+        self.waiter.groups.add(Group.objects.get_or_create(name=WAITER)[0])
+        category = Category.objects.create(name="Comida corrida prueba mesas")
+        self.first_product = Product.objects.create(
+            category=category, name="Primer tiempo mesa", price=0,
+            component_type=Product.ComponentType.VARIABLE_FIRST_COURSE, is_sold_individually=False,
+        )
+        self.second_product = Product.objects.create(
+            category=category, name="Segundo tiempo mesa", price=0,
+            component_type=Product.ComponentType.SECOND_COURSE, is_sold_individually=False,
+        )
+        self.main_product = Product.objects.create(
+            category=category, name="Guisado mesa", price=45,
+            component_type=Product.ComponentType.BEEF_STEW, is_sold_individually=False,
+        )
+        today = timezone.localdate()
+        self.menu = DailyMenu.objects.create(
+            date=today, status=DailyMenu.Status.PUBLISHED,
+            variable_first_course=self.first_product, second_course_one=self.second_product,
+            beef_stew=self.main_product,
+        )
+        for product in (self.first_product, self.second_product, self.main_product):
+            DailyProductStock.objects.create(
+                date=today, daily_menu=self.menu, product=product,
+                channel=DailyProductStock.Channel.TABLE, initial_quantity=10,
+            )
+        MealPackage.objects.update_or_create(
+            package_type=MealPackage.PackageType.RUNNING,
+            defaults={
+                "name": "Comida corrida prueba mesas", "price_without_water": 70,
+                "price_with_water": 80, "table_refill_price": 10,
+            },
+        )
+        table = DiningTable.objects.create(name="Mesa comida corrida", display_order=104)
+        self.account = TableAccount.objects.create(
+            table=table, assigned_waiter=self.waiter, opened_by=self.waiter,
+        )
+        self.client.force_login(self.waiter)
+
+    def add(self, product):
+        response = self.client.post(
+            reverse("tables:table_auto_meal_add", args=(self.account.pk, product.pk)),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        return response.json()
+
+    def test_several_meals_can_be_started_out_of_order(self):
+        for _ in range(3):
+            data = self.add(self.first_product)
+            self.assertTrue(data["ok"])
+            self.assertFalse(data["auto_package_created"])
+        for _ in range(3):
+            data = self.add(self.second_product)
+            self.assertTrue(data["ok"])
+            self.assertFalse(data["auto_package_created"])
+        completed = [self.add(self.main_product)["auto_package_created"] for _ in range(3)]
+        self.assertEqual(completed, [True, True, True])
+        self.account.refresh_from_db()
+        # A diferencia de Pedidos, Mesas fusiona los paquetes idénticos en un solo
+        # renglón con cantidad acumulada (mismo comportamiento que ya tenía antes de
+        # este cambio para el formulario manual de paquetes).
+        package_item = self.account.items.get(item_type=TableAccountItem.ItemType.PACKAGE)
+        self.assertEqual(package_item.quantity, 3)
+        self.assertFalse(self.account.items.filter(is_package_candidate=True).exists())
+
+    def test_a_single_meal_still_completes_in_order(self):
+        self.add(self.first_product)
+        self.add(self.second_product)
+        data = self.add(self.main_product)
+        self.assertTrue(data["auto_package_created"])
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.items.filter(item_type=TableAccountItem.ItemType.PACKAGE).count(), 1)
+
+
+class TableMapTransferMenuTests(TestCase):
+    # NOTA TEMPORAL PARA APRENDIZAJE: el desarrollador pidió mover "Pasar a Recoger"
+    # del ticket de la mesa a un menú "•••" en la ficha del mapa de mesas, para que
+    # quede junto a "Continuar ticket" en vez de ocupar espacio fijo en el ticket.
+    # Borra esta nota después de leerla.
+    def setUp(self):
+        self.waiter = get_user_model().objects.create_user(username="table_map_waiter")
+        self.waiter.groups.add(Group.objects.get_or_create(name=WAITER)[0])
+        self.telefonista = get_user_model().objects.create_user(username="table_map_order_taker")
+        self.telefonista.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
+        table = DiningTable.objects.create(name="Mesa mapa menu", display_order=105)
+        self.account = TableAccount.objects.create(
+            table=table, assigned_waiter=self.waiter, opened_by=self.waiter,
+        )
+
+    def test_waiter_sees_the_transfer_menu_on_an_occupied_table(self):
+        self.client.force_login(self.waiter)
+        response = self.client.get(reverse("tables:table_map"))
+        self.assertContains(response, "table-tile-more-actions")
+        self.assertContains(response, "Pasar a pedido (Recoger)")
+        self.assertContains(response, reverse("tables:table_transfer_to_order", args=(self.account.pk,)))
+
+    def test_order_taker_does_not_see_the_transfer_menu(self):
+        self.client.force_login(self.telefonista)
+        response = self.client.get(reverse("tables:table_map"))
+        self.assertNotContains(response, "table-tile-more-actions")
+        self.assertNotContains(response, "Pasar a pedido (Recoger)")

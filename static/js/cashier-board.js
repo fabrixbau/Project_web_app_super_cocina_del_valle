@@ -306,23 +306,23 @@ const filters = document.querySelector("[data-cashier-filters]");
 // 450ms, así que sólo dejaba escribir un carácter a la vez). Ahora sólo se busca con
 // Enter (envío nativo del formulario) o cambiando fecha/select. Borra esta nota.
 if (filters) { filters.querySelectorAll("select, input[type='date']").forEach((field) => field.addEventListener("change", () => filters.requestSubmit())); }
+// NOTA TEMPORAL PARA APRENDIZAJE: Enter en "Buscar pedido" ya no envía el
+// formulario completo (fecha/tipo/repartidor/método de pago incluidos) — el
+// desarrollador pidió que busque sólo por ese campo, para que un folio que sí
+// existe no se esconda por un filtro que quedó puesto de una búsqueda anterior.
+// Borra esta nota después de leerla.
+const cashierSearchField = filters?.querySelector("input[name='q']");
+cashierSearchField?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  const params = new URLSearchParams();
+  if (cashierSearchField.value.trim()) params.set("q", cashierSearchField.value.trim());
+  window.location.href = `${window.location.pathname}?${params.toString()}`;
+});
 
 const cashierTools = document.querySelector(".cashier-tools");
 const unpaidQuick = document.querySelector(".cashier-unpaid-quick");
 if (cashierTools && unpaidQuick) cashierTools.append(unpaidQuick);
-
-// NOTA TEMPORAL PARA APRENDIZAJE: el botón "Herramientas" (data-cashier-panel-toggle)
-// se maneja en cashier-tools-toggle.js, compartido por las 7 páginas de Caja — sólo
-// el de "filters" (Buscar pedido) sigue aquí porque es exclusivo de este tablero.
-// Borra esta nota después de leerla.
-document.querySelectorAll("[data-cashier-panel-toggle='filters']").forEach((toggle) => {
-  const target = toggle.closest(".cashier-filter-card");
-  toggle.addEventListener("click", () => {
-    const expanded = toggle.getAttribute("aria-expanded") === "true";
-    toggle.setAttribute("aria-expanded", String(!expanded));
-    target?.classList.toggle("is-mobile-expanded", !expanded);
-  });
-});
 
 // La consulta periódica trae la misma vista y extrae sólo la lista. Si Caja está
 // escribiendo o guardando, esperamos al siguiente ciclo para no borrar su interacción.

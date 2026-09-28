@@ -1148,6 +1148,11 @@ devuelve overflow:visible sólo a esta sección. Borra esta nota al leerla. */
 .order-more-actions[open] > summary { border-color: #285943; background: #edf4f0; }
 .order-more-actions-menu { position: absolute; z-index: 40; top: calc(100% + .35rem); right: 0; width: 175px; padding: .4rem; border: 1px solid #d4dcd7; border-radius: .65rem; background: #fff; box-shadow: 0 10px 24px rgb(25 57 44 / 18%); }
 .order-more-actions-menu button { min-height: 2.55rem; font-size: .78rem; }
+.order-more-actions-menu:has(.order-transfer-form) { width: 220px; }
+.order-transfer-form { display: grid; gap: .4rem; padding-top: .35rem; margin-top: .35rem; border-top: 1px solid #e4ded0; }
+.order-transfer-form h3 { margin: 0; color: #315747; font-size: .7rem; font-weight: 900; text-transform: uppercase; }
+.order-transfer-form label { display: grid; gap: .2rem; font-weight: 800; font-size: .75rem; }
+.order-transfer-form select, .order-transfer-form button { min-height: 2.3rem; font-size: .75rem; }
 /* NOTA TEMPORAL PARA APRENDIZAJE: en Caja, el botón "•••" vive al inicio (izquierda)
    de una columna angosta (`.cashier-status-action`, alineada con `flex-start`), a
    diferencia de Pedidos donde vive al final (derecha) de su fila. El menú, anclado
@@ -2446,6 +2451,17 @@ html[data-theme="dark"] .ticket-note-cancel { color: #e4ede8; border-color: #5b7
    fijar el último elemento abajo sin centrar todo lo demás). Borra esta nota al leerla. */
 .table-tile.occupied .table-main-action { justify-content: flex-start; }
 .table-tile.occupied .table-main-action strong { margin-top: auto; padding: .62rem .9rem; border-radius: .62rem; background: #9b4931; box-shadow: 0 3px 8px rgb(123 56 37 / 16%); }
+/* Menú "•••" de la ficha de mesa ocupada (Pasar a pedido Recoger). Va sobre la tarjeta
+   (que ya es un enlace completo a "Continuar ticket"), no dentro de él. */
+.table-tile-more-actions { position: absolute; z-index: 3; top: .55rem; right: .55rem; }
+.table-tile-more-actions > summary { display: grid; width: 2.15rem; height: 2rem; place-items: center; border: 1px solid #d5a28f; border-radius: .5rem; color: #8f3f28; background: #fff; cursor: pointer; list-style: none; font-size: .85rem; font-weight: 900; letter-spacing: .1em; }
+.table-tile-more-actions > summary::-webkit-details-marker { display: none; }
+.table-tile-more-actions > summary:hover,
+.table-tile-more-actions[open] > summary { border-color: #8f3f28; background: #fdf1ec; }
+.table-tile-more-actions-menu { position: absolute; z-index: 40; top: calc(100% + .3rem); right: 0; width: 195px; padding: .4rem; border: 1px solid #d4dcd7; border-radius: .65rem; background: #fff; box-shadow: 0 10px 24px rgb(25 57 44 / 18%); }
+.table-tile-more-actions-menu form { padding: 0; }
+.table-tile-more-actions-menu button { display: block; width: 100%; min-height: 2.5rem; padding: .5rem .6rem; border: 0; border-radius: .5rem; color: #173c2f; background: transparent; text-align: left; font-size: .82rem; font-weight: 700; cursor: pointer; }
+.table-tile-more-actions-menu button:hover { background: #edf4f0; }
 @media (max-width: 1000px) { .table-map { height: auto; max-height: none; grid-template-columns: repeat(3, minmax(150px, 1fr)); grid-template-rows: none; } .table-tile { grid-row: auto !important; grid-column: auto !important; min-height: 220px; } .table-map-actions { justify-content: flex-start; } }
 @media (max-width: 620px) { .table-map { grid-template-columns: repeat(2, minmax(130px, 1fr)); } .table-tile { min-height: 205px; } .table-map-actions > * { flex: 1 1 100%; } .table-map-back, .table-map-actions .button-link { justify-content: center; } }
 @media (max-width: 420px) { .table-map { grid-template-columns: 1fr; } }
@@ -4132,9 +4148,9 @@ input[type="reset"],
     align-items: center;
   }
   .table-operation-header .table-account-identity h1,
-  .table-operation-header.is-breakfast .table-account-identity h1 { grid-column: 1; grid-row: 1; font-size: 1.35rem; }
+  .table-operation-header.is-breakfast .table-account-identity h1 { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 1.35rem; }
   .table-operation-header .table-account-identity > p,
-  .table-operation-header.is-breakfast .table-account-identity > p { grid-column: 1; grid-row: 2; margin: 0; font-size: .68rem; }
+  .table-operation-header.is-breakfast .table-account-identity > p { grid-column: 1; grid-row: 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; font-size: .68rem; }
   .table-operation-header .table-customer-form,
   .table-operation-header.is-breakfast .table-customer-form {
     grid-column: 2;
@@ -8305,6 +8321,9 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   .table-map .table-waiter-form > small,
   .table-map .table-main-action > small { font-size: .6rem; }
   .table-map .table-tile-total { font-size: .85rem; }
+  .table-map .table-tile-more-actions { top: .3rem; right: .3rem; }
+  .table-map .table-tile-more-actions > summary { width: 1.7rem; height: 1.6rem; font-size: .7rem; }
+  .table-map .table-tile-more-actions-menu { width: 165px; }
   .table-map .waiter-choice-buttons { gap: .22rem; }
   .table-map .waiter-choice-buttons button {
     min-height: 2rem;

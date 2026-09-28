@@ -14,7 +14,8 @@ from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Pro
 
 from print_station.models import PrintStation
 
-from tables.models import DiningTable, TableAccount
+from tables.models import DiningTable, TableAccount, TableAccountItem
+from tables.services import add_product_to_table, open_table_account
 
 from .forms import InternalOrderForm
 from .models import CashRegisterCut, CashRegisterExpense, Customer, CustomerCreditMovement, CustomerDebt, Order, OrderItem, TerminalCut, TerminalMovement
@@ -22,7 +23,8 @@ from .services import (
     add_customer_credit, add_internal_order_package, add_internal_order_product, assign_delivery,
     apply_customer_credit_to_order, change_internal_order_item, change_internal_order_type,
     close_internal_order_capture, create_customer_debt, refund_customer_credit,
-    set_cashier_release, settle_selected_debts_from_cashier, transition_order, update_cashier_payment,
+    set_cashier_release, settle_selected_debts_from_cashier, transfer_order_to_table,
+    transfer_table_to_order, transition_order, update_cashier_payment,
     update_delivery_tip, update_internal_package_extras,
 )
 
@@ -426,6 +428,32 @@ class TerminalMovementLinkingRulesTests(TestCase):
         response = self.client.get(f"{reverse('cashier:terminal_board')}?provider=transfer")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["link_candidates"], [])
+
+    def test_candidates_with_no_tip_are_excluded_from_the_link_list(self):
+        # NOTA: el desarrollador pidió que este corte, hecho para conciliar
+        # propinas, deje de mostrar como "vinculable" un ticket que no dejó
+        # ninguna propina — no hay nada que conciliar ahí.
+        no_tip_order = self.make_delivery_order(
+            daily_number=921, payment_method=Order.PaymentMethod.TRANSFER,
+            status=Order.Status.DELIVERED,
+        )
+        tipped_order = self.make_delivery_order(
+            daily_number=922, payment_method=Order.PaymentMethod.TRANSFER,
+            status=Order.Status.DELIVERED,
+        )
+        tipped_order.delivery_tip_amount = Decimal("20")
+        tipped_order.save(update_fields=("delivery_tip_amount",))
+        no_tip_table = self.make_closed_table(payment_method=TableAccount.PaymentMethod.TRANSFER)
+        tipped_table = self.make_closed_table(payment_method=TableAccount.PaymentMethod.TRANSFER)
+        tipped_table.tip_amount = Decimal("15")
+        tipped_table.save(update_fields=("tip_amount",))
+
+        response = self.client.get(f"{reverse('cashier:terminal_board')}?provider=transfer")
+        candidate_values = {candidate["value"] for candidate in response.context["link_candidates"]}
+        self.assertIn(f"order:{tipped_order.pk}", candidate_values)
+        self.assertIn(f"table:{tipped_table.pk}", candidate_values)
+        self.assertNotIn(f"order:{no_tip_order.pk}", candidate_values)
+        self.assertNotIn(f"table:{no_tip_table.pk}", candidate_values)
 
 
 class CapturePrintTests(TestCase):
@@ -1853,3 +1881,345 @@ class CashRegisterCutTests(TestCase):
         self.assertContains(response, "$30.00")  # día 2 egresos
         # semanal: ingresos totales = 175 + 200 = 375
         self.assertContains(response, "$375.00")
+
+
+class OrderTableTransferTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="transfer_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.waiter = get_user_model().objects.create_user(username="transfer_waiter")
+        self.waiter.groups.add(Group.objects.get_or_create(name=WAITER)[0])
+        self.other_waiter = get_user_model().objects.create_user(username="transfer_waiter_two")
+        self.other_waiter.groups.add(Group.objects.get_or_create(name=WAITER)[0])
+        self.order_taker = get_user_model().objects.create_user(username="transfer_order_taker")
+        self.order_taker.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
+
+        category = Category.objects.create(name="Transferencias de prueba")
+        self.product = Product.objects.create(
+            category=category, name="Torta transferible", price=45, is_sold_individually=True,
+        )
+        self.product_two = Product.objects.create(
+            category=category, name="Agua transferible", price=15, is_sold_individually=True,
+        )
+        self.table = DiningTable.objects.create(name="Mesa transferencias", display_order=200)
+        self.table_two = DiningTable.objects.create(name="Mesa transferencias 2", display_order=201)
+
+    def make_pickup_order(self, *, status=Order.Status.PREPARING, daily_number=None):
+        return Order.objects.create(
+            daily_number=daily_number or (900 + Order.objects.count()),
+            operating_date=timezone.localdate(), order_type=Order.OrderType.PICKUP,
+            source=Order.Source.INTERNAL, status=status, customer_name="Cliente transferible",
+            phone="", total=0, created_by=self.admin,
+        )
+
+    # -- transfer_order_to_table ------------------------------------------------
+
+    def test_admin_must_pick_a_waiter_to_transfer_order_to_table(self):
+        order = self.make_pickup_order()
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        with self.assertRaisesMessage(ValidationError, "Selecciona a qué mesero"):
+            transfer_order_to_table(order=order, table=self.table, actor=self.admin)
+
+    def test_admin_can_assign_a_specific_waiter(self):
+        order = self.make_pickup_order()
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        new_account = transfer_order_to_table(
+            order=order, table=self.table, actor=self.admin, assigned_waiter=self.other_waiter,
+        )
+        self.assertEqual(new_account.assigned_waiter_id, self.other_waiter.pk)
+
+    def test_waiter_is_assigned_to_themselves_automatically(self):
+        order = self.make_pickup_order()
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        new_account = transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
+        self.assertEqual(new_account.assigned_waiter_id, self.waiter.pk)
+
+    def test_transfer_order_to_table_copies_items_and_marks_order_transferred(self):
+        order = self.make_pickup_order()
+        item = add_internal_order_product(order=order, product=self.product, actor=self.admin)
+
+        new_account = transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.TRANSFERRED)
+        self.assertEqual(order.transferred_to_table_id, new_account.pk)
+        self.assertEqual(new_account.table_id, self.table.pk)
+        self.assertEqual(new_account.status, TableAccount.Status.OPEN)
+        self.assertEqual(new_account.customer_name, order.customer_name)
+        new_item = new_account.items.get()
+        self.assertEqual(new_item.product_id, item.product_id)
+        self.assertEqual(new_item.quantity, item.quantity)
+        self.assertEqual(new_item.subtotal, item.subtotal)
+        self.assertTrue(
+            order.status_history.filter(to_status=Order.Status.TRANSFERRED).exists()
+        )
+
+    def test_transfer_rejects_delivery_orders(self):
+        order = self.make_pickup_order()
+        order.order_type = Order.OrderType.DELIVERY
+        order.save(update_fields=("order_type",))
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        with self.assertRaisesMessage(ValidationError, "Sólo los pedidos para Recoger"):
+            transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
+
+    def test_transfer_rejects_inactive_statuses(self):
+        for status in (
+            Order.Status.CANCELED, Order.Status.DELIVERED,
+            Order.Status.PICKED_UP, Order.Status.TRANSFERRED,
+        ):
+            with self.subTest(status=status):
+                order = self.make_pickup_order(status=status, daily_number=800 + Order.objects.count())
+                with self.assertRaisesMessage(ValidationError, "ya no está activo"):
+                    transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
+
+    def test_transfer_rejects_order_without_items(self):
+        order = self.make_pickup_order()
+        with self.assertRaisesMessage(ValidationError, "Agrega al menos un producto"):
+            transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
+
+    def test_transfer_rejects_incomplete_package_items(self):
+        order = self.make_pickup_order()
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        OrderItem.objects.create(
+            order=order, item_type=OrderItem.ItemType.PRODUCT, product=self.product,
+            product_name_snapshot=self.product.name, unit_price=self.product.price,
+            quantity=1, subtotal=self.product.price, is_package_candidate=True,
+            tortillas=False, beans=False,
+        )
+        with self.assertRaisesMessage(ValidationError, "comida incompleta"):
+            transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
+
+    def test_transfer_rejects_orders_with_credit_applied(self):
+        order = self.make_pickup_order()
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        order.credit_applied = Decimal("20")
+        order.save(update_fields=("credit_applied",))
+        with self.assertRaisesMessage(ValidationError, "saldo a favor aplicado"):
+            transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
+
+    def test_transfer_rejects_inactive_table(self):
+        order = self.make_pickup_order()
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        self.table.is_active = False
+        self.table.save(update_fields=("is_active",))
+        with self.assertRaisesMessage(ValidationError, "desactivada"):
+            transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
+
+    def test_transfer_rejects_table_with_open_account(self):
+        order = self.make_pickup_order()
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        open_table_account(table=self.table, assigned_waiter=self.other_waiter, opened_by=self.other_waiter)
+        with self.assertRaisesMessage(ValidationError, "ya tiene una cuenta abierta"):
+            transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
+
+    # -- transfer_table_to_order -------------------------------------------------
+
+    def test_transfer_table_to_order_creates_new_order_for_a_walk_in_table(self):
+        account = open_table_account(table=self.table, assigned_waiter=self.waiter, opened_by=self.waiter)
+        add_product_to_table(account=account, product=self.product, added_by=self.waiter)
+
+        new_order = transfer_table_to_order(table_account=account, actor=self.waiter)
+
+        account.refresh_from_db()
+        self.assertEqual(account.status, TableAccount.Status.TRANSFERRED)
+        self.assertEqual(new_order.order_type, Order.OrderType.PICKUP)
+        self.assertEqual(new_order.status, Order.Status.PREPARING)
+        self.assertEqual(new_order.transferred_from_table_id, account.pk)
+        self.assertEqual(new_order.items.count(), 1)
+        self.assertEqual(new_order.total, self.product.price)
+
+    def test_transfer_table_to_order_reopens_the_originating_order(self):
+        order = self.make_pickup_order()
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        new_account = transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
+        # El mesero agrega otro producto ya en la mesa antes de regresarlo a Recoger.
+        add_product_to_table(account=new_account, product=self.product_two, added_by=self.waiter)
+
+        reopened_order = transfer_table_to_order(table_account=new_account, actor=self.waiter)
+
+        self.assertEqual(reopened_order.pk, order.pk)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.PREPARING)
+        self.assertIsNone(order.transferred_to_table_id)
+        # Las partidas viejas se reemplazan por el estado actual de la mesa (2 partidas).
+        self.assertEqual(order.items.count(), 2)
+        new_account.refresh_from_db()
+        self.assertEqual(new_account.status, TableAccount.Status.TRANSFERRED)
+
+    def test_transfer_table_to_order_rejects_non_open_accounts(self):
+        account = open_table_account(table=self.table, assigned_waiter=self.waiter, opened_by=self.waiter)
+        add_product_to_table(account=account, product=self.product, added_by=self.waiter)
+        account.status = TableAccount.Status.CLOSED
+        account.save(update_fields=("status",))
+        with self.assertRaisesMessage(ValidationError, "ya no está abierta"):
+            transfer_table_to_order(table_account=account, actor=self.waiter)
+
+    def test_transfer_table_to_order_rejects_empty_accounts(self):
+        account = open_table_account(table=self.table, assigned_waiter=self.waiter, opened_by=self.waiter)
+        with self.assertRaisesMessage(ValidationError, "Agrega al menos un producto"):
+            transfer_table_to_order(table_account=account, actor=self.waiter)
+
+    def test_transfer_table_to_order_rejects_incomplete_package_items(self):
+        account = open_table_account(table=self.table, assigned_waiter=self.waiter, opened_by=self.waiter)
+        add_product_to_table(account=account, product=self.product, added_by=self.waiter)
+        TableAccountItem.objects.create(
+            account=account, product=self.product, product_name_snapshot=self.product.name,
+            unit_price=self.product.price, quantity=1, subtotal=self.product.price,
+            is_package_candidate=True, added_by=self.waiter,
+        )
+        with self.assertRaisesMessage(ValidationError, "comida incompleta"):
+            transfer_table_to_order(table_account=account, actor=self.waiter)
+
+    # -- stock moves between channels --------------------------------------------
+
+    def test_transfer_moves_reserved_stock_between_order_and_table_channels(self):
+        today = timezone.localdate()
+        orders_stock = DailyProductStock.objects.create(
+            date=today, product=self.product, channel=DailyProductStock.Channel.ORDERS, initial_quantity=3,
+        )
+        table_stock = DailyProductStock.objects.create(
+            date=today, product=self.product, channel=DailyProductStock.Channel.TABLE, initial_quantity=3,
+        )
+        order = self.make_pickup_order()
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        self.assertEqual(orders_stock.available_quantity, 2)
+        self.assertEqual(table_stock.available_quantity, 3)
+
+        new_account = transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
+        self.assertEqual(orders_stock.available_quantity, 3)
+        self.assertEqual(table_stock.available_quantity, 2)
+
+        transfer_table_to_order(table_account=new_account, actor=self.waiter)
+        self.assertEqual(orders_stock.available_quantity, 2)
+        self.assertEqual(table_stock.available_quantity, 3)
+
+    # -- view-level permissions and redirects -------------------------------------
+
+    def test_transfer_form_is_marked_to_skip_the_ajax_status_handler(self):
+        # NOTA: bug real reportado — el formulario "Pasar a mesa" del tablero de
+        # Pedidos caía dentro del manejador genérico de AJAX de order-list.js (que
+        # espera JSON), y como order_transfer_to_table siempre responde con una
+        # redirección normal (a la mesa nueva si funcionó, o de vuelta a Pedidos con
+        # un mensaje de error si no), el navegador mostraba "No se pudo cambiar el
+        # estado" incluso cuando la transferencia sí se había hecho en el servidor.
+        # Verifica que la plantilla ya trae el atributo que lo excluye de ese
+        # manejador (mismo arreglo ya aplicado antes a "No pagó").
+        order = self.make_pickup_order()
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        self.client.force_login(self.waiter)
+        response = self.client.get(reverse("orders:order_list"))
+        self.assertContains(response, "data-order-transfer-form")
+
+    def test_order_transfer_to_table_view_rejects_roles_without_access(self):
+        order = self.make_pickup_order()
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        self.client.force_login(self.order_taker)
+        response = self.client.post(
+            reverse("orders:order_transfer_to_table", args=(order.pk,)),
+            {"table_id": self.table.pk},
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_order_transfer_to_table_view_success_redirects_to_table_detail(self):
+        order = self.make_pickup_order()
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        self.client.force_login(self.waiter)
+        response = self.client.post(
+            reverse("orders:order_transfer_to_table", args=(order.pk,)),
+            {"table_id": self.table.pk},
+        )
+        order.refresh_from_db()
+        new_account = order.transferred_to_table
+        self.assertRedirects(response, reverse("tables:table_detail", args=(new_account.pk,)))
+
+    def test_table_transfer_to_order_view_rejects_roles_without_access(self):
+        account = open_table_account(table=self.table, assigned_waiter=self.waiter, opened_by=self.waiter)
+        add_product_to_table(account=account, product=self.product, added_by=self.waiter)
+        self.client.force_login(self.order_taker)
+        response = self.client.post(reverse("tables:table_transfer_to_order", args=(account.pk,)))
+        self.assertEqual(response.status_code, 403)
+
+    def test_table_transfer_to_order_view_success_redirects_to_order_list(self):
+        account = open_table_account(table=self.table, assigned_waiter=self.waiter, opened_by=self.waiter)
+        add_product_to_table(account=account, product=self.product, added_by=self.waiter)
+        self.client.force_login(self.waiter)
+        response = self.client.post(reverse("tables:table_transfer_to_order", args=(account.pk,)))
+        self.assertRedirects(response, reverse("orders:order_list"))
+
+
+class AutoMealOutOfOrderTests(TestCase):
+    # NOTA TEMPORAL PARA APRENDIZAJE: cubre el arreglo del "stopper" reportado por el
+    # desarrollador — antes, capturar el mismo tiempo (primero/segundo/tercero) dos
+    # veces seguidas bloqueaba con "Completa la comida actual antes de iniciar otra",
+    # obligando a armar las comidas corridas/ejecutivas una por una y en orden estricto.
+    # Borra esta nota después de leerla.
+    def setUp(self):
+        self.actor = get_user_model().objects.create_user(username="auto_meal_order_actor")
+        self.actor.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
+        category = Category.objects.create(name="Comida corrida prueba orden")
+        self.first_product = Product.objects.create(
+            category=category, name="Primer tiempo prueba", price=0,
+            component_type=Product.ComponentType.VARIABLE_FIRST_COURSE, is_sold_individually=False,
+        )
+        self.second_product = Product.objects.create(
+            category=category, name="Segundo tiempo prueba", price=0,
+            component_type=Product.ComponentType.SECOND_COURSE, is_sold_individually=False,
+        )
+        self.main_product = Product.objects.create(
+            category=category, name="Guisado prueba", price=45,
+            component_type=Product.ComponentType.BEEF_STEW, is_sold_individually=False,
+        )
+        today = timezone.localdate()
+        self.menu = DailyMenu.objects.create(
+            date=today, status=DailyMenu.Status.PUBLISHED,
+            variable_first_course=self.first_product, second_course_one=self.second_product,
+            beef_stew=self.main_product,
+        )
+        for product in (self.first_product, self.second_product, self.main_product):
+            DailyProductStock.objects.create(
+                date=today, daily_menu=self.menu, product=product,
+                channel=DailyProductStock.Channel.ORDERS, initial_quantity=10,
+            )
+        MealPackage.objects.update_or_create(
+            package_type=MealPackage.PackageType.RUNNING,
+            defaults={
+                "name": "Comida corrida prueba orden", "price_without_water": 70,
+                "price_with_water": 80, "table_refill_price": 10,
+            },
+        )
+        self.order = Order.objects.create(
+            daily_number=995, operating_date=today, order_type=Order.OrderType.PICKUP,
+            source=Order.Source.INTERNAL, status=Order.Status.DRAFT,
+            customer_name="Mostrador", phone="", total=0, created_by=self.actor,
+        )
+        self.client.force_login(self.actor)
+
+    def add(self, product):
+        response = self.client.post(
+            reverse("orders:internal_order_auto_meal_add", args=(self.order.pk, product.pk)),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        return response.json()
+
+    def test_several_meals_can_be_started_out_of_order(self):
+        for _ in range(3):
+            data = self.add(self.first_product)
+            self.assertTrue(data["ok"])
+            self.assertFalse(data["auto_package_created"])
+        for _ in range(3):
+            data = self.add(self.second_product)
+            self.assertTrue(data["ok"])
+            self.assertFalse(data["auto_package_created"])
+        completed = [self.add(self.main_product)["auto_package_created"] for _ in range(3)]
+        self.assertEqual(completed, [True, True, True])
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.items.filter(item_type=OrderItem.ItemType.PACKAGE).count(), 3)
+        self.assertFalse(self.order.items.filter(is_package_candidate=True).exists())
+
+    def test_a_single_meal_still_completes_in_order(self):
+        self.add(self.first_product)
+        self.add(self.second_product)
+        data = self.add(self.main_product)
+        self.assertTrue(data["auto_package_created"])
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.items.filter(item_type=OrderItem.ItemType.PACKAGE).count(), 1)

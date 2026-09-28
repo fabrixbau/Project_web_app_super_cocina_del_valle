@@ -102,6 +102,7 @@ class Order(models.Model):
         PICKED_UP = "picked_up", "Recogido"
         DELIVERED = "delivered", "Entregado"
         CANCELED = "canceled", "Cancelado"
+        TRANSFERRED = "transferred", "Transferido a mesa"
 
     class PaymentMethod(models.TextChoices):
         CASH = "cash", "Efectivo"
@@ -173,6 +174,28 @@ class Order(models.Model):
     # completo. Borra esta nota después de leerla.
     credit_applied = models.DecimalField(
         max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)],
+    )
+    # NOTA TEMPORAL PARA APRENDIZAJE: cuando un cliente de Recoger decide comer en el
+    # restaurante, el pedido se "transfiere" a una mesa nueva — este campo apunta a
+    # esa mesa mientras el pedido está en estado Transferido a mesa. Se limpia (vuelve
+    # a None) si el pedido se reabre después. Es OneToOneField (no un FK cualquiera)
+    # para que el lado de la mesa (`table_account.transferred_from_order`) dé
+    # directamente el pedido, sin manager — cada mesa nueva la crea un solo pedido,
+    # así que la relación siempre es 1 a 1 en la práctica; que este campo cambie de
+    # valor con el tiempo (un mismo pedido puede transferirse varias veces al día,
+    # cada vez a una mesa nueva) no choca con esa unicidad porque cada mesa objetivo
+    # sigue siendo distinta. Borra esta nota después de leerla.
+    transferred_to_table = models.OneToOneField(
+        "tables.TableAccount", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="transferred_from_order",
+    )
+    # NOTA TEMPORAL PARA APRENDIZAJE: la mesa contraria a `transferred_to_table` — si
+    # este pedido se creó transfiriendo una mesa que no tenía pedido de origen, aquí
+    # queda esa mesa. A diferencia del campo de arriba, éste nunca cambia después de
+    # creado el pedido (un pedido no "nace" dos veces). Borra esta nota.
+    transferred_from_table = models.OneToOneField(
+        "tables.TableAccount", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="transferred_to_order",
     )
     # NOTA TEMPORAL PARA APRENDIZAJE: la propina de reparto no modifica el consumo.
     # Se guarda aparte para saber cuánto devolver al repartidor cuando el restaurante

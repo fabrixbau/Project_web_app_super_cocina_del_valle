@@ -1466,3 +1466,189 @@ def add_cash_register_expense(*, cut, amount, concept, actor):
     return CashRegisterExpense.objects.create(
         cut=cut, amount=amount, concept=concept, registered_by=actor,
     )
+
+
+# NOTA TEMPORAL PARA APRENDIZAJE: OrderItem y TableAccountItem comparten casi todos
+# sus campos de producto/paquete/personalización — sólo cambian de nombre en los
+# tres tiempos (first_course vs first_course_product, *_name_snapshot vs *_snapshot).
+# Estas dos funciones son el mapeo exacto entre ambos, usado por las transferencias
+# Recoger<->Mesa de abajo. Borra esta nota después de leerla.
+def _order_item_to_table_account_kwargs(item):
+    return {
+        "item_type": item.item_type, "is_package_candidate": item.is_package_candidate,
+        "package": item.package, "package_name_snapshot": item.package_name_snapshot,
+        "daily_menu": item.daily_menu,
+        "product": item.product, "product_name_snapshot": item.product_name_snapshot,
+        "configuration_snapshot": item.configuration_snapshot,
+        "configuration_signature": item.configuration_signature,
+        "customization_comment": item.customization_comment, "is_customized": item.is_customized,
+        "first_course_product": item.first_course, "first_course_snapshot": item.first_course_name_snapshot,
+        "second_course_product": item.second_course, "second_course_snapshot": item.second_course_name_snapshot,
+        "main_course_product": item.main_course, "main_course_snapshot": item.main_course_name_snapshot,
+        "chicken_piece": item.chicken_piece, "with_water": item.with_water,
+        "water_name_snapshot": item.water_name_snapshot, "water_product": item.water_product,
+        "tortillas": item.tortillas, "bread": item.bread, "beans": item.beans,
+        "beans_product": item.beans_product, "egg_product": item.egg_product,
+        "egg_name_snapshot": item.egg_name_snapshot, "egg_price_snapshot": item.egg_price_snapshot,
+        "unit_price": item.unit_price, "quantity": item.quantity, "subtotal": item.subtotal,
+    }
+
+
+def _table_item_to_order_kwargs(item):
+    return {
+        "item_type": item.item_type, "is_package_candidate": item.is_package_candidate,
+        "package": item.package, "package_name_snapshot": item.package_name_snapshot,
+        "daily_menu": item.daily_menu,
+        "product": item.product, "product_name_snapshot": item.product_name_snapshot,
+        "configuration_snapshot": item.configuration_snapshot,
+        "configuration_signature": item.configuration_signature,
+        "customization_comment": item.customization_comment, "is_customized": item.is_customized,
+        "first_course": item.first_course_product, "first_course_name_snapshot": item.first_course_snapshot,
+        "second_course": item.second_course_product, "second_course_name_snapshot": item.second_course_snapshot,
+        "main_course": item.main_course_product, "main_course_name_snapshot": item.main_course_snapshot,
+        "chicken_piece": item.chicken_piece, "with_water": item.with_water,
+        "water_name_snapshot": item.water_name_snapshot, "water_product": item.water_product,
+        "tortillas": item.tortillas, "bread": item.bread, "beans": item.beans,
+        "beans_product": item.beans_product, "egg_product": item.egg_product,
+        "egg_name_snapshot": item.egg_name_snapshot, "egg_price_snapshot": item.egg_price_snapshot,
+        "unit_price": item.unit_price, "quantity": item.quantity, "subtotal": item.subtotal,
+    }
+
+
+@transaction.atomic
+def transfer_order_to_table(*, order, table, actor, assigned_waiter=None):
+    # NOTA TEMPORAL PARA APRENDIZAJE: caso real que reportó el desarrollador — un
+    # cliente pidió para Recoger pero, al llegar, decide comer en el restaurante. El
+    # pedido nunca se borra: queda marcado "Transferido a mesa" (histórico completo,
+    # incluye sus partidas originales) y enlazado a la cuenta nueva; su inventario
+    # reservado se mueve del canal Pedidos al canal Mesas para los mismos productos
+    # y cantidades. Sólo Recoger puede transferirse (Entrega no aplica aquí). Borra
+    # esta nota después de leerla.
+    from tables.models import DiningTable, TableAccount, TableAccountItem, TableActivity
+    from tables.services import record_activity, validate_waiter
+    from tables.services import _change_item_stock as _change_table_item_stock
+
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if order.order_type != Order.OrderType.PICKUP:
+        raise ValidationError("Sólo los pedidos para Recoger se pueden pasar a una mesa.")
+    if order.status in {
+        Order.Status.CANCELED, Order.Status.DELIVERED, Order.Status.PICKED_UP, Order.Status.TRANSFERRED,
+    }:
+        raise ValidationError("Este pedido ya no está activo.")
+    if not order.items.exists():
+        raise ValidationError("Agrega al menos un producto antes de pasarlo a mesa.")
+    if order.items.filter(is_package_candidate=True).exists():
+        raise ValidationError("Hay una comida incompleta. Complétala antes de pasarlo a mesa.")
+    if order.credit_applied > 0:
+        raise ValidationError(
+            "Este pedido ya tiene saldo a favor aplicado; ciérralo normalmente en vez de pasarlo a mesa."
+        )
+
+    table = DiningTable.objects.select_for_update().get(pk=table.pk)
+    if not table.is_active:
+        raise ValidationError("Esta mesa está desactivada.")
+    if table.accounts.filter(status=TableAccount.Status.OPEN).exists():
+        raise ValidationError("Esa mesa ya tiene una cuenta abierta.")
+
+    if user_has_any_role(actor, (ADMIN,)):
+        if not assigned_waiter:
+            raise ValidationError("Selecciona a qué mesero se le asigna la mesa.")
+        validate_waiter(assigned_waiter)
+    else:
+        assigned_waiter = actor
+
+    new_account = TableAccount.objects.create(
+        table=table, assigned_waiter=assigned_waiter, opened_by=actor,
+        customer_name=order.customer_name,
+    )
+    for item in order.items.all():
+        new_item = TableAccountItem.objects.create(
+            account=new_account, added_by=actor, **_order_item_to_table_account_kwargs(item),
+        )
+        _change_order_item_stock(item=item, quantity=item.quantity, actor=actor, reserve=False)
+        _change_table_item_stock(item=new_item, quantity=new_item.quantity, actor=actor, reserve=True)
+
+    record_activity(
+        account=new_account, actor=actor, action=TableActivity.Action.OPEN,
+        description=f"Transferida desde el pedido {order.formatted_number}",
+    )
+    previous_status = order.status
+    order.status = Order.Status.TRANSFERRED
+    order.transferred_to_table = new_account
+    order.save(update_fields=("status", "transferred_to_table", "updated_at"))
+    OrderStatusHistory.objects.create(
+        order=order, from_status=previous_status, to_status=Order.Status.TRANSFERRED, changed_by=actor,
+    )
+    return new_account
+
+
+@transaction.atomic
+def transfer_table_to_order(*, table_account, actor):
+    # NOTA TEMPORAL PARA APRENDIZAJE: el espejo de transfer_order_to_table. Si esta
+    # mesa vino originalmente de transferir un pedido (transferred_from_order sigue
+    # apuntando aquí), se REABRE ese mismo pedido en vez de crear uno nuevo — mismo
+    # folio, sin acumular pedidos "duplicados" por cada ida y vuelta. Si la mesa
+    # nunca vino de un pedido (cliente que llegó directo), se crea uno nuevo. A
+    # diferencia de las mesas (un lugar físico que puede ocuparse mientras tanto),
+    # un pedido no tiene ese riesgo, así que reabrirlo es seguro. Borra esta nota.
+    from tables.models import TableAccount, TableActivity
+    from tables.services import record_activity
+    from tables.services import _change_item_stock as _change_table_item_stock
+
+    table_account = TableAccount.objects.select_for_update().get(pk=table_account.pk)
+    if table_account.status != TableAccount.Status.OPEN:
+        raise ValidationError("Esta cuenta ya no está abierta.")
+    if not table_account.items.exists():
+        raise ValidationError("Agrega al menos un producto antes de pasarlo a Recoger.")
+    if table_account.items.filter(is_package_candidate=True).exists():
+        raise ValidationError("Hay una comida incompleta. Complétala antes de pasarlo a Recoger.")
+
+    existing_order = getattr(table_account, "transferred_from_order", None)
+    reused_existing = (
+        existing_order is not None
+        and existing_order.status == Order.Status.TRANSFERRED
+        and existing_order.transferred_to_table_id == table_account.pk
+    )
+    if reused_existing:
+        target_order = Order.objects.select_for_update().get(pk=existing_order.pk)
+        target_order.items.all().delete()
+        target_order.customer_name = table_account.customer_name or target_order.customer_name
+        previous_status = target_order.status
+    else:
+        now = timezone.localtime()
+        today = now.date()
+        counter, _ = DailyOrderCounter.objects.select_for_update().get_or_create(operating_date=today)
+        counter.last_number += 1
+        counter.save(update_fields=("last_number",))
+        target_order = Order.objects.create(
+            daily_number=counter.last_number, operating_date=today, order_type=Order.OrderType.PICKUP,
+            source=Order.Source.INTERNAL, status=Order.Status.PREPARING, created_by=actor,
+            customer_name=table_account.customer_name or "Mostrador", phone="", total=0,
+            requested_date=today, requested_time=now.time().replace(second=0, microsecond=0),
+            transferred_from_table=table_account,
+        )
+        previous_status = ""
+
+    for item in table_account.items.all():
+        new_item = OrderItem.objects.create(
+            order=target_order, **_table_item_to_order_kwargs(item),
+        )
+        _change_table_item_stock(item=item, quantity=item.quantity, actor=actor, reserve=False)
+        _change_order_item_stock(item=new_item, quantity=new_item.quantity, actor=actor, reserve=True)
+
+    target_order.total = sum((item.subtotal for item in target_order.items.all()), Decimal("0"))
+    target_order.status = Order.Status.PREPARING
+    target_order.transferred_to_table = None
+    target_order.save(update_fields=(
+        "total", "status", "transferred_to_table", "customer_name", "updated_at",
+    ))
+    OrderStatusHistory.objects.create(
+        order=target_order, from_status=previous_status, to_status=Order.Status.PREPARING, changed_by=actor,
+    )
+    record_activity(
+        account=table_account, actor=actor, action=TableActivity.Action.CLOSE,
+        description=f"Transferida al pedido {target_order.formatted_number}",
+    )
+    table_account.status = TableAccount.Status.TRANSFERRED
+    table_account.save(update_fields=("status",))
+    return target_order

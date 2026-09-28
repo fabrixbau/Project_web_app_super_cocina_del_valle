@@ -45,6 +45,7 @@ class TableAccount(models.Model):
     class Status(models.TextChoices):
         OPEN = "open", "Abierta"
         CLOSED = "closed", "Cerrada"
+        TRANSFERRED = "transferred", "Transferida a pedido"
 
     class PaymentMethod(models.TextChoices):
         CASH = "cash", "Efectivo"
@@ -53,7 +54,7 @@ class TableAccount(models.Model):
 
     table = models.ForeignKey(DiningTable, on_delete=models.PROTECT, related_name="accounts")
     customer_name = models.CharField("nombre del cliente", max_length=100, blank=True)
-    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
     assigned_waiter = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="assigned_table_accounts",
     )

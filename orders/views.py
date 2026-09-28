@@ -29,14 +29,14 @@ from menu.egg import egg_products, selected_egg
 from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product
 from menu.packaging import parse_packaging_quantities
 from menu.selection import resolve_product_selection, serialize_product_selector
-from tables.models import TableAccount
+from tables.models import DiningTable, TableAccount
 
 from .cart import add_package, add_product, cart_control_summary, clear, decrease_product, get_order_mode, product_is_orderable, remove_item, resolve_cart, set_cart_note, set_item_note, set_order_mode, update_item, update_product_selection
 from .coffee_report import coffee_sales_for_date
 from .phones import phone_key as normalize_customer_phone
 from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm, PublicOrderModeForm
 from .models import CashRegisterCut, CashRegisterExpense, CoffeeSettlement, Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
-from .services import ACTION_LABELS, add_cash_register_expense, add_customer_credit, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, settle_selected_debts_from_cashier, start_internal_order, transition_order, update_cash_register_cut, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
+from .services import ACTION_LABELS, add_cash_register_expense, add_customer_credit, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, settle_selected_debts_from_cashier, start_internal_order, transfer_order_to_table, transition_order, update_cash_register_cut, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
 
 
 INTERNAL_MENU_MODE_KEY = "internal_order_menu_mode"
@@ -156,17 +156,17 @@ def internal_auto_meal_slot(product, daily_menu):
 
 
 def plan_internal_auto_meal(request, order_id, slot, product_id, chicken_piece=""):
+    # NOTA TEMPORAL PARA APRENDIZAJE: espejo de planned_auto_meal_selection en
+    # tables/views.py — antes sólo existía una comida "en construcción" a la vez y se
+    # rechazaba capturar el mismo tiempo dos veces seguidas, obligando a completar una
+    # comida antes de iniciar otra. Ahora se busca, entre todas las comidas pendientes
+    # de este pedido, la primera a la que le falte este tiempo (o se abre una nueva si
+    # todas ya lo tienen), permitiendo capturar varios tiempos iguales seguidos sin
+    # importar el orden. Borra esta nota después de leerla.
     all_builders = request.session.get(INTERNAL_AUTO_MEAL_SESSION_KEY, {})
     builders = [dict(builder) for builder in all_builders.get(str(order_id), [])]
-    if builders:
-        builder = builders[0]
-        if slot in builder:
-            labels = {"first": "primer tiempo", "second": "segundo tiempo", "main": "tercer tiempo"}
-            missing = [label for key, label in labels.items() if key not in builder]
-            raise ValidationError(
-                "Completa la comida actual antes de iniciar otra. Falta: " + ", ".join(missing) + "."
-            )
-    else:
+    builder = next((candidate for candidate in builders if slot not in candidate), None)
+    if builder is None:
         builder = {}
         builders.append(builder)
     builder[slot] = product_id
@@ -572,7 +572,7 @@ def order_list(request):
     # elegido, por lo que también puede afinarse a sólo Entregado o sólo Recogido.
     # Borra esta nota después de leerla.
     final_statuses = (Order.Status.DELIVERED, Order.Status.PICKED_UP)
-    inactive_statuses = (*final_statuses, Order.Status.CANCELED)
+    inactive_statuses = (*final_statuses, Order.Status.CANCELED, Order.Status.TRANSFERRED)
     if scope == "completed":
         orders = orders.filter(status__in=final_statuses)
     elif scope == "all":
@@ -600,6 +600,18 @@ def order_list(request):
             Order.objects.filter(operating_date=today).exclude(status__in=inactive_statuses)
             .order_by("daily_number")
         )
+    # NOTA TEMPORAL PARA APRENDIZAJE: "Pasar a mesa" vive aquí (el tablero de
+    # Pedidos) porque Mesero puede consultarlo pero no tiene acceso a la pantalla
+    # completa de captura (internal_order_edit es sólo Administrador/Telefonista)
+    # — necesita poder transferir el pedido sin abrirlo. Sólo Administrador y
+    # Mesero pueden hacerlo, según pidió el desarrollador. Borra esta nota.
+    can_transfer_order_to_table = user_has_any_role(request.user, (ADMIN, WAITER))
+    available_tables = DiningTable.objects.filter(is_active=True).exclude(
+        accounts__status=TableAccount.Status.OPEN,
+    ).order_by("display_order", "name") if can_transfer_order_to_table else DiningTable.objects.none()
+    waiters_for_transfer = get_user_model().objects.filter(
+        is_active=True, groups__name=WAITER,
+    ).distinct().order_by("first_name", "username") if user_has_any_role(request.user, (ADMIN,)) else get_user_model().objects.none()
     # NOTA TEMPORAL PARA APRENDIZAJE: preparamos textos cortos para que la plantilla
     # sea sólo presentación. La acción rápida omite Cancelar para evitar un clic
     # destructivo accidental desde el tablero. Borra esta nota después de leerla.
@@ -627,10 +639,21 @@ def order_list(request):
         )
         order.can_edit_payment = can_update_order_payment(order=order, actor=request.user)
         order.customer_debt_note = _order_debt_badge(order)
+        order.can_transfer_to_table = (
+            can_transfer_order_to_table
+            and order.order_type == Order.OrderType.PICKUP
+            and order.status not in {
+                Order.Status.CANCELED, Order.Status.DELIVERED,
+                Order.Status.PICKED_UP, Order.Status.TRANSFERRED,
+            }
+        )
     return render(request, "orders/order_list.html", {
         "orders": orders,
         "delivery_orders": [order for order in orders if order.order_type == Order.OrderType.DELIVERY],
         "pickup_orders": [order for order in orders if order.order_type == Order.OrderType.PICKUP],
+        "can_transfer_order_to_table": can_transfer_order_to_table,
+        "available_tables": available_tables,
+        "waiters_for_transfer": waiters_for_transfer,
         "status_choices": Order.Status.choices,
         "order_type_choices": Order.OrderType.choices,
         "search": search,
@@ -643,6 +666,31 @@ def order_list(request):
         "can_capture_internal": user_has_any_role(request.user, (ADMIN, ORDER_TAKER)),
         "can_manage_debts": user_has_any_role(request.user, (ADMIN,)),
     })
+
+
+@require_POST
+@role_required(ADMIN, WAITER)
+def order_transfer_to_table(request, order_id):
+    # NOTA TEMPORAL PARA APRENDIZAJE: botón "Pasar a mesa" del tablero de Pedidos —
+    # el desarrollador confirmó que sólo Administrador y Mesero pueden usarlo.
+    # Administrador elige a qué mesero se le asigna la mesa; Mesero se asigna a sí
+    # mismo automático, igual que ya pasa al abrir una mesa normal. Borra esta nota.
+    order = get_object_or_404(Order, pk=order_id)
+    table = get_object_or_404(DiningTable, pk=request.POST.get("table_id"))
+    assigned_waiter = None
+    if user_has_any_role(request.user, (ADMIN,)):
+        waiter_id = request.POST.get("assigned_waiter", "")
+        if waiter_id:
+            assigned_waiter = get_object_or_404(get_user_model(), pk=waiter_id)
+    try:
+        new_account = transfer_order_to_table(
+            order=order, table=table, actor=request.user, assigned_waiter=assigned_waiter,
+        )
+    except ValidationError as error:
+        messages.error(request, error.message)
+        return redirect("orders:order_list")
+    messages.success(request, f"{order.formatted_number} se pasó a {table.name}.")
+    return redirect("tables:table_detail", account_id=new_account.pk)
 
 
 def _internal_order_initial(order):
@@ -2606,12 +2654,18 @@ def cashier_terminal_board(request):
             if is_transfer_provider
             else (Order.Status.DELIVERED,)
         )
+        # NOTA TEMPORAL PARA APRENDIZAJE: este corte existe para conciliar
+        # propinas — un pedido sin propina no tiene nada que vincular aquí, así
+        # que se excluye directo de la lista de candidatos (no sólo de la
+        # pantalla). El desarrollador lo pidió después de ver tickets con
+        # propina $0 apareciendo como vinculables. Borra esta nota.
         linked_orders = Order.objects.filter(
             operating_date=selected_date,
             order_type=Order.OrderType.DELIVERY,
             payment_method=expected_payment_method,
             status__in=order_status_options,
             customer_debt__isnull=True,
+            delivery_tip_amount__gt=0,
         ).select_related(
             "delivery_tip_recipient", "delivery_person",
         ).order_by("daily_number")
@@ -2624,6 +2678,7 @@ def cashier_terminal_board(request):
             status=TableAccount.Status.CLOSED,
             payment_method=table_payment_method,
             closed_at__date=selected_date,
+            tip_amount__gt=0,
         ).select_related("table", "tip_recipient", "assigned_waiter").order_by("closed_at")
     used_order_links = dict(TerminalMovement.objects.filter(
         order_id__in=linked_orders.values("id"), order_id__isnull=False,

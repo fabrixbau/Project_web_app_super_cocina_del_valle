@@ -33,6 +33,19 @@ if (filterForm) {
   filterForm.querySelectorAll("select, input[type='date']").forEach((field) => {
     field.addEventListener("change", () => filterForm.requestSubmit());
   });
+  // NOTA TEMPORAL PARA APRENDIZAJE: Enter en "Buscar" ya no envía el formulario
+  // completo (fecha/estado/tipo incluidos) — el desarrollador pidió que busque
+  // sólo por ese campo, para que un folio que sí existe no se esconda por un
+  // filtro de fecha o estado que quedó puesto de una búsqueda anterior. Borra
+  // esta nota después de leerla.
+  const searchField = filterForm.querySelector("input[name='q']");
+  searchField?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const params = new URLSearchParams();
+    if (searchField.value.trim()) params.set("q", searchField.value.trim());
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
+  });
 }
 
 document.addEventListener("click", async (event) => {
@@ -70,9 +83,13 @@ let orderBoardRequestsInProgress = 0;
 document.addEventListener("submit", async (event) => {
   const statusForm = event.target.closest(".order-row-actions form");
   // NOTA TEMPORAL PARA APRENDIZAJE: la columna también contiene la acción contable
-  // "No pagó". Esa acción debe conservar su POST normal y no entrar en la máquina
-  // AJAX de estados operativos. Borra esta nota después de leerla.
-  if (!statusForm || statusForm.matches("[data-debt-create-form]")) return;
+  // "No pagó" y "Pasar a mesa". Ambas deben conservar su POST normal y no entrar en
+  // la máquina AJAX de estados operativos — a diferencia de order_resolve, esas dos
+  // vistas siempre redirigen y nunca responden JSON, así que el manejador de abajo
+  // interpretaba cualquier redirección como un fallo ("No se pudo cambiar el
+  // estado"), aunque la transferencia ya hubiera funcionado en el servidor. Borra
+  // esta nota después de leerla.
+  if (!statusForm || statusForm.matches("[data-debt-create-form], [data-order-transfer-form]")) return;
   event.preventDefault();
   const row = statusForm.closest("[data-order-status]");
   const button = statusForm.querySelector("button[type='submit']");

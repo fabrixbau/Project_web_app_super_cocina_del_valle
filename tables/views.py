@@ -95,17 +95,19 @@ def auto_meal_slot(product, daily_menu):
 
 
 def planned_auto_meal_selection(request, account_id, slot, product_id, chicken_piece=""):
+    # NOTA TEMPORAL PARA APRENDIZAJE: antes sólo existía una comida "en construcción" a
+    # la vez (builders[0]) y se rechazaba capturar el mismo tiempo dos veces seguidas —
+    # obligando a completar primero+segundo+tercero en orden antes de poder iniciar la
+    # siguiente comida. El desarrollador pidió poder capturar, por ejemplo, 5 primeros
+    # tiempos seguidos (para 5 comidas corridas) sin ese bloqueo. Ahora se busca, entre
+    # todas las comidas pendientes de esta cuenta, la primera a la que todavía le falte
+    # este tiempo; si todas ya lo tienen, se abre una comida pendiente nueva. El orden en
+    # que se completen ya no importa, sólo que las cantidades coincidan al final. Borra
+    # esta nota después de leerla.
     all_builders = request.session.get(AUTO_MEAL_SESSION_KEY, {})
     builders = [dict(builder) for builder in all_builders.get(str(account_id), [])]
-    if builders:
-        builder = builders[0]
-        if slot in builder:
-            labels = {"first": "primer tiempo", "second": "segundo tiempo", "main": "tercer tiempo"}
-            missing = [label for key, label in labels.items() if key not in builder]
-            raise ValidationError(
-                "Completa la comida actual antes de iniciar otra. Falta: " + ", ".join(missing) + "."
-            )
-    else:
+    builder = next((candidate for candidate in builders if slot not in candidate), None)
+    if builder is None:
         builder = {}
         builders.append(builder)
     builder[slot] = product_id
@@ -256,6 +258,7 @@ def table_map(request):
         "tables": tables,
         "waiters": waiter_queryset() if can_choose_waiter else (),
         "can_choose_waiter": can_choose_waiter,
+        "can_transfer_to_order": user_has_any_role(request.user, (ADMIN, WAITER)),
     }
     context.update(capture_mode_context(request))
     return render(request, "tables/table_map.html", context)
@@ -909,6 +912,30 @@ def table_close(request, account_id):
         messages.warning(request, f"La cuenta quedó cerrada, pero no se pudo enviar el ticket de cobro a imprimir: {error}")
         return redirect("tables:table_detail", account_id=account.pk)
     return redirect(f"{reverse('tables:table_detail', args=(account.pk,))}?printed_job={job.pk}")
+
+
+@require_POST
+@role_required(ADMIN, WAITER)
+def table_transfer_to_order(request, account_id):
+    # NOTA TEMPORAL PARA APRENDIZAJE: botón "Pasar a Recoger" de la mesa — el
+    # desarrollador confirmó que sólo Administrador y Mesero pueden usarlo. La
+    # lógica real (reabrir el pedido de origen si existe, o crear uno nuevo) vive
+    # en orders.services.transfer_table_to_order — aquí sólo se valida el rol y se
+    # redirige. Borra esta nota después de leerla.
+    from orders.services import transfer_table_to_order
+
+    account = get_object_or_404(TableAccount, pk=account_id)
+    try:
+        order = transfer_table_to_order(table_account=account, actor=request.user)
+    except ValidationError as error:
+        messages.error(request, error.message)
+        return redirect("tables:table_detail", account_id=account.pk)
+    messages.success(request, f"{account.table.name} se pasó al pedido {order.formatted_number}.")
+    # NOTA TEMPORAL PARA APRENDIZAJE: no se redirige a internal_order_edit porque
+    # esa pantalla es sólo Administrador/Telefonista (Mesero no entra) — el tablero
+    # de Pedidos sí es visible para los tres roles, y el mensaje de arriba ya dice
+    # el folio resultante. Borra esta nota después de leerla.
+    return redirect("orders:order_list")
 
 
 @require_POST

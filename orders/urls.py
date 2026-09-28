@@ -10,6 +10,7 @@ from . import views
 app_name = "orders"
 urlpatterns = [
     path("", views.order_list, name="order_list"),
+    path("<int:order_id>/pasar-a-mesa/", views.order_transfer_to_table, name="order_transfer_to_table"),
     path("clientes/", views.customer_list, name="customer_list"),
     path("clientes/nuevo/", views.customer_create, name="customer_create"),
     path("clientes/buscar/", views.customer_lookup, name="customer_lookup"),
