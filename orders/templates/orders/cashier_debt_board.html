@@ -5,7 +5,13 @@ Telefonista recibe exactamente la misma información, pero Django no renderiza n
 acepta sus acciones financieras. Borra esta nota después de leerla. -->
 {% block title %}Cuentas por cobrar{% endblock %}
 {% block content %}
-<div class="page-heading"><div><h1>Cuentas por cobrar</h1><p>Pedidos entregados que quedaron a cuenta de un cliente.</p></div><div class="page-heading-actions">{% if can_manage_debts %}<a class="button-link" href="{% url 'cashier:cashier_board' %}">Caja</a>{% endif %}<a class="button-link" href="{% url 'orders:customer_list' %}">Agenda</a><a class="button-link" href="{% url 'orders:order_list' %}">Pedidos</a></div></div>
+<header class="cashier-page-header">
+  <div class="cashier-title-row">
+    <div><h1>Cuentas por cobrar</h1><p>Pedidos entregados que quedaron a cuenta de un cliente.</p></div>
+    <a class="cashier-back-link" href="{% url 'internal_portal:dashboard' %}"><span aria-hidden="true">←</span> Volver al panel</a>
+  </div>
+  {% include "orders/includes/cashier_tools_nav.html" with current="debts" is_admin=can_manage_debts %}
+</header>
 {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
 
 {% if can_manage_debts %}<section class="card debt-create-card"><div><h2>Registrar pedido no pagado</h2><p>El pedido debe estar Entregado o Recogido y vinculado con un cliente de la agenda.</p></div><form method="post" action="{% url 'cashier:debt_create' %}">{% csrf_token %}<label>Folio del pedido<input name="order_reference" placeholder="Ej. 0309015" required></label><label>Nota inicial<input name="note" maxlength="250" placeholder="Ej. Solicitó dejarlo a cuenta"></label><button type="submit">Dejar a cuenta</button></form></section>{% endif %}
@@ -26,4 +32,4 @@ acepta sus acciones financieras. Borra esta nota después de leerla. -->
   </details>{% empty %}<p>No hay adeudos que coincidan con los filtros.</p>{% endfor %}
 </section>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/debt-board.js' %}?v=2"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/cashier-tools-toggle.js' %}?v=1"></script><script src="{% static 'js/debt-board.js' %}?v=2"></script>{% endblock %}

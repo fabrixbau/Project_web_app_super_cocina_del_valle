@@ -7,7 +7,13 @@ para el cliente seleccionado (?customer=) en vez de vivir siempre abierto en
 cada fila. Borra esta nota después de leerla. -->
 {% block title %}Saldos a favor{% endblock %}
 {% block content %}
-<div class="page-heading"><div><h1>Saldos a favor</h1><p>Depósitos adelantados de clientes, para ir descontando en sus próximos pedidos.</p></div><div class="page-heading-actions">{% if can_manage_credit %}<a class="button-link" href="{% url 'cashier:cashier_board' %}">Caja</a>{% endif %}<a class="button-link" href="{% url 'cashier:debt_board' %}">Cuentas por cobrar</a><a class="button-link" href="{% url 'orders:customer_list' %}">Agenda</a></div></div>
+<header class="cashier-page-header">
+  <div class="cashier-title-row">
+    <div><h1>Saldos a favor</h1><p>Depósitos adelantados de clientes, para ir descontando en sus próximos pedidos.</p></div>
+    <a class="cashier-back-link" href="{% url 'internal_portal:dashboard' %}"><span aria-hidden="true">←</span> Volver al panel</a>
+  </div>
+  {% include "orders/includes/cashier_tools_nav.html" with current="credit" is_admin=can_manage_credit %}
+</header>
 {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
 
 {% if can_manage_credit %}<section class="card debt-create-card"><div><h2>Registrar depósito</h2><p>Escribe el nombre o teléfono del cliente y selecciónalo de la lista; debe estar registrado en la agenda.</p></div><form method="post" action="{% url 'cashier:credit_deposit' %}">{% csrf_token %}<label class="customer-picker" data-customer-picker data-customer-lookup-url="{% url 'orders:customer_lookup' %}">Cliente<input type="text" name="customer_query" data-customer-picker-input placeholder="Nombre o teléfono" autocomplete="off" required><input type="hidden" name="customer_id" data-customer-picker-id><div class="customer-picker-results" data-customer-picker-results hidden></div></label><label>Monto<input type="number" name="amount" min="0.01" step="0.01" required></label><label>Método<select name="payment_method" required><option value="">Selecciona</option>{% for value, label in payment_method_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label><label>Nota<input name="note" maxlength="250" placeholder="Ej. Depósito para la semana"></label><button type="submit">Registrar depósito</button></form></section>{% endif %}
@@ -28,4 +34,4 @@ cada fila. Borra esta nota después de leerla. -->
   </details>{% empty %}<p>No hay clientes con saldo a favor.</p>{% endfor %}
 </section>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/customer-picker.js' %}?v=1"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/cashier-tools-toggle.js' %}?v=1"></script><script src="{% static 'js/customer-picker.js' %}?v=1"></script>{% endblock %}

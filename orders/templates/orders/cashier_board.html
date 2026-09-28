@@ -25,7 +25,7 @@ cliente, asignar repartidor, registrar pago y confirmar cambio. Borra esta nota.
 </header>
 <p class="message" data-cashier-feedback hidden></p>
 <aside class="cashier-undo" data-cashier-undo hidden><span>Pedido liberado de Caja.</span><button type="button" data-cashier-undo-action>Seguir orden</button></aside>
-<details class="card cashier-unpaid-quick"><summary><span>Registrar un pedido que no pagó</span><small>Crear cuenta por cobrar</small></summary><form method="post" action="{% url 'cashier:debt_create' %}">{% csrf_token %}<label>Folio<input name="order_reference" placeholder="Ej. 0309015" required></label><label>Nota<input name="note" maxlength="250" placeholder="Ej. Cliente solicitó dejarlo a cuenta"></label><button type="submit">Dejar a cuenta</button></form><small>El pedido debe estar entregado y asociado a un cliente de la agenda.</small></details>
+<details class="card cashier-unpaid-quick"><summary><span>Registrar un pedido que no pagó</span><small>Crear cuenta por cobrar</small></summary><form method="post" action="{% url 'cashier:debt_create' %}" id="registrar-no-pagado">{% csrf_token %}<label>Folio<input name="order_reference" placeholder="Ej. 0309015" required></label><label>Nota<input name="note" maxlength="250" placeholder="Ej. Cliente solicitó dejarlo a cuenta"></label><button type="submit">Dejar a cuenta</button></form><small>El pedido debe estar entregado y asociado a un cliente de la agenda.</small></details>
 
 <section class="card cashier-filter-card">
   <button class="cashier-panel-toggle" type="button" aria-expanded="false" data-cashier-panel-toggle="filters"><span>Buscar pedido</span><span aria-hidden="true">⌄</span></button>
@@ -72,4 +72,4 @@ Borra esta nota después de leerla. -->
 {% endif %}
 </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/cashier-board.js' %}?v=27"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/cashier-tools-toggle.js' %}?v=1"></script><script src="{% static 'js/cashier-board.js' %}?v=30"></script>{% endblock %}

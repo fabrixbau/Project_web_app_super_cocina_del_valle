@@ -7,8 +7,6 @@ const installChangeDisclosure = (toggle, panel) => toggle?.addEventListener("cli
   toggle.setAttribute("aria-expanded", String(!expanded));
   panel?.classList.toggle("is-mobile-expanded", !expanded);
 });
-const changeTools = document.querySelector(".change-mobile-tools");
-installChangeDisclosure(changeTools?.querySelector("[data-change-tools-toggle]"), changeTools);
 const changeFilterPanel = document.querySelector(".change-filters");
 installChangeDisclosure(changeFilterPanel?.querySelector("[data-change-filter-toggle]"), changeFilterPanel);
 // NOTA TEMPORAL PARA APRENDIZAJE: "Efectivo por devolver" describe exclusivamente

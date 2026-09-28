@@ -140,4 +140,13 @@ def order_print_context(order):
         "total": order.total_with_delivery_tip,
         "printed_at": timezone.now(),
         "take_terminal": order.payment_method == order.PaymentMethod.CARD and order.order_type == order.OrderType.DELIVERY,
+        # NOTA TEMPORAL PARA APRENDIZAJE: el desarrollador pidió que, cuando el
+        # saldo a favor cubrió parte o todo el pedido, el ticket de cobro aclare
+        # cuánto se descontó y cuánto le queda al cliente — no sólo el método de
+        # pago ("Saldo a favor" ya sale solo ahí cuando cubrió todo). amount_due es
+        # lo que realmente falta cobrar (0 si el saldo cubrió todo). Borra esta
+        # nota después de leerla.
+        "credit_applied": order.credit_applied if order.credit_applied else None,
+        "credit_balance_remaining": order.agenda_customer.credit_balance if order.credit_applied and order.agenda_customer_id else None,
+        "amount_due": order.amount_due if order.credit_applied else None,
     }

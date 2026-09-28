@@ -5,8 +5,13 @@ de cambio. Los filtros adicionales localizan pedidos finales de cualquier modali
 medio para reportarlos como no pagados. Borra esta nota al leerla. -->
 {% block title %}Cambios pendientes{% endblock %}
 {% block content %}
-<div class="page-heading change-page-heading"><div><h1>Cambios pendientes</h1><p>Confirma el cambio devuelto por cada repartidor al cierre del día.</p></div><div class="page-heading-actions change-desktop-actions"><a class="button-link" href="{% url 'cashier:cashier_board' %}">Caja</a><a class="button-link" href="{% url 'cashier:terminal_board' %}">Corte de terminales</a><a class="button-link" href="{% url 'cashier:tip_report' %}">Reporte de propinas</a></div></div>
-<nav class="cashier-tools change-mobile-tools" aria-label="Herramientas de Caja"><button class="cashier-panel-toggle" type="button" aria-expanded="false" data-change-tools-toggle><span>Herramientas</span><span aria-hidden="true">⌄</span></button><a href="{% url 'cashier:cashier_board' %}">Caja</a><a href="{% url 'cashier:debt_board' %}">Cuentas por cobrar</a><a href="{% url 'cashier:terminal_board' %}">Corte de terminales</a><a href="{% url 'cashier:tip_report' %}">Reporte de propinas</a><a href="{% url 'cashier:coffee_report' %}">Corte de bebidas calientes</a></nav>
+<header class="cashier-page-header">
+  <div class="cashier-title-row">
+    <div><h1>Cambios pendientes</h1><p>Confirma el cambio devuelto por cada repartidor al cierre del día.</p></div>
+    <a class="cashier-back-link" href="{% url 'internal_portal:dashboard' %}"><span aria-hidden="true">←</span> Volver al panel</a>
+  </div>
+  {% include "orders/includes/cashier_tools_nav.html" with current="changes" is_admin=True %}
+</header>
 {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
 <p class="message" data-settlement-feedback hidden></p>
 
@@ -34,4 +39,4 @@ medio para reportarlos como no pagados. Borra esta nota al leerla. -->
 </article>{% empty %}<p class="card">No hay cambios que coincidan con los filtros.</p>{% endfor %}
 </section>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/cashier-change-board.js' %}?v=3"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/cashier-tools-toggle.js' %}?v=1"></script><script src="{% static 'js/cashier-change-board.js' %}?v=4"></script>{% endblock %}

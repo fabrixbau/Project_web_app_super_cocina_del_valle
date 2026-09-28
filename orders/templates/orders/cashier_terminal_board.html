@@ -5,8 +5,13 @@ convierte cada renglón en información conciliable. Las cifras reales no reempl
 ventas ni propinas: sólo se comparan con ellas. Borra esta nota después de leerla. -->
 {% block title %}Conciliación de cobros{% endblock %}
 {% block content %}
-<div class="page-heading terminal-page-heading"><div><h1>Conciliación de cobros</h1><p>Captura Clover, Mercado Pago o Transferencias y compáralos con la aplicación.</p></div><div class="page-heading-actions terminal-desktop-actions"><a class="button-link" href="{% url 'cashier:cashier_board' %}">Caja</a><a class="button-link" href="{% url 'cashier:tip_report' %}">Propinas</a><a class="button-link" href="{% url 'cashier:change_board' %}">Cambios</a></div></div>
-<nav class="cashier-tools terminal-mobile-tools" aria-label="Herramientas de Caja"><button class="cashier-panel-toggle" type="button" aria-expanded="false" data-terminal-tools-toggle><span>Herramientas</span><span aria-hidden="true">⌄</span></button><a href="{% url 'cashier:cashier_board' %}">Caja</a><a href="{% url 'cashier:debt_board' %}">Cuentas por cobrar</a><a href="{% url 'cashier:change_board' %}">Cambios pendientes</a><a href="{% url 'cashier:tip_report' %}">Reporte de propinas</a><a href="{% url 'cashier:coffee_report' %}">Corte de bebidas calientes</a></nav>
+<header class="cashier-page-header">
+  <div class="cashier-title-row">
+    <div><h1>Conciliación de cobros</h1><p>Captura Clover, Mercado Pago o Transferencias y compáralos con la aplicación.</p></div>
+    <a class="cashier-back-link" href="{% url 'internal_portal:dashboard' %}"><span aria-hidden="true">←</span> Volver al panel</a>
+  </div>
+  {% include "orders/includes/cashier_tools_nav.html" with current="terminal" is_admin=True %}
+</header>
 
 <section class="card terminal-filter-card"><form method="get" data-terminal-filters>
   <input type="hidden" name="provider" value="{{ selected_provider }}">
@@ -73,4 +78,4 @@ exclusivamente las propinas ya capturadas en los tres apartados. Borra esta nota
 <section class="card terminal-person-summary"><h2>Conciliación de propinas por persona</h2><div class="terminal-person-head"><span>Persona</span><span>Terminales</span><span>Aplicación</span><span>Diferencia</span></div>{% for row in person_summary %}<div><strong>{{ row.person.get_full_name|default:row.person.username }}</strong><span>${{ row.actual|floatformat:2 }}</span><span>${{ row.expected|floatformat:2 }}</span><strong class="{% if row.difference %}text-danger{% endif %}">${{ row.difference|floatformat:2 }}</strong></div>{% empty %}<p>No hay personas que coincidan.</p>{% endfor %}</section>
 {% endif %}
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/cashier-terminal-board.js' %}?v=12"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/cashier-tools-toggle.js' %}?v=1"></script><script src="{% static 'js/cashier-terminal-board.js' %}?v=13"></script>{% endblock %}

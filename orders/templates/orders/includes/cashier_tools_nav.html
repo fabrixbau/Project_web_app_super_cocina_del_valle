@@ -1,0 +1,19 @@
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: barra de herramientas estándar para toda la
+familia de Caja (Caja, Cuentas por cobrar, Saldos a favor, Corte de terminales,
+Cambios pendientes, Reporte de propinas, Corte de bebidas calientes) — el
+desarrollador pidió que, sin importar en cuál de estas páginas estés, siempre
+puedas saltar a cualquier otra desde el mismo menú "Herramientas". `current`
+oculta el enlace hacia la página en la que ya estás; `is_admin` oculta las
+secciones exclusivas de Administrador (Telefonista sólo entra a Cuentas por
+cobrar y Saldos a favor). Borra esta nota después de leerla. -->
+<nav class="cashier-tools" aria-label="Herramientas de Caja">
+  <button class="cashier-panel-toggle" type="button" aria-expanded="false" data-cashier-panel-toggle="tools"><span>Herramientas</span><span aria-hidden="true">⌄</span></button>
+  {% if is_admin and current != 'cashier' %}<a href="{% url 'cashier:cashier_board' %}">Caja</a>{% endif %}
+  {% if current != 'debts' %}<a href="{% url 'cashier:debt_board' %}">Cuentas por cobrar</a>{% endif %}
+  {% if current != 'credit' %}<a href="{% url 'cashier:credit_board' %}">Saldos a favor</a>{% endif %}
+  {% if is_admin and current != 'terminal' %}<a href="{% url 'cashier:terminal_board' %}">Corte de terminales</a>{% endif %}
+  {% if is_admin and current != 'changes' %}<a href="{% url 'cashier:change_board' %}">Cambios pendientes</a>{% endif %}
+  {% if is_admin and current != 'tips' %}<a href="{% url 'cashier:tip_report' %}">Reporte de propinas</a>{% endif %}
+  {% if is_admin and current != 'coffee' %}<a href="{% url 'cashier:coffee_report' %}">Corte de bebidas calientes</a>{% endif %}
+  {% if is_admin and current != 'cashier' %}<a href="{% url 'cashier:cashier_board' %}#registrar-no-pagado">Registrar un pedido que no pagó</a>{% endif %}
+</nav>

@@ -16,6 +16,7 @@ from print_station.models import PrintStation
 
 from tables.models import DiningTable, TableAccount
 
+from .forms import InternalOrderForm
 from .models import Customer, CustomerCreditMovement, CustomerDebt, Order, OrderItem, TerminalCut, TerminalMovement
 from .services import (
     add_customer_credit, add_internal_order_package, add_internal_order_product, assign_delivery,
@@ -1467,3 +1468,177 @@ class CustomerCreditTests(TestCase):
         self.assertEqual(response.status_code, 302)
         debt.refresh_from_db()
         self.assertEqual(debt.status, CustomerDebt.Status.PAID)
+
+    def test_close_internal_order_capture_auto_assigns_credit_when_it_fully_covers_a_delivery_order(self):
+        # NOTA: el desarrollador pidió que, cuando el saldo a favor cubre el pedido
+        # por completo, ya no tenga sentido elegir Efectivo/Terminal/Transferencia —
+        # el sistema asigna PaymentMethod.CREDIT solo, sin bloquear el cierre.
+        add_customer_credit(customer=self.customer, amount="500", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        order = self.make_order(total=200, order_type=Order.OrderType.DELIVERY, street="Calle 1", exterior_number="10")
+        order.items.create(
+            item_type=OrderItem.ItemType.PRODUCT, product_name_snapshot="Comida",
+            tortillas=False, beans=False, unit_price=200, quantity=1, subtotal=200,
+        )
+        close_internal_order_capture(order=order, actor=self.actor)
+        order.refresh_from_db()
+        self.assertEqual(order.payment_method, Order.PaymentMethod.CREDIT)
+        self.assertEqual(order.credit_applied, Decimal("200"))
+        self.assertNotEqual(order.status, Order.Status.DRAFT)
+
+    def test_close_internal_order_capture_still_requires_a_payment_method_when_credit_falls_short(self):
+        add_customer_credit(customer=self.customer, amount="100", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        order = self.make_order(total=200, order_type=Order.OrderType.DELIVERY, street="Calle 1", exterior_number="10")
+        order.items.create(
+            item_type=OrderItem.ItemType.PRODUCT, product_name_snapshot="Comida",
+            tortillas=False, beans=False, unit_price=200, quantity=1, subtotal=200,
+        )
+        with self.assertRaisesMessage(ValidationError, "Selecciona la forma de pago"):
+            close_internal_order_capture(order=order, actor=self.actor)
+
+    def test_close_internal_order_capture_does_not_override_an_explicit_payment_method(self):
+        add_customer_credit(customer=self.customer, amount="500", payment_method=Order.PaymentMethod.CASH, actor=self.actor)
+        order = self.make_order(
+            total=200, order_type=Order.OrderType.DELIVERY, street="Calle 1", exterior_number="10",
+            payment_method=Order.PaymentMethod.CARD,
+        )
+        order.items.create(
+            item_type=OrderItem.ItemType.PRODUCT, product_name_snapshot="Comida",
+            tortillas=False, beans=False, unit_price=200, quantity=1, subtotal=200,
+        )
+        close_internal_order_capture(order=order, actor=self.actor)
+        order.refresh_from_db()
+        self.assertEqual(order.payment_method, Order.PaymentMethod.CARD)
+
+    def test_internal_order_form_skips_the_payment_method_requirement_when_credit_covers_the_total(self):
+        form = InternalOrderForm({
+            "order_type": Order.OrderType.DELIVERY, "customer_name": "Cliente con saldo",
+            "requested_date": timezone.localdate().isoformat(), "requested_time": "13:00",
+            "street": "Calle 1", "exterior_number": "10", "payment_method": "",
+        }, order_total=200, closing=True, available_credit=Decimal("500"))
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_internal_order_form_still_requires_a_payment_method_when_credit_falls_short(self):
+        form = InternalOrderForm({
+            "order_type": Order.OrderType.DELIVERY, "customer_name": "Cliente con saldo",
+            "requested_date": timezone.localdate().isoformat(), "requested_time": "13:00",
+            "street": "Calle 1", "exterior_number": "10", "payment_method": "",
+        }, order_total=200, closing=True, available_credit=Decimal("100"))
+        self.assertFalse(form.is_valid())
+        self.assertIn("payment_method", form.errors)
+
+    def test_cashier_board_shows_paid_by_credit_instead_of_payment_buttons(self):
+        self.make_order(
+            status=Order.Status.PREPARING, total=200, credit_applied=200,
+            payment_method=Order.PaymentMethod.CREDIT,
+        )
+        response = self.client.get(reverse("cashier:cashier_board"), {"scope": "all"})
+        self.assertContains(response, "Pagado con saldo a favor")
+        self.assertContains(response, "$200.00 aplicado")
+
+    def test_assignable_payment_method_choices_exclude_credit(self):
+        from orders.views import ASSIGNABLE_PAYMENT_METHOD_CHOICES
+        self.assertNotIn(
+            Order.PaymentMethod.CREDIT, [value for value, _ in ASSIGNABLE_PAYMENT_METHOD_CHOICES],
+        )
+
+    def test_payment_print_shows_the_credit_deduction_detail(self):
+        order = self.make_order(
+            status=Order.Status.PREPARING, total=200, credit_applied=200,
+            payment_method=Order.PaymentMethod.CREDIT,
+        )
+        response = self.client.get(reverse("orders:order_payment_print", args=(order.pk,)))
+        self.assertContains(response, "Saldo a favor descontado: $200.00")
+        self.assertContains(response, "Saldo a favor")
+
+    def test_no_pago_button_is_marked_to_skip_the_ajax_status_handler(self):
+        # NOTA: bug real reportado — el formulario "No pagó" en Pedidos caía dentro
+        # del manejador genérico de AJAX de order-list.js (que espera JSON), y como
+        # cashier_order_debt_create responde con una redirección normal, el
+        # navegador mostraba "No se pudo cambiar el estado" aunque el adeudo SÍ se
+        # hubiera creado. order-list.js ya excluía data-debt-create-form de ese
+        # manejador, pero la plantilla nunca lo traía. Verifica que ahora sí.
+        order = self.make_order(status=Order.Status.PREPARING, total=100)
+        response = self.client.get(reverse("orders:order_list"))
+        self.assertContains(response, "data-debt-create-form")
+
+    def test_debt_settle_checkboxes_and_amount_are_unchecked_by_default(self):
+        # NOTA: el desarrollador pidió que nada venga premarcado en el panel de
+        # "Debe $X..." de Caja — el admin debe marcar a propósito qué adeudo(s)
+        # cobrar; antes todas las casillas venían marcadas y el monto ya traía la
+        # suma completa, lo que se sentía como que "ya se iba a cobrar todo" sin
+        # que nadie lo pidiera.
+        debt_order = self.make_order(total=100, status=Order.Status.DELIVERED, daily_number=2440)
+        create_customer_debt(order=debt_order, actor=self.actor)
+        new_order = self.make_order(total=50, status=Order.Status.PREPARING, daily_number=2441)
+
+        response = self.client.get(reverse("cashier:cashier_board"), {"scope": "all", "q": "2441"})
+        self.assertContains(response, 'value="0.00" data-debt-settle-amount')
+        self.assertNotIn(b"checked data-debt-balance", response.content)
+
+
+class CashierToolsNavigationTests(TestCase):
+    # NOTA: el desarrollador pidió que las 7 páginas de Caja (Caja, Cuentas por
+    # cobrar, Saldos a favor, Corte de terminales, Cambios pendientes, Reporte de
+    # propinas, Corte de bebidas calientes) compartan la misma barra "Herramientas"
+    # — desde cualquiera de ellas se puede saltar a cualquier otra, sin importar en
+    # cuál estés. Telefonista sólo entra a Cuentas por cobrar y Saldos a favor, así
+    # que su barra sólo debe ofrecer esas dos.
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="nav_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.telefonista = get_user_model().objects.create_user(username="nav_telefonista")
+        self.telefonista.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
+
+    def test_every_cashier_page_toolbar_links_to_the_other_sections(self):
+        # NOTA: cada aserción busca ">Etiqueta<" (el enlace real ya renderizado),
+        # no sólo la palabra suelta — el include trae una nota explicativa que
+        # menciona las 7 secciones por nombre, y un assertContains simple daría
+        # un falso positivo con esa nota aunque el enlace real no estuviera.
+        self.client.force_login(self.admin)
+        pages = {
+            "cashier:cashier_board": [
+                "Cuentas por cobrar", "Saldos a favor", "Corte de terminales",
+                "Cambios pendientes", "Reporte de propinas", "Corte de bebidas calientes",
+            ],
+            "cashier:debt_board": [
+                "Caja", "Saldos a favor", "Corte de terminales", "Cambios pendientes",
+                "Reporte de propinas", "Corte de bebidas calientes", "Registrar un pedido que no pagó",
+            ],
+            "cashier:credit_board": [
+                "Caja", "Cuentas por cobrar", "Corte de terminales", "Cambios pendientes",
+                "Reporte de propinas", "Corte de bebidas calientes", "Registrar un pedido que no pagó",
+            ],
+            "cashier:terminal_board": [
+                "Caja", "Cuentas por cobrar", "Saldos a favor", "Cambios pendientes",
+                "Reporte de propinas", "Corte de bebidas calientes", "Registrar un pedido que no pagó",
+            ],
+            "cashier:change_board": [
+                "Caja", "Cuentas por cobrar", "Saldos a favor", "Corte de terminales",
+                "Reporte de propinas", "Corte de bebidas calientes", "Registrar un pedido que no pagó",
+            ],
+            "cashier:tip_report": [
+                "Caja", "Cuentas por cobrar", "Saldos a favor", "Corte de terminales",
+                "Cambios pendientes", "Corte de bebidas calientes", "Registrar un pedido que no pagó",
+            ],
+            "cashier:coffee_report": [
+                "Caja", "Cuentas por cobrar", "Saldos a favor", "Corte de terminales",
+                "Cambios pendientes", "Reporte de propinas", "Registrar un pedido que no pagó",
+            ],
+        }
+        for url_name, expected_labels in pages.items():
+            response = self.client.get(reverse(url_name))
+            for label in expected_labels:
+                self.assertContains(response, f">{label}<", msg_prefix=f"{url_name} -> falta enlace a {label}")
+
+    def test_order_taker_only_sees_the_two_sections_it_can_access(self):
+        self.client.force_login(self.telefonista)
+        response = self.client.get(reverse("cashier:debt_board"))
+        self.assertContains(response, ">Saldos a favor<")
+        self.assertNotContains(response, ">Caja<")
+        self.assertNotContains(response, ">Corte de terminales<")
+        self.assertNotContains(response, ">Registrar un pedido que no pagó<")
+
+    def test_no_pago_toolbar_link_points_to_the_cashier_quick_form(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("cashier:tip_report"))
+        self.assertContains(response, f'{reverse("cashier:cashier_board")}#registrar-no-pagado')

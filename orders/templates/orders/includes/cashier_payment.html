@@ -3,11 +3,19 @@ JavaScript envía cada botón al backend sin recargar y repinta el resumen del p
 Borra esta nota después de leerla. -->
 <div class="cashier-payment" data-cashier-payment data-payment-url="{% url 'cashier:payment_update' order.id %}" data-release-url="{% url 'cashier:release_order' order.id %}">
   <strong>Método de pago</strong>
+  {% if order.payment_method == 'credit' %}
+  <!-- NOTA TEMPORAL PARA APRENDIZAJE: PaymentMethod.CREDIT lo asigna sólo el
+  sistema (el saldo a favor cubrió el pedido por completo al cerrar la captura) —
+  no tiene sentido ofrecer Efectivo/Terminal/Transferencia aquí porque no hay nada
+  que cobrar. Borra esta nota después de leerla. -->
+  <p class="cashier-credit-paid-note">✓ Pagado con saldo a favor — ${{ order.credit_applied|floatformat:2 }} aplicado{% if order.agenda_customer %} · le quedan ${{ order.agenda_customer.credit_balance|floatformat:2 }} de saldo{% endif %}</p>
+  {% else %}
   <div class="cashier-payment-buttons">
     <button type="button" data-payment-method="cash" {% if order.payment_method == 'cash' %}class="is-selected"{% endif %}>Efectivo</button>
     <button type="button" data-payment-method="card" {% if order.payment_method == 'card' %}class="is-selected"{% endif %}>Terminal</button>
     <button type="button" data-payment-method="transfer" {% if order.payment_method == 'transfer' %}class="is-selected"{% endif %}>Transferencia</button>
   </div>
+  {% endif %}
   <div class="cashier-cash-options" data-cash-options {% if order.payment_method != 'cash' %}hidden{% endif %}>
     <span>¿Con cuánto paga?</span>
     <div><button type="button" data-cash-amount="50" {% if order.payment_method == 'cash' and order.cash_tendered == 50 and order.needs_change %}class="is-selected"{% endif %}>$50</button><button type="button" data-cash-amount="100" {% if order.payment_method == 'cash' and order.cash_tendered == 100 and order.needs_change %}class="is-selected"{% endif %}>$100</button><button type="button" data-cash-amount="150" {% if order.payment_method == 'cash' and order.cash_tendered == 150 and order.needs_change %}class="is-selected"{% endif %}>$150</button><button type="button" data-cash-amount="200" {% if order.payment_method == 'cash' and order.cash_tendered == 200 and order.needs_change %}class="is-selected"{% endif %}>$200</button><button type="button" data-cash-amount="500" {% if order.payment_method == 'cash' and order.cash_tendered == 500 and order.needs_change %}class="is-selected"{% endif %}>$500</button><button type="button" data-cash-amount="exact" {% if order.payment_method == 'cash' and order.cash_tendered is not None and not order.needs_change %}class="is-selected"{% endif %}>Exacto</button></div>
@@ -41,15 +49,15 @@ que se usa poco. Borra esta nota después de leerla. -->
   <form method="post" action="{% url 'cashier:settle_debts' order.id %}">
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ request.get_full_path }}">
-    <p>Selecciona qué pedido(s) adeudado(s) cobrar junto con éste:</p>
+    <p>Marca qué pedido(s) adeudado(s) se van a cobrar junto con éste (ninguno viene marcado por defecto):</p>
     {% for debt in order.customer_debt_note.debts %}
       <label class="cashier-debt-option">
-        <input type="checkbox" name="debt_ids" value="{{ debt.pk }}" checked data-debt-balance="{{ debt.balance }}">
+        <input type="checkbox" name="debt_ids" value="{{ debt.pk }}" data-debt-balance="{{ debt.balance }}">
         <a href="{% url 'orders:internal_order_edit' debt.order_id %}" target="_blank" rel="noopener">#{{ debt.order.formatted_number }}</a> · ${{ debt.balance|floatformat:2 }}
       </label>
     {% endfor %}
     <label>Monto a cobrar de adeudo
-      <input type="number" name="amount" min="0" step="0.01" value="{{ order.customer_debt_note.balance|floatformat:2 }}" data-debt-settle-amount>
+      <input type="number" name="amount" min="0" step="0.01" value="0.00" data-debt-settle-amount>
     </label>
     <label>Método de pago del adeudo
       <select name="payment_method">{% for value, label in payment_method_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>

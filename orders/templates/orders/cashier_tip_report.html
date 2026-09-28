@@ -5,8 +5,13 @@ pero sólo Terminal y Transferencia alimentan el total administrado porque ese d
 sí pasa por el negocio y después debe entregarse al empleado. Borra esta nota. -->
 {% block title %}Reporte de propinas{% endblock %}
 {% block content %}
-<div class="page-heading tip-page-heading"><div><h1>Reporte de propinas</h1><p>Consulta lo correspondiente a meseros y repartidores sin mezclar efectivo con dinero administrado.</p></div><div class="page-heading-actions tip-desktop-actions"><a class="button-link" href="{% url 'cashier:cashier_board' %}">Caja</a><a class="button-link" href="{% url 'cashier:terminal_board' %}">Corte de terminales</a><a class="button-link" href="{% url 'cashier:change_board' %}">Cambios pendientes</a></div></div>
-<nav class="cashier-tools tip-mobile-tools" aria-label="Herramientas de Caja"><button class="cashier-panel-toggle" type="button" aria-expanded="false" data-tip-tools-toggle><span>Herramientas</span><span aria-hidden="true">⌄</span></button><a href="{% url 'cashier:cashier_board' %}">Caja</a><a href="{% url 'cashier:debt_board' %}">Cuentas por cobrar</a><a href="{% url 'cashier:terminal_board' %}">Corte de terminales</a><a href="{% url 'cashier:change_board' %}">Cambios pendientes</a><a href="{% url 'cashier:coffee_report' %}">Corte de bebidas calientes</a></nav>
+<header class="cashier-page-header tip-page-heading">
+  <div class="cashier-title-row">
+    <div><h1>Reporte de propinas</h1><p>Consulta lo correspondiente a meseros y repartidores sin mezclar efectivo con dinero administrado.</p></div>
+    <a class="cashier-back-link" href="{% url 'internal_portal:dashboard' %}"><span aria-hidden="true">←</span> Volver al panel</a>
+  </div>
+  {% include "orders/includes/cashier_tools_nav.html" with current="tips" is_admin=True %}
+</header>
 
 <section class="card tip-report-filters"><form method="get" data-tip-report-filters>
   <label>Desde<input type="date" name="from" value="{{ start_date|date:'Y-m-d' }}"></label>
@@ -36,4 +41,4 @@ sí pasa por el negocio y después debe entregarse al empleado. Borra esta nota.
   </div>
 </dialog>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/tip-report.js' %}?v=3"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/cashier-tools-toggle.js' %}?v=1"></script><script src="{% static 'js/tip-report.js' %}?v=4"></script>{% endblock %}

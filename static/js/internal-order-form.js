@@ -45,6 +45,12 @@
   }
   const formField = (name) => form.elements.namedItem(name);
   const paymentLabels = {cash: "Efectivo", card: "Terminal", transfer: "Transferencia"};
+  // NOTA TEMPORAL PARA APRENDIZAJE: cuando el saldo a favor del cliente cubre el
+  // total actual del ticket, elegir Efectivo/Terminal/Transferencia deja de tener
+  // sentido (no hay nada que cobrar) — updateCreditNotice actualiza esta bandera
+  // en cada repintado y llama a refresh() para que el resumen de pago lo refleje
+  // de inmediato, sin esperar a cerrar el pedido. Borra esta nota después de leerla.
+  let creditFullyCovers = false;
   const refresh = () => {
     const orderType = form.querySelector("input[name='order_type']:checked")?.value || "pickup";
     const paymentMethod = form.querySelector("input[name='payment_method']:checked")?.value || "";
@@ -57,7 +63,12 @@
     if (tipSection) tipSection.hidden = !(orderType === "delivery" && paymentMethod === "transfer");
     orderTypeChoices.forEach((button) => button.classList.toggle("is-selected", button.dataset.orderTypeChoice === orderType));
     paymentChoices.forEach((button) => button.classList.toggle("is-selected", button.dataset.paymentChoice === paymentMethod));
-    if (ticketPayment) ticketPayment.textContent = paymentLabels[paymentMethod] || "Sin definir";
+    if (ticketPayment) {
+      ticketPayment.textContent = paymentMethod
+        ? (paymentLabels[paymentMethod] || "Sin definir")
+        : (creditFullyCovers ? "Pagado (saldo a favor)" : "Sin definir");
+    }
+    if (paymentControl) paymentControl.classList.toggle("is-covered-by-credit", creditFullyCovers && !paymentMethod);
     const bill = Number(formField("cash_bill")?.value || 0);
     const customCash = Number(formField("cash_custom_amount")?.value || 0);
     const total = Number(form.dataset.orderTotal || 0);
@@ -264,10 +275,17 @@
     customerCreditNotice.replaceChildren();
     customerCreditNotice.classList.remove("is-partial");
     const balance = Number(credit?.balance || 0);
-    if (!balance) { customerCreditNotice.hidden = true; return; }
+    if (!balance) {
+      customerCreditNotice.hidden = true;
+      creditFullyCovers = false;
+      refresh();
+      return;
+    }
     const applied = Number(credit?.applied || 0);
     const remainingBalance = Number(credit?.remaining_balance || 0);
     const remainingDue = Number(credit?.remaining_after_credit || 0);
+    creditFullyCovers = remainingDue <= 0;
+    refresh();
     const headline = document.createElement("strong");
     headline.textContent = `Saldo a favor: $${balance.toFixed(2)}`;
     customerCreditNotice.append(headline);

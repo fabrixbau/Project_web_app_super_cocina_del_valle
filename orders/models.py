@@ -107,6 +107,7 @@ class Order(models.Model):
         CASH = "cash", "Efectivo"
         CARD = "card", "Terminal"
         TRANSFER = "transfer", "Transferencia"
+        CREDIT = "credit", "Saldo a favor"
 
     public_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     daily_number = models.PositiveIntegerField(editable=False)

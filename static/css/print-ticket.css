@@ -48,6 +48,7 @@ body { margin: 0; padding: 1.25rem; }
 .collection-focus > p:first-child { font-size: 19px; }
 .collection-focus > strong { display: block; margin: 1.5mm 0; font-size: 20px; }
 .change-line { margin-top: 2mm !important; font-size: 22px; font-weight: 800; }
+.credit-applied-line { font-weight: 800; }
 .centered-footer { padding-top: 1mm; text-align: center; }
 .print-preview-actions { display: flex; justify-content: center; gap: .75rem; margin: 1rem auto; }
 .print-preview-actions a, .print-preview-actions button { padding: .75rem 1rem; border: 2px solid #174c3a; border-radius: .5rem; color: #fff; background: #174c3a; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }

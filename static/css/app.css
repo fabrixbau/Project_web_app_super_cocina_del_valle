@@ -1872,6 +1872,9 @@ nota después de leerla. */
 .command-buttons button, .customer-panel-trigger { min-height: 3.25rem; padding: .55rem .65rem; border: 2px solid #24634d; border-radius: .65rem; background: #fff; color: #174c3a; font-weight: 850; }
 .command-buttons button.is-selected { background: #f4bd45; color: #173f32; box-shadow: inset 0 0 0 1px #173f32; }
 .payment-command-buttons button.is-selected { background: #24634d; color: #fff; }
+.ticket-payment-control.is-covered-by-credit .payment-command-buttons button { opacity: .5; }
+.ticket-payment-control.is-covered-by-credit .payment-command-buttons { position: relative; }
+.ticket-payment-control.is-covered-by-credit .payment-command-buttons::after { content: "El saldo a favor ya cubre el pedido — no hace falta elegir."; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: .3rem; border-radius: .65rem; background: rgb(238 250 243 / 92%); color: #173f32; font-size: .68rem; font-weight: 800; text-align: center; pointer-events: none; }
 .customer-panel-trigger { display: grid; width: 100%; text-align: left; background: #eef6f1; }
 .customer-panel-trigger span, .customer-panel-trigger small { display: block; line-height: 1.2; }
 .customer-panel-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2022,6 +2025,7 @@ y el verde confirma acciones terminadas. Borra esta nota después de leerla. */
 .cashier-tip-buttons button.is-selected { color: #172c23; border-color: #b3261e; background: #f6c24b; }
 .cashier-tip label { display: flex; align-items: center; gap: .35rem; font-weight: 800; }
 .cashier-tip input { min-width: 0; width: 100%; }
+.cashier-credit-paid-note { margin: 0; padding: .55rem .7rem; border: 2px solid #24634d; border-radius: .5rem; background: #eefaf3; color: #173f32; font-weight: 800; font-size: .82rem; }
 .cashier-debt-settle { margin-top: .5rem; padding: .1rem .55rem; border: 2px solid #b52a25; border-radius: .5rem; background: #fff0ee; }
 .cashier-debt-settle summary { padding: .5rem 0; color: #7f1f1a; font-weight: 850; cursor: pointer; }
 .cashier-debt-settle form { display: grid; gap: .5rem; padding-bottom: .65rem; }
@@ -6819,43 +6823,8 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 }
 
 /* Terminales: herramientas y fichas completas sin desplazamiento horizontal. */
-.terminal-mobile-tools { display: none; }
 
 @media (max-width: 900px) {
-  .terminal-page-heading .terminal-desktop-actions { display: none; }
-  .terminal-mobile-tools {
-    display: block;
-    margin-bottom: .55rem;
-    padding: 0;
-    border-radius: .75rem;
-    overflow: hidden;
-  }
-  .terminal-mobile-tools > .cashier-panel-toggle {
-    display: flex;
-    width: 100%;
-    min-height: 2.75rem;
-    padding: .55rem .7rem;
-    align-items: center;
-    justify-content: space-between;
-    color: #173f32;
-    border: 0;
-    background: #fff;
-  }
-  .terminal-mobile-tools > a { display: none; }
-  .terminal-mobile-tools.is-mobile-expanded {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: .35rem;
-    padding: .45rem;
-  }
-  .terminal-mobile-tools.is-mobile-expanded > .cashier-panel-toggle { grid-column: 1 / -1; }
-  .terminal-mobile-tools.is-mobile-expanded > a {
-    display: flex;
-    min-width: 0;
-    min-height: 2.35rem;
-    padding: .35rem;
-    font-size: .65rem;
-  }
   .terminal-filter-card { padding: .65rem; }
   .terminal-provider-tabs {
     display: grid;
@@ -7024,7 +6993,6 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 .terminal-link-field > span { display: none; }
 .terminal-reference-field > input,
 .terminal-link-field > .terminal-link-trigger { width: 100%; min-width: 0; }
-.change-mobile-tools,
 .change-filter-toggle { display: none; }
 
 @media (max-width: 900px) {
@@ -7046,15 +7014,6 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   .terminal-reference-field > span,
   .terminal-link-field > span { display: block; }
 
-  .change-page-heading .change-desktop-actions { display: none; }
-  .change-mobile-tools {
-    display: block;
-    margin-bottom: .5rem;
-    padding: 0;
-    overflow: hidden;
-    border-radius: .75rem;
-  }
-  .change-mobile-tools > .cashier-panel-toggle,
   .change-filters > .change-filter-toggle {
     display: flex;
     width: 100%;
@@ -7065,21 +7024,6 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
     color: #173f32;
     border: 0;
     background: #fff;
-  }
-  .change-mobile-tools > a { display: none; }
-  .change-mobile-tools.is-mobile-expanded {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: .35rem;
-    padding: .4rem;
-  }
-  .change-mobile-tools.is-mobile-expanded > .cashier-panel-toggle { grid-column: 1 / -1; }
-  .change-mobile-tools.is-mobile-expanded > a {
-    display: flex;
-    min-width: 0;
-    min-height: 2.25rem;
-    padding: .3rem;
-    font-size: .62rem;
   }
   .change-filters { padding: 0; overflow: hidden; }
   .change-filters > form { display: none; }
@@ -7246,47 +7190,11 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 }
 
 /* Repartos sin separación artificial y Propinas compacto en móvil/tablet. */
-.tip-mobile-tools { display: none; }
 
 @media (max-width: 900px) {
   .delivery-filter-row { gap: 0; }
   .delivery-filter-row .delivery-search-filter { margin-right: .25rem; }
   .delivery-filter-row .delivery-person-options { gap: .25rem; }
-
-  .tip-page-heading .tip-desktop-actions { display: none; }
-  .tip-mobile-tools {
-    display: block;
-    margin-bottom: .5rem;
-    padding: 0;
-    overflow: hidden;
-    border-radius: .75rem;
-  }
-  .tip-mobile-tools > .cashier-panel-toggle {
-    display: flex;
-    width: 100%;
-    min-height: 2.55rem;
-    padding: .45rem .65rem;
-    align-items: center;
-    justify-content: space-between;
-    color: #173f32;
-    border: 0;
-    background: #fff;
-  }
-  .tip-mobile-tools > a { display: none; }
-  .tip-mobile-tools.is-mobile-expanded {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: .35rem;
-    padding: .4rem;
-  }
-  .tip-mobile-tools.is-mobile-expanded > .cashier-panel-toggle { grid-column: 1 / -1; }
-  .tip-mobile-tools.is-mobile-expanded > a {
-    display: flex;
-    min-width: 0;
-    min-height: 2.25rem;
-    padding: .3rem;
-    font-size: .62rem;
-  }
 
   .tip-report-filters {
     padding: .55rem;
@@ -7341,33 +7249,6 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 }
 
 @media (max-width: 900px) {
-  .coffee-page-heading {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: .65rem;
-    align-items: center;
-  }
-  .coffee-page-heading > .page-heading-actions {
-    grid-column: 1;
-    grid-row: 1;
-    width: auto;
-    align-self: center;
-  }
-  .coffee-page-heading > div:first-child {
-    grid-column: 2;
-    grid-row: 1;
-    min-width: 0;
-    align-self: center;
-  }
-  .coffee-page-heading .button-link {
-    width: auto;
-    min-height: 2.5rem;
-    padding: .4rem .55rem;
-    white-space: nowrap;
-    font-size: .66rem;
-  }
-  .coffee-page-heading h1 { margin: 0; font-size: 1.2rem; line-height: 1.08; }
-  .coffee-page-heading p { margin: .2rem 0 0; font-size: .66rem; line-height: 1.25; }
   .coffee-report-panel > .coffee-report-filter:first-child {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -7392,7 +7273,6 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
     overflow-x: hidden;
   }
   .tip-page-heading,
-  .tip-mobile-tools,
   .tip-report-filters,
   .tip-summary-grid,
   .tip-person-summary,

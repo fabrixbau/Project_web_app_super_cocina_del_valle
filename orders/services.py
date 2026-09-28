@@ -685,12 +685,27 @@ def close_internal_order_capture(*, order, actor):
     if not order.requested_date or not order.requested_time:
         raise ValidationError("Completa la fecha y hora de entrega.")
     if order.order_type == Order.OrderType.DELIVERY:
-        if not order.payment_method:
+        # NOTA TEMPORAL PARA APRENDIZAJE: si el saldo a favor del cliente ya cubre
+        # el total, no hace falta forma de pago — no hay dinero real que cobrar, y
+        # PaymentMethod.CREDIT se asigna solo, abajo, una vez aplicado el saldo.
+        # Borra esta nota después de leerla.
+        available_credit = order.agenda_customer.credit_balance if order.agenda_customer_id else Decimal("0")
+        if not order.payment_method and available_credit < order.total:
             raise ValidationError("Selecciona la forma de pago de la entrega antes de cerrar.")
         required = (order.street, order.exterior_number)
         if not all(value.strip() for value in required):
             raise ValidationError("Completa la calle y el número exterior de la entrega.")
     order = apply_customer_credit_to_order(order=order, actor=actor)
+    # NOTA TEMPORAL PARA APRENDIZAJE: el desarrollador pidió que, cuando el saldo a
+    # favor cubre el pedido por completo, deje de tener sentido elegir Efectivo/
+    # Terminal/Transferencia — no se va a cobrar nada. Se asigna PaymentMethod.CREDIT
+    # automáticamente (sólo si el operador no eligió ya algo a mano) para que el
+    # pedido quede trazable como "pagado" sin bloquear "Liberar de Caja" (que exige
+    # payment_method no vacío) ni el resto del flujo de reparto/mostrador. Borra esta
+    # nota después de leerla.
+    if not order.payment_method and order.credit_applied > 0 and order.amount_due <= 0:
+        order.payment_method = Order.PaymentMethod.CREDIT
+        order.save(update_fields=("payment_method", "updated_at"))
     if order.payment_method == Order.PaymentMethod.CASH and order.needs_change and order.amount_due > 0:
         if order.cash_tendered is None or order.cash_tendered < order.amount_due:
             raise ValidationError("Actualiza el efectivo: la cantidad no cubre el total.")

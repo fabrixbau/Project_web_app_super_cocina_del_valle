@@ -311,10 +311,12 @@ const cashierTools = document.querySelector(".cashier-tools");
 const unpaidQuick = document.querySelector(".cashier-unpaid-quick");
 if (cashierTools && unpaidQuick) cashierTools.append(unpaidQuick);
 
-document.querySelectorAll("[data-cashier-panel-toggle]").forEach((toggle) => {
-  const target = toggle.dataset.cashierPanelToggle === "tools"
-    ? toggle.closest(".cashier-tools")
-    : toggle.closest(".cashier-filter-card");
+// NOTA TEMPORAL PARA APRENDIZAJE: el botón "Herramientas" (data-cashier-panel-toggle)
+// se maneja en cashier-tools-toggle.js, compartido por las 7 páginas de Caja — sólo
+// el de "filters" (Buscar pedido) sigue aquí porque es exclusivo de este tablero.
+// Borra esta nota después de leerla.
+document.querySelectorAll("[data-cashier-panel-toggle='filters']").forEach((toggle) => {
+  const target = toggle.closest(".cashier-filter-card");
   toggle.addEventListener("click", () => {
     const expanded = toggle.getAttribute("aria-expanded") === "true";
     toggle.setAttribute("aria-expanded", String(!expanded));
@@ -342,6 +344,29 @@ const refreshCashierOrders = async () => {
         if (!nextCard) return;
         nextCard.classList.add("is-detail-expanded");
         nextCard.querySelector("[data-cashier-card-toggle]")?.setAttribute("aria-expanded", "true");
+      });
+      // NOTA TEMPORAL PARA APRENDIZAJE: sin esto, el panel "Debe $X..." (un <details>
+      // normal, no parte del sistema de AJAX) se cerraba solo y perdía las casillas
+      // marcadas y el monto escrito cada 7 segundos, porque el refresco siempre trae
+      // el HTML fresco del servidor con el panel cerrado y nada seleccionado. Borra
+      // esta nota después de leerla.
+      region.querySelectorAll("[data-cashier-debt-settle][open]").forEach((currentPanel) => {
+        const url = currentPanel.closest("[data-cashier-order]")?.dataset.cashierOrderUrl;
+        const nextCard = [...nextRegion.querySelectorAll("[data-cashier-order]")]
+          .find((card) => card.dataset.cashierOrderUrl === url);
+        const nextPanel = nextCard?.querySelector("[data-cashier-debt-settle]");
+        if (!nextPanel) return;
+        nextPanel.setAttribute("open", "");
+        currentPanel.querySelectorAll("input[type='checkbox']").forEach((checkbox) => {
+          const nextCheckbox = nextPanel.querySelector(`input[type='checkbox'][value='${checkbox.value}']`);
+          if (nextCheckbox) nextCheckbox.checked = checkbox.checked;
+        });
+        const currentAmount = currentPanel.querySelector("[data-debt-settle-amount]");
+        const nextAmount = nextPanel.querySelector("[data-debt-settle-amount]");
+        if (currentAmount && nextAmount) nextAmount.value = currentAmount.value;
+        const currentMethod = currentPanel.querySelector("select[name='payment_method']");
+        const nextMethod = nextPanel.querySelector("select[name='payment_method']");
+        if (currentMethod && nextMethod) nextMethod.value = currentMethod.value;
       });
     }
     if (!nextRegion || nextRegion.innerHTML === region.innerHTML) return;

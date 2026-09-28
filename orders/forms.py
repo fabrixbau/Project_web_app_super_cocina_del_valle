@@ -107,10 +107,11 @@ class InternalOrderForm(forms.Form):
     pays_exact = forms.BooleanField(label="Pago exacto", required=False)
     notes = forms.CharField(label="Notas generales", required=False, widget=forms.Textarea(attrs={"rows": 2}))
 
-    def __init__(self, *args, order_total=0, closing=False, **kwargs):
+    def __init__(self, *args, order_total=0, closing=False, available_credit=0, **kwargs):
         super().__init__(*args, **kwargs)
         self.order_total = order_total
         self.closing = closing
+        self.available_credit = available_credit
 
     def clean(self):
         data = super().clean()
@@ -128,8 +129,12 @@ class InternalOrderForm(forms.Form):
         method = data.get("payment_method")
         # NOTA TEMPORAL PARA APRENDIZAJE: Entrega necesita pago antes de salir de
         # captura. Recoger puede definirlo después, pero no podrá finalizar como
-        # Recogido mientras siga vacío. Borra esta nota después de leerla.
-        if self.closing and order_type == Order.OrderType.DELIVERY and not method:
+        # Recogido mientras siga vacío. Si el saldo a favor del cliente ya cubre el
+        # total (available_credit >= order_total), no hace falta elegir nada — no
+        # hay dinero real que cobrar; close_internal_order_capture asignará
+        # PaymentMethod.CREDIT automáticamente al cerrar. Borra esta nota.
+        covered_by_credit = self.order_total > 0 and self.available_credit >= self.order_total
+        if self.closing and order_type == Order.OrderType.DELIVERY and not method and not covered_by_credit:
             self.add_error("payment_method", "Selecciona la forma de pago de la entrega antes de cerrar.")
             return data
         if not method:

@@ -42,6 +42,17 @@ from .services import ACTION_LABELS, add_customer_credit, add_internal_auto_meal
 INTERNAL_MENU_MODE_KEY = "internal_order_menu_mode"
 INTERNAL_AUTO_MEAL_SESSION_KEY = "internal_order_auto_meal_builders"
 
+# NOTA TEMPORAL PARA APRENDIZAJE: PaymentMethod.CREDIT ("Saldo a favor") sólo lo
+# asigna el sistema (cuando el saldo a favor cubre el pedido por completo al
+# cerrar la captura, en close_internal_order_capture) — nunca es una opción que
+# Caja o Pedidos elijan a mano, porque no representa dinero que alguien recibió.
+# Por eso se excluye de cualquier <select>/botón donde el operador pueda ASIGNAR
+# la forma de pago (depósito, abono, cambiar método de un pedido); sí puede
+# aparecer en filtros de sólo lectura (Caja ya lo permite). Borra esta nota.
+ASSIGNABLE_PAYMENT_METHOD_CHOICES = [
+    choice for choice in Order.PaymentMethod.choices if choice[0] != Order.PaymentMethod.CREDIT
+]
+
 
 def _order_locked_for_edit(order, user):
     # NOTA TEMPORAL PARA APRENDIZAJE: esta regla se consulta tanto al dibujar el
@@ -811,7 +822,7 @@ def customer_edit(request, customer_id):
         ),
         "customer_credit_movements": customer.credit_movements.all()[:20],
         "can_manage_credit": user_has_any_role(request.user, (ADMIN,)),
-        "payment_method_choices": Order.PaymentMethod.choices,
+        "payment_method_choices": ASSIGNABLE_PAYMENT_METHOD_CHOICES,
     })
 
 
@@ -866,6 +877,7 @@ def internal_order_edit(request, order_id):
         request.POST or None,
         initial=_internal_order_initial(order), order_total=order.total,
         closing=request.method == "POST" and request.POST.get("action") == "close",
+        available_credit=order.agenda_customer.credit_balance if order.agenda_customer_id else 0,
     )
     if request.method == "POST" and form.is_valid():
         order = save_internal_order(form_data=form.cleaned_data, actor=request.user, order=order)
@@ -1553,7 +1565,7 @@ def delivery_board(request):
         "delivery_orders": delivery_orders,
         "repartidores": repartidores,
         "status_choices": Order.Status.choices,
-        "payment_method_choices": Order.PaymentMethod.choices,
+        "payment_method_choices": ASSIGNABLE_PAYMENT_METHOD_CHOICES,
         "cash_denominations": [50, 100, 150, 200, 500],
         "search": search, "selected_statuses": selected_statuses,
         "selected_delivery_person": delivery_person,
@@ -1809,7 +1821,7 @@ def cashier_debt_board(request):
         "debts": debts, "search": search, "selected_scope": scope,
         "date_from": date_from, "date_to": date_to,
         "can_manage_debts": user_has_any_role(request.user, (ADMIN,)),
-        "payment_method_choices": Order.PaymentMethod.choices,
+        "payment_method_choices": ASSIGNABLE_PAYMENT_METHOD_CHOICES,
         "original_total": sum((debt.original_amount for debt in debts), Decimal("0")),
         "paid_total": sum((debt.paid_amount for debt in debts), Decimal("0")),
         "balance_total": sum((debt.balance for debt in debts if debt.status != CustomerDebt.Status.FORGIVEN), Decimal("0")),
@@ -1970,7 +1982,7 @@ def cashier_credit_board(request):
     return render(request, "orders/cashier_credit_board.html", {
         "customers": customers, "search": search,
         "can_manage_credit": user_has_any_role(request.user, (ADMIN,)),
-        "payment_method_choices": Order.PaymentMethod.choices,
+        "payment_method_choices": ASSIGNABLE_PAYMENT_METHOD_CHOICES,
         "balance_total": sum((customer.credit_balance for customer in customers), Decimal("0")),
         "selected_customer": selected_customer, "movements": movements,
     })
@@ -2246,7 +2258,7 @@ def cashier_tip_report(request):
         "start_date": start_date, "end_date": end_date,
         "selected_owner_type": owner_type, "selected_payment_method": payment_method,
         "selected_person": person_id, "waiters": waiters, "couriers": couriers,
-        "payment_method_choices": Order.PaymentMethod.choices,
+        "payment_method_choices": ASSIGNABLE_PAYMENT_METHOD_CHOICES,
     })
 
 
@@ -2329,7 +2341,7 @@ def cashier_change_board(request):
         "selected_delivery_person": person_id, "selected_settlement": settlement,
         "selected_order_type": order_type, "selected_payment_method": payment_filter,
         "order_type_choices": Order.OrderType.choices,
-        "payment_method_choices": Order.PaymentMethod.choices,
+        "payment_method_choices": ASSIGNABLE_PAYMENT_METHOD_CHOICES,
         "status_choices": Order.Status.choices, "selected_status": status,
     })
 
