@@ -1,0 +1,80 @@
+{% extends "base_internal.html" %}
+{% load static %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: este corte es distinto de "Corte de terminales"
+(que concilia Clover/Mercado Pago/Transferencias contra lo que ya registró la app).
+Aquí lo que importa es el efectivo físico de la caja, los egresos pagados directo
+de ahí, y una auditoría de que ningún pedido se haya quedado sin resolver ese día.
+Los 4 importes nunca se bloquean — se pueden corregir cualquier día. Borra esta nota
+después de leerla. -->
+{% block title %}Corte de caja{% endblock %}
+{% block content %}
+<header class="cashier-page-header">
+  <div class="cashier-title-row">
+    <div><h1>Corte de caja</h1><p>Efectivo de apertura/cierre, egresos del día y auditoría de pedidos sin resolver.</p></div>
+    <a class="cashier-back-link" href="{% url 'internal_portal:dashboard' %}"><span aria-hidden="true">←</span> Volver al panel</a>
+  </div>
+  {% include "orders/includes/cashier_tools_nav.html" with current="register_cut" is_admin=True %}
+</header>
+{% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+
+<section class="card coffee-report-panel">
+  <form method="get" class="coffee-report-filter"><label>Corte del día <input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" required onchange="this.form.requestSubmit()"></label>{% if selected_date != today %}<a class="button-link" href="?date={{ today|date:'Y-m-d' }}">Ir a hoy</a>{% endif %}</form>
+
+  <div class="cash-register-amounts-grid">
+    <form method="post" action="{% url 'cashier:register_cut' %}?date={{ selected_date|date:'Y-m-d' }}" class="cash-register-amounts-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="update_amounts">
+      <h2>Importes del día</h2>
+      <label>Apertura de caja<input type="number" name="opening_cash" min="0" step="0.01" value="{{ cut.opening_cash|stringformat:'.2f' }}"></label>
+      <label>Efectivo al cierre<input type="number" name="closing_cash" min="0" step="0.01" value="{{ cut.closing_cash|stringformat:'.2f' }}"></label>
+      <label>Terminal al cierre<input type="number" name="closing_card" min="0" step="0.01" value="{{ cut.closing_card|stringformat:'.2f' }}"></label>
+      <label>Transferencia al cierre<input type="number" name="closing_transfer" min="0" step="0.01" value="{{ cut.closing_transfer|stringformat:'.2f' }}"></label>
+      <button type="submit">Guardar importes</button>
+      <small>Se pueden corregir en cualquier momento, incluso de días anteriores.</small>
+    </form>
+
+    <div class="card cash-register-expenses">
+      <h2>Egresos del día</h2>
+      <form method="post" action="{% url 'cashier:register_cut' %}?date={{ selected_date|date:'Y-m-d' }}" class="cash-register-expense-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_expense">
+        <label>Monto<input type="number" name="amount" min="0.01" step="0.01" required></label>
+        <label>Concepto<input name="concept" maxlength="150" placeholder="Ej. Pollo, pan, luz" required></label>
+        <button type="submit">Registrar egreso</button>
+      </form>
+      <ul class="cash-register-expense-list">
+        {% for expense in expenses %}<li><span>{{ expense.concept }}</span><strong>${{ expense.amount|floatformat:2 }}</strong><small>{{ expense.created_at|date:'H:i' }} · {{ expense.registered_by.get_full_name|default:expense.registered_by.username }}</small><form method="post" action="{% url 'cashier:register_cut' %}?date={{ selected_date|date:'Y-m-d' }}" class="cash-register-expense-delete"><input type="hidden" name="action" value="delete_expense"><input type="hidden" name="expense_id" value="{{ expense.id }}">{% csrf_token %}<button type="submit" class="danger" aria-label="Eliminar egreso">×</button></form></li>{% empty %}<li class="cash-register-expense-empty">Sin egresos registrados este día.</li>{% endfor %}
+      </ul>
+      {% if expenses %}<p class="cash-register-expense-total">Total egresos <strong>${{ total_expenses|floatformat:2 }}</strong></p>{% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="card coffee-report-panel">
+  <h2>Pedidos pendientes de pago este día</h2>
+  <div class="coffee-report-scroll"><table class="coffee-report-table"><thead><tr><th>Cliente</th><th>Pedido</th><th>Importe</th><th>Abonado</th><th>Saldo</th><th>Estado</th></tr></thead><tbody>{% for debt in unpaid_orders %}<tr><td><strong>{{ debt.customer.name }}</strong><br><small>{{ debt.customer.phone|default:'Sin teléfono' }}</small></td><td><a href="{% url 'orders:order_detail' debt.order_id %}">{{ debt.order.formatted_number }}</a></td><td>${{ debt.original_amount|floatformat:2 }}</td><td>${{ debt.paid_amount|floatformat:2 }}</td><td>${{ debt.balance|floatformat:2 }}</td><td>{{ debt.get_status_display }}</td></tr>{% empty %}<tr><td colspan="6">No quedó ningún pedido pendiente de pago este día.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+
+<section class="card coffee-report-panel">
+  <h2>Pedidos que quedaron sin resolver este día</h2>
+  <p>No están cancelados, no están registrados como no pagados, y nunca se marcaron como entregados o recogidos.</p>
+  <div class="coffee-report-scroll"><table class="coffee-report-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Modalidad</th><th>Total</th><th>Estado</th></tr></thead><tbody>{% for order in pending_orders %}<tr><td><a href="{% url 'orders:order_detail' order.id %}">{{ order.formatted_number }}</a></td><td>{{ order.customer_name|default:'Sin nombre' }}</td><td>{{ order.get_order_type_display }}</td><td>${{ order.total|floatformat:2 }}</td><td>{{ order.get_status_display }}</td></tr>{% empty %}<tr><td colspan="5">Todos los pedidos de este día quedaron bien resueltos.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+
+<section class="card coffee-report-panel">
+  <h2>Histórico diario</h2>
+  <form method="get" class="coffee-report-filter">
+    <input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+    <label>Desde<input type="date" name="hist_from" value="{{ hist_from|date:'Y-m-d' }}"></label>
+    <label>Hasta<input type="date" name="hist_to" value="{{ hist_to|date:'Y-m-d' }}"></label>
+    <button type="submit">Buscar</button>
+  </form>
+  <div class="coffee-report-scroll"><table class="coffee-report-table"><thead><tr><th>Día</th><th>Apertura</th><th>Efectivo</th><th>Terminal</th><th>Transferencia</th><th>Total ingresos</th><th>Total egresos</th></tr></thead><tbody>{% for daily in daily_cuts %}<tr{% if daily.operating_date == selected_date %} class="is-selected-row"{% endif %}><td><a href="?date={{ daily.operating_date|date:'Y-m-d' }}">{{ daily.operating_date|date:'d/m/Y' }}</a></td><td>${{ daily.opening_cash|floatformat:2 }}</td><td>${{ daily.closing_cash|floatformat:2 }}</td><td>${{ daily.closing_card|floatformat:2 }}</td><td>${{ daily.closing_transfer|floatformat:2 }}</td><td><strong>${{ daily.total_income|floatformat:2 }}</strong></td><td>${{ daily.total_expenses|floatformat:2 }}</td></tr>{% empty %}<tr><td colspan="7">No hay cortes registrados en este rango.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+
+<section class="card coffee-report-panel">
+  <h2>Histórico semanal</h2>
+  <div class="coffee-report-scroll"><table class="coffee-report-table"><thead><tr><th>Semana</th><th>Efectivo</th><th>Terminal</th><th>Transferencia</th><th>Total ingresos</th><th>Total egresos</th></tr></thead><tbody>{% for week in weekly_cuts %}<tr><td>{{ week.week_start|date:'d/m' }} – {{ week.week_end|date:'d/m/Y' }}</td><td>${{ week.closing_cash|floatformat:2 }}</td><td>${{ week.closing_card|floatformat:2 }}</td><td>${{ week.closing_transfer|floatformat:2 }}</td><td><strong>${{ week.total_income|floatformat:2 }}</strong></td><td>${{ week.total_expenses|floatformat:2 }}</td></tr>{% empty %}<tr><td colspan="6">No hay cortes registrados en este rango.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/cashier-tools-toggle.js' %}?v=1"></script>{% endblock %}

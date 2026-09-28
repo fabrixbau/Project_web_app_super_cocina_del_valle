@@ -6,7 +6,7 @@
 # Productos generales también respetan la visibilidad pública de su categoría según horario.
 
 import csv
-from datetime import date, time
+from datetime import date, time, timedelta
 from decimal import Decimal
 
 from django.contrib import messages
@@ -35,8 +35,8 @@ from .cart import add_package, add_product, cart_control_summary, clear, decreas
 from .coffee_report import coffee_sales_for_date
 from .phones import phone_key as normalize_customer_phone
 from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm, PublicOrderModeForm
-from .models import CoffeeSettlement, Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
-from .services import ACTION_LABELS, add_customer_credit, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, settle_selected_debts_from_cashier, start_internal_order, transition_order, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
+from .models import CashRegisterCut, CashRegisterExpense, CoffeeSettlement, Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
+from .services import ACTION_LABELS, add_cash_register_expense, add_customer_credit, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, settle_selected_debts_from_cashier, start_internal_order, transition_order, update_cash_register_cut, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
 
 
 INTERNAL_MENU_MODE_KEY = "internal_order_menu_mode"
@@ -2190,6 +2190,116 @@ def cashier_coffee_settlement(request):
         )
         messages.success(request, "Entrega al barista registrada.")
     return redirect(f'{reverse("cashier:coffee_report")}?date={selected_date.isoformat()}')
+
+
+@role_required(ADMIN)
+def cashier_register_cut(request):
+    # NOTA TEMPORAL PARA APRENDIZAJE: el desarrollador pidió un corte de caja
+    # general (distinto de "Corte de terminales", que sólo concilia Clover/
+    # Mercado Pago/Transferencias contra lo que ya registró la app) — aquí lo
+    # que importa es el efectivo físico con el que se abrió/cerró el día, los
+    # egresos pagados directo de caja, y una auditoría de que ningún pedido se
+    # haya quedado sin resolver. Los 4 importes nunca se "bloquean" — se pueden
+    # corregir cualquier día, por eso no hay concepto de abierto/cerrado aquí.
+    # Borra esta nota después de leerla.
+    today = timezone.localdate()
+    selected_date = _report_date(request.GET.get("date"), today)
+    cut, _ = CashRegisterCut.objects.get_or_create(operating_date=selected_date)
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "update_amounts":
+            try:
+                update_cash_register_cut(
+                    cut=cut,
+                    opening_cash=request.POST.get("opening_cash", ""),
+                    closing_cash=request.POST.get("closing_cash", ""),
+                    closing_card=request.POST.get("closing_card", ""),
+                    closing_transfer=request.POST.get("closing_transfer", ""),
+                    actor=request.user,
+                )
+            except ValidationError as error:
+                messages.error(request, error.message)
+            else:
+                messages.success(request, "Corte actualizado.")
+        elif action == "add_expense":
+            try:
+                add_cash_register_expense(
+                    cut=cut, amount=request.POST.get("amount", ""),
+                    concept=request.POST.get("concept", ""), actor=request.user,
+                )
+            except ValidationError as error:
+                messages.error(request, error.message)
+            else:
+                messages.success(request, "Egreso registrado.")
+        elif action == "delete_expense":
+            CashRegisterExpense.objects.filter(
+                pk=request.POST.get("expense_id"), cut=cut,
+            ).delete()
+            messages.success(request, "Egreso eliminado.")
+        return redirect(f"{reverse('cashier:register_cut')}?date={selected_date.isoformat()}")
+
+    # NOTA TEMPORAL PARA APRENDIZAJE: "pendiente de pago" es el mismo criterio
+    # que ya usa Cuentas por cobrar, sólo acotado a este día. Borra esta nota.
+    unpaid_orders = list(CustomerDebt.objects.filter(
+        order__operating_date=selected_date,
+        status__in=(CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL),
+    ).select_related("order", "customer"))
+
+    # NOTA TEMPORAL PARA APRENDIZAJE: "quedó sin resolver" ignora el status tal
+    # cual si el pedido ya está registrado como no pagado o cancelado — ambos
+    # cuentan como resueltos aunque su status operativo nunca haya llegado a
+    # Entregado/Recogido. Lo que sobra son pedidos genuinamente olvidados.
+    # Borra esta nota después de leerla.
+    pending_orders = list(Order.objects.filter(
+        operating_date=selected_date,
+    ).exclude(status=Order.Status.CANCELED).exclude(
+        status__in=(Order.Status.DELIVERED, Order.Status.PICKED_UP),
+    ).exclude(customer_debt__isnull=False).order_by("daily_number"))
+
+    expenses = list(cut.expenses.select_related("registered_by"))
+    total_expenses = sum((expense.amount for expense in expenses), Decimal("0"))
+
+    hist_from = _report_date(request.GET.get("hist_from"), today - timedelta(days=29))
+    hist_to = _report_date(request.GET.get("hist_to"), today)
+    if hist_from > hist_to:
+        hist_from, hist_to = hist_to, hist_from
+    daily_cuts = list(
+        CashRegisterCut.objects.filter(operating_date__range=(hist_from, hist_to))
+        .prefetch_related("expenses").order_by("-operating_date")
+    )
+    for daily_cut in daily_cuts:
+        daily_cut.total_expenses = sum(
+            (expense.amount for expense in daily_cut.expenses.all()), Decimal("0"),
+        )
+
+    # NOTA TEMPORAL PARA APRENDIZAJE: la semana corre lunes a domingo (ISO), para
+    # que coincida con cómo la mayoría cuenta "esta semana" en México. Sumar
+    # opening_cash por semana no tendría sentido (no es un ingreso acumulable),
+    # así que el resumen semanal sólo junta ingresos y egresos. Borra esta nota.
+    weekly_totals = {}
+    for daily_cut in daily_cuts:
+        monday = daily_cut.operating_date - timedelta(days=daily_cut.operating_date.weekday())
+        bucket = weekly_totals.setdefault(monday, {
+            "week_start": monday, "week_end": monday + timedelta(days=6),
+            "closing_cash": Decimal("0"), "closing_card": Decimal("0"),
+            "closing_transfer": Decimal("0"), "total_income": Decimal("0"),
+            "total_expenses": Decimal("0"),
+        })
+        bucket["closing_cash"] += daily_cut.closing_cash
+        bucket["closing_card"] += daily_cut.closing_card
+        bucket["closing_transfer"] += daily_cut.closing_transfer
+        bucket["total_income"] += daily_cut.total_income
+        bucket["total_expenses"] += daily_cut.total_expenses
+    weekly_cuts = sorted(weekly_totals.values(), key=lambda week: week["week_start"], reverse=True)
+
+    return render(request, "orders/cashier_register_cut.html", {
+        "cut": cut, "selected_date": selected_date, "today": today,
+        "unpaid_orders": unpaid_orders, "pending_orders": pending_orders,
+        "expenses": expenses, "total_expenses": total_expenses,
+        "daily_cuts": daily_cuts, "weekly_cuts": weekly_cuts,
+        "hist_from": hist_from, "hist_to": hist_to,
+    })
 
 
 @role_required(ADMIN)

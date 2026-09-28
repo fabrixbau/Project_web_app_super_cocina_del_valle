@@ -536,3 +536,53 @@ class CustomerCreditMovement(models.Model):
 
     def __str__(self):
         return f"{self.customer} · {self.get_action_display()} · ${self.amount}"
+
+
+class CashRegisterCut(models.Model):
+    # NOTA TEMPORAL PARA APRENDIZAJE: a diferencia de TerminalCut (uno por
+    # proveedor y día, con "abierto"/"cerrado"), aquí sólo importa el resumen
+    # del día completo — con cuánto se abrió la caja y cuánto se cerró en cada
+    # tipo de ingreso. Los 4 importes se pueden editar en cualquier momento (no
+    # hay un estado "cerrado" que los bloquee), porque el desarrollador pidió
+    # poder corregirlos después si hace falta. Borra esta nota después de leerla.
+    operating_date = models.DateField(unique=True, default=timezone.localdate)
+    opening_cash = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
+    closing_cash = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
+    closing_card = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
+    closing_transfer = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="cash_register_cuts_updated",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-operating_date",)
+
+    @property
+    def total_income(self):
+        return self.closing_cash + self.closing_card + self.closing_transfer
+
+    def __str__(self):
+        return f"Corte de caja · {self.operating_date}"
+
+
+class CashRegisterExpense(models.Model):
+    # NOTA TEMPORAL PARA APRENDIZAJE: varios egresos por día (pollo, pan, luz,
+    # etc.), ligados al corte de ese día. Se pueden eliminar si hubo un error de
+    # captura — no llevan la misma exigencia de auditoría que los movimientos de
+    # saldo a favor/adeudo, son sólo gastos de caja chica. Borra esta nota.
+    cut = models.ForeignKey(CashRegisterCut, on_delete=models.CASCADE, related_name="expenses")
+    amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    concept = models.CharField(max_length=150)
+    registered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="cash_register_expenses_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at", "-id")
+
+    def __str__(self):
+        return f"{self.concept} · ${self.amount}"

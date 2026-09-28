@@ -23,8 +23,8 @@ from menu.selection import resolve_product_selection
 from notifications.models import InternalNotification
 
 from .models import (
-    Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, CustomerDebtMovement,
-    DailyOrderCounter, Order, OrderItem, OrderStatusHistory,
+    CashRegisterCut, CashRegisterExpense, Customer, CustomerAddress, CustomerCreditMovement,
+    CustomerDebt, CustomerDebtMovement, DailyOrderCounter, Order, OrderItem, OrderStatusHistory,
 )
 from .phones import phone_key
 
@@ -1424,3 +1424,45 @@ def update_delivery_tip(*, order, amount, actor):
         tip_recipient=order.delivery_tip_recipient,
     )
     return order
+
+
+@transaction.atomic
+def update_cash_register_cut(*, cut, opening_cash, closing_cash, closing_card, closing_transfer, actor):
+    # NOTA TEMPORAL PARA APRENDIZAJE: los 4 importes se pueden corregir en
+    # cualquier momento (no hay un "cerrar" que los bloquee) — el desarrollador
+    # pidió poder editarlos después si hace falta, así que esto no valida nada
+    # sobre el estado del pedido ni del día, sólo que los montos sean válidos.
+    # Borra esta nota después de leerla.
+    cut = CashRegisterCut.objects.select_for_update().get(pk=cut.pk)
+    values = {}
+    for field, raw_value in (
+        ("opening_cash", opening_cash), ("closing_cash", closing_cash),
+        ("closing_card", closing_card), ("closing_transfer", closing_transfer),
+    ):
+        try:
+            amount = Decimal(raw_value)
+        except Exception as error:
+            raise ValidationError("Escribe importes válidos en los 4 campos.") from error
+        if amount < 0:
+            raise ValidationError("Los importes no pueden ser negativos.")
+        values[field] = amount
+    for field, amount in values.items():
+        setattr(cut, field, amount)
+    cut.updated_by = actor
+    cut.save(update_fields=(*values.keys(), "updated_by", "updated_at"))
+    return cut
+
+
+def add_cash_register_expense(*, cut, amount, concept, actor):
+    try:
+        amount = Decimal(amount)
+    except Exception as error:
+        raise ValidationError("Escribe un importe válido.") from error
+    if amount <= 0:
+        raise ValidationError("El importe del egreso debe ser mayor a cero.")
+    concept = " ".join(concept.split())
+    if not concept:
+        raise ValidationError("Escribe el concepto del egreso (ej. pollo, pan, luz).")
+    return CashRegisterExpense.objects.create(
+        cut=cut, amount=amount, concept=concept, registered_by=actor,
+    )

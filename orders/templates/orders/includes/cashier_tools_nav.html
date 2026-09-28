@@ -1,6 +1,7 @@
 <!-- NOTA TEMPORAL PARA APRENDIZAJE: barra de herramientas estándar para toda la
 familia de Caja (Caja, Cuentas por cobrar, Saldos a favor, Corte de terminales,
-Cambios pendientes, Reporte de propinas, Corte de bebidas calientes) — el
+Cambios pendientes, Reporte de propinas, Corte de bebidas calientes, Corte de
+caja) — el
 desarrollador pidió que, sin importar en cuál de estas páginas estés, siempre
 puedas saltar a cualquier otra desde el mismo menú "Herramientas". `current`
 oculta el enlace hacia la página en la que ya estás; `is_admin` oculta las
@@ -15,5 +16,6 @@ cobrar y Saldos a favor). Borra esta nota después de leerla. -->
   {% if is_admin and current != 'changes' %}<a href="{% url 'cashier:change_board' %}">Cambios pendientes</a>{% endif %}
   {% if is_admin and current != 'tips' %}<a href="{% url 'cashier:tip_report' %}">Reporte de propinas</a>{% endif %}
   {% if is_admin and current != 'coffee' %}<a href="{% url 'cashier:coffee_report' %}">Corte de bebidas calientes</a>{% endif %}
+  {% if is_admin and current != 'register_cut' %}<a href="{% url 'cashier:register_cut' %}">Corte de caja</a>{% endif %}
   {% if is_admin and current != 'cashier' %}<a href="{% url 'cashier:cashier_board' %}#registrar-no-pagado">Registrar un pedido que no pagó</a>{% endif %}
 </nav>

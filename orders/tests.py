@@ -17,7 +17,7 @@ from print_station.models import PrintStation
 from tables.models import DiningTable, TableAccount
 
 from .forms import InternalOrderForm
-from .models import Customer, CustomerCreditMovement, CustomerDebt, Order, OrderItem, TerminalCut, TerminalMovement
+from .models import CashRegisterCut, CashRegisterExpense, Customer, CustomerCreditMovement, CustomerDebt, Order, OrderItem, TerminalCut, TerminalMovement
 from .services import (
     add_customer_credit, add_internal_order_package, add_internal_order_product, assign_delivery,
     apply_customer_credit_to_order, change_internal_order_item, change_internal_order_type,
@@ -1665,31 +1665,42 @@ class CashierToolsNavigationTests(TestCase):
         pages = {
             "cashier:cashier_board": [
                 "Cuentas por cobrar", "Saldos a favor", "Corte de terminales",
-                "Cambios pendientes", "Reporte de propinas", "Corte de bebidas calientes",
+                "Cambios pendientes", "Reporte de propinas", "Corte de bebidas calientes", "Corte de caja",
             ],
             "cashier:debt_board": [
                 "Caja", "Saldos a favor", "Corte de terminales", "Cambios pendientes",
-                "Reporte de propinas", "Corte de bebidas calientes", "Registrar un pedido que no pagó",
+                "Reporte de propinas", "Corte de bebidas calientes", "Corte de caja",
+                "Registrar un pedido que no pagó",
             ],
             "cashier:credit_board": [
                 "Caja", "Cuentas por cobrar", "Corte de terminales", "Cambios pendientes",
-                "Reporte de propinas", "Corte de bebidas calientes", "Registrar un pedido que no pagó",
+                "Reporte de propinas", "Corte de bebidas calientes", "Corte de caja",
+                "Registrar un pedido que no pagó",
             ],
             "cashier:terminal_board": [
                 "Caja", "Cuentas por cobrar", "Saldos a favor", "Cambios pendientes",
-                "Reporte de propinas", "Corte de bebidas calientes", "Registrar un pedido que no pagó",
+                "Reporte de propinas", "Corte de bebidas calientes", "Corte de caja",
+                "Registrar un pedido que no pagó",
             ],
             "cashier:change_board": [
                 "Caja", "Cuentas por cobrar", "Saldos a favor", "Corte de terminales",
-                "Reporte de propinas", "Corte de bebidas calientes", "Registrar un pedido que no pagó",
+                "Reporte de propinas", "Corte de bebidas calientes", "Corte de caja",
+                "Registrar un pedido que no pagó",
             ],
             "cashier:tip_report": [
                 "Caja", "Cuentas por cobrar", "Saldos a favor", "Corte de terminales",
-                "Cambios pendientes", "Corte de bebidas calientes", "Registrar un pedido que no pagó",
+                "Cambios pendientes", "Corte de bebidas calientes", "Corte de caja",
+                "Registrar un pedido que no pagó",
             ],
             "cashier:coffee_report": [
                 "Caja", "Cuentas por cobrar", "Saldos a favor", "Corte de terminales",
-                "Cambios pendientes", "Reporte de propinas", "Registrar un pedido que no pagó",
+                "Cambios pendientes", "Reporte de propinas", "Corte de caja",
+                "Registrar un pedido que no pagó",
+            ],
+            "cashier:register_cut": [
+                "Caja", "Cuentas por cobrar", "Saldos a favor", "Corte de terminales",
+                "Cambios pendientes", "Reporte de propinas", "Corte de bebidas calientes",
+                "Registrar un pedido que no pagó",
             ],
         }
         for url_name, expected_labels in pages.items():
@@ -1709,3 +1720,136 @@ class CashierToolsNavigationTests(TestCase):
         self.client.force_login(self.admin)
         response = self.client.get(reverse("cashier:tip_report"))
         self.assertContains(response, f'{reverse("cashier:cashier_board")}#registrar-no-pagado')
+
+
+class CashRegisterCutTests(TestCase):
+    # NOTA: el desarrollador pidió un corte de caja general — apertura/cierre de
+    # efectivo, egresos del día, y dos tablas de auditoría (pedidos sin pagar,
+    # pedidos sin resolver) para asegurarse de que nada se quede pendiente al
+    # cerrar el día. Los 4 importes se pueden corregir en cualquier momento.
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="cut_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.client.force_login(self.admin)
+        self.today = timezone.localdate()
+        self.customer = Customer.objects.create(name="Cliente corte", phone="5551110000")
+
+    def make_order(self, *, operating_date, status=Order.Status.PREPARING, total=100, daily_number=None):
+        return Order.objects.create(
+            daily_number=daily_number or (3000 + Order.objects.count()),
+            operating_date=operating_date, order_type=Order.OrderType.PICKUP,
+            source=Order.Source.INTERNAL, status=status, customer_name="Cliente corte",
+            agenda_customer=self.customer, total=total, requested_date=operating_date,
+            requested_time=timezone.localtime().time(), created_by=self.admin,
+        )
+
+    def test_visiting_the_page_auto_creates_todays_cut(self):
+        self.assertFalse(CashRegisterCut.objects.filter(operating_date=self.today).exists())
+        response = self.client.get(reverse("cashier:register_cut"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(CashRegisterCut.objects.filter(operating_date=self.today).exists())
+
+    def test_updating_the_four_amounts(self):
+        response = self.client.post(
+            f"{reverse('cashier:register_cut')}?date={self.today.isoformat()}",
+            {"action": "update_amounts", "opening_cash": "500", "closing_cash": "1200",
+             "closing_card": "300", "closing_transfer": "150"},
+        )
+        self.assertEqual(response.status_code, 302)
+        cut = CashRegisterCut.objects.get(operating_date=self.today)
+        self.assertEqual(cut.opening_cash, Decimal("500"))
+        self.assertEqual(cut.closing_cash, Decimal("1200"))
+        self.assertEqual(cut.closing_card, Decimal("300"))
+        self.assertEqual(cut.closing_transfer, Decimal("150"))
+        self.assertEqual(cut.total_income, Decimal("1650"))
+        self.assertEqual(cut.updated_by, self.admin)
+
+    def test_amounts_can_be_edited_again_later(self):
+        cut = CashRegisterCut.objects.create(operating_date=self.today, opening_cash=500)
+        self.client.post(
+            f"{reverse('cashier:register_cut')}?date={self.today.isoformat()}",
+            {"action": "update_amounts", "opening_cash": "600", "closing_cash": "0",
+             "closing_card": "0", "closing_transfer": "0"},
+        )
+        cut.refresh_from_db()
+        self.assertEqual(cut.opening_cash, Decimal("600"))
+
+    def test_negative_amounts_are_rejected(self):
+        self.client.post(
+            f"{reverse('cashier:register_cut')}?date={self.today.isoformat()}",
+            {"action": "update_amounts", "opening_cash": "-1", "closing_cash": "0",
+             "closing_card": "0", "closing_transfer": "0"},
+        )
+        cut = CashRegisterCut.objects.get(operating_date=self.today)
+        self.assertEqual(cut.opening_cash, Decimal("0"))
+
+    def test_adding_and_listing_an_expense(self):
+        response = self.client.post(
+            f"{reverse('cashier:register_cut')}?date={self.today.isoformat()}",
+            {"action": "add_expense", "amount": "80", "concept": "Pollo"},
+        )
+        self.assertEqual(response.status_code, 302)
+        expense = CashRegisterExpense.objects.get()
+        self.assertEqual(expense.amount, Decimal("80"))
+        self.assertEqual(expense.concept, "Pollo")
+        self.assertEqual(expense.registered_by, self.admin)
+        page = self.client.get(reverse("cashier:register_cut"), {"date": self.today.isoformat()})
+        self.assertContains(page, "Pollo")
+        self.assertContains(page, "Total egresos")
+
+    def test_expense_requires_a_positive_amount_and_a_concept(self):
+        self.client.post(
+            f"{reverse('cashier:register_cut')}?date={self.today.isoformat()}",
+            {"action": "add_expense", "amount": "0", "concept": "Pollo"},
+        )
+        self.assertFalse(CashRegisterExpense.objects.exists())
+
+    def test_deleting_an_expense(self):
+        cut = CashRegisterCut.objects.create(operating_date=self.today)
+        expense = CashRegisterExpense.objects.create(cut=cut, amount=50, concept="Pan", registered_by=self.admin)
+        self.client.post(
+            f"{reverse('cashier:register_cut')}?date={self.today.isoformat()}",
+            {"action": "delete_expense", "expense_id": expense.pk},
+        )
+        self.assertFalse(CashRegisterExpense.objects.filter(pk=expense.pk).exists())
+
+    def test_shows_unpaid_orders_for_the_selected_day(self):
+        order = self.make_order(operating_date=self.today, status=Order.Status.DELIVERED, total=150)
+        create_customer_debt(order=order, actor=self.admin)
+        response = self.client.get(reverse("cashier:register_cut"), {"date": self.today.isoformat()})
+        self.assertContains(response, "$150.00")
+        self.assertContains(response, order.formatted_number)
+
+    def test_unresolved_orders_exclude_cancelled_and_already_marked_unpaid(self):
+        # NOTA: reproduce la regla exacta que pidió el desarrollador — cancelado
+        # y "no pagó" cuentan como resueltos aunque su status operativo nunca
+        # haya llegado a Entregado/Recogido; sólo debe sobrar el que de verdad
+        # se quedó sin resolver.
+        stuck_order = self.make_order(operating_date=self.today, status=Order.Status.PREPARING, daily_number=3001)
+        canceled_order = self.make_order(operating_date=self.today, status=Order.Status.CANCELED, daily_number=3002)
+        unpaid_order = self.make_order(operating_date=self.today, status=Order.Status.PREPARING, daily_number=3003)
+        create_customer_debt(order=unpaid_order, actor=self.admin)
+        delivered_order = self.make_order(operating_date=self.today, status=Order.Status.DELIVERED, daily_number=3004)
+
+        response = self.client.get(reverse("cashier:register_cut"), {"date": self.today.isoformat()})
+        # unpaid_order también debe seguir apareciendo en la tabla de pendientes
+        # de PAGO (tiene un adeudo real) — sólo debe faltar en la de "sin resolver".
+        pending_ids = {order.id for order in response.context["pending_orders"]}
+        self.assertEqual(pending_ids, {stuck_order.id})
+
+    def test_daily_and_weekly_history(self):
+        monday = self.today - timedelta(days=self.today.weekday())
+        day_one = monday
+        day_two = monday + timedelta(days=1)
+        CashRegisterCut.objects.create(operating_date=day_one, closing_cash=100, closing_card=50, closing_transfer=25)
+        cut_two = CashRegisterCut.objects.create(operating_date=day_two, closing_cash=200, closing_card=0, closing_transfer=0)
+        CashRegisterExpense.objects.create(cut=cut_two, amount=30, concept="Luz", registered_by=self.admin)
+
+        response = self.client.get(reverse("cashier:register_cut"), {
+            "date": self.today.isoformat(), "hist_from": monday.isoformat(), "hist_to": (monday + timedelta(days=6)).isoformat(),
+        })
+        self.assertContains(response, "$175.00")  # día 1: 100+50+25
+        self.assertContains(response, "$200.00")  # día 2 ingresos
+        self.assertContains(response, "$30.00")  # día 2 egresos
+        # semanal: ingresos totales = 175 + 200 = 375
+        self.assertContains(response, "$375.00")

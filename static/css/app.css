@@ -3558,6 +3558,24 @@ html[data-theme="dark"] .inventory-product-card strong { color: #eef4f1; }
 .coffee-report-table { width: 100%; border-collapse: collapse; min-width: 650px; }
 .coffee-report-table th, .coffee-report-table td { padding: .65rem; text-align: left; border-bottom: 1px solid #d8ded8; }
 .coffee-report-table th { color: #174c3a; }
+.coffee-report-table tr.is-selected-row { background: #eefaf3; }
+.cash-register-amounts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
+.cash-register-amounts-form { display: grid; gap: .6rem; align-content: start; }
+.cash-register-amounts-form label { display: grid; gap: .25rem; font-weight: 800; }
+.cash-register-expenses { padding: 1rem; }
+.cash-register-expense-form { display: grid; grid-template-columns: 1fr 2fr auto; gap: .6rem; align-items: end; margin-bottom: .85rem; }
+.cash-register-expense-form label { display: grid; gap: .25rem; font-weight: 800; }
+.cash-register-expense-list { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.cash-register-expense-list li { display: grid; grid-template-columns: 1fr auto auto auto; gap: .6rem; align-items: center; padding: .5rem .65rem; border: 1px solid #e4ded0; border-radius: .5rem; background: #fbfaf7; }
+.cash-register-expense-list li small { color: #68756f; }
+.cash-register-expense-empty { display: block; border: none; background: none; padding: .3rem 0; color: #68756f; }
+.cash-register-expense-delete button { min-height: 2.1rem; min-width: 2.1rem; padding: 0; border-radius: .4rem; }
+.cash-register-expense-total { display: flex; justify-content: space-between; margin: .75rem 0 0; padding-top: .6rem; border-top: 1px solid #e4ded0; font-weight: 800; }
+@media (max-width: 900px) {
+  .cash-register-amounts-grid { grid-template-columns: 1fr; }
+  .cash-register-expense-form { grid-template-columns: 1fr; }
+  .cash-register-expense-list li { grid-template-columns: 1fr auto; }
+}
 .package-egg-choice { display: grid; gap: .35rem; min-width: 180px; padding: .7rem; border: 1px solid #d9d3c5; border-radius: .65rem; background: #fffaf0; font-weight: 700; }
 .package-egg-choice select { min-width: 0; width: 100%; padding: .65rem; border: 1px solid #b9c9bf; border-radius: .45rem; background: #fff; color: #173d32; }
 

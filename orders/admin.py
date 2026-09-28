@@ -9,8 +9,9 @@
 from django.contrib import admin
 
 from .models import (
-    Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, CustomerDebtMovement,
-    DailyOrderCounter, Order, OrderItem, OrderStatusHistory, TerminalCut, TerminalMovement,
+    CashRegisterCut, CashRegisterExpense, Customer, CustomerAddress, CustomerCreditMovement,
+    CustomerDebt, CustomerDebtMovement, DailyOrderCounter, Order, OrderItem, OrderStatusHistory,
+    TerminalCut, TerminalMovement,
 )
 
 
@@ -55,3 +56,5 @@ admin.site.register(TerminalMovement)
 admin.site.register(CustomerDebt)
 admin.site.register(CustomerDebtMovement)
 admin.site.register(CustomerCreditMovement)
+admin.site.register(CashRegisterCut)
+admin.site.register(CashRegisterExpense)
