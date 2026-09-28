@@ -1550,6 +1550,23 @@ class CustomerCreditTests(TestCase):
         self.assertContains(response, "Saldo a favor descontado: $200.00")
         self.assertContains(response, "Saldo a favor")
 
+    def test_payment_print_shows_pending_debt_from_other_orders(self):
+        # NOTA: el desarrollador pidió que el ticket de cobro siempre avise si el
+        # cliente ya debe de pedidos anteriores, sin importar cómo se esté
+        # cobrando el pedido actual (es informativo, como el aviso ya visible
+        # durante la captura y en los tableros).
+        debt_order = self.make_order(total=100, status=Order.Status.DELIVERED, daily_number=2450)
+        create_customer_debt(order=debt_order, actor=self.actor)
+        new_order = self.make_order(status=Order.Status.PREPARING, total=80, daily_number=2451)
+
+        response = self.client.get(reverse("orders:order_payment_print", args=(new_order.pk,)))
+        self.assertContains(response, "Adeudo pendiente de pedidos anteriores: $100.00 (1 pedido)")
+
+    def test_payment_print_omits_the_debt_line_when_nothing_is_pending(self):
+        order = self.make_order(status=Order.Status.PREPARING, total=80)
+        response = self.client.get(reverse("orders:order_payment_print", args=(order.pk,)))
+        self.assertNotContains(response, "Adeudo pendiente")
+
     def test_no_pago_button_is_marked_to_skip_the_ajax_status_handler(self):
         # NOTA: bug real reportado — el formulario "No pagó" en Pedidos caía dentro
         # del manejador genérico de AJAX de order-list.js (que espera JSON), y como

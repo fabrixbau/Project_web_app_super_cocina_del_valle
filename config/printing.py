@@ -2,6 +2,8 @@ from decimal import Decimal
 
 from django.utils import timezone
 
+from orders.models import CustomerDebt
+
 
 def _person_name(person):
     if not person:
@@ -149,4 +151,23 @@ def order_print_context(order):
         "credit_applied": order.credit_applied if order.credit_applied else None,
         "credit_balance_remaining": order.agenda_customer.credit_balance if order.credit_applied and order.agenda_customer_id else None,
         "amount_due": order.amount_due if order.credit_applied else None,
+        # NOTA TEMPORAL PARA APRENDIZAJE: espejo de las líneas de saldo a favor de
+        # arriba, pero para adeudo — el desarrollador pidió que el ticket de cobro
+        # siempre avise si el cliente ya debe de pedidos anteriores, sin importar
+        # cómo se esté cobrando este pedido en particular (es sólo informativo,
+        # igual que el aviso que ya se ve durante la captura y en los tableros).
+        # Borra esta nota después de leerla.
+        **_pending_debt_print_fields(order),
     }
+
+
+def _pending_debt_print_fields(order):
+    if not order.agenda_customer_id:
+        return {"debt_pending_balance": None, "debt_pending_count": None}
+    open_debts = list(order.agenda_customer.debts.filter(
+        status__in=(CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL),
+    ))
+    balance = sum((debt.balance for debt in open_debts), Decimal("0"))
+    if balance <= 0:
+        return {"debt_pending_balance": None, "debt_pending_count": None}
+    return {"debt_pending_balance": balance, "debt_pending_count": len(open_debts)}
