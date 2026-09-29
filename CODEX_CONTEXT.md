@@ -1,5 +1,13 @@
 # CODEX_CONTEXT — Super Cocina del Valle
 
+### Pedidos: paquetes compactos en tablet 853x405 (2026-09-29)
+
+- En `/app/pedidos/<folio>/editar/`, los paneles de Comida corrida y Comida ejecutiva muestran simultáneamente primer, segundo y tercer tiempo cuando la pantalla mide entre 800–900 px de ancho y hasta 430 px de alto.
+- Las fichas, imágenes, cantidades y botones se compactan sólo en ese rango; el tercer tiempo conserva desplazamiento interno para catálogos largos. Mesas, celulares, iPad Air y vistas de mayor altura no cambian.
+- Corrección posterior: se neutralizaron las áreas de cuadrícula heredadas que comprimían los tres tiempos a la izquierda y Envases quedó explícitamente en una segunda fila de ancho completo.
+- Segunda corrección: la fila de tiempos usa `flex` con anchos explícitos en este viewport para aislarla completamente de las áreas CSS históricas; Envases ocupa una línea completa debajo.
+- `app.css` subió a v295.
+
 ### Corrección: transferencia Pedido→Mesa sin falso error (2026-09-29)
 
 - En `/app/pedidos/`, “Pasar a mesa” ahora usa un flujo AJAX propio. El servidor responde JSON con `ok` y la URL exacta de la cuenta creada; el navegador sólo abre esa mesa después de recibir la confirmación.

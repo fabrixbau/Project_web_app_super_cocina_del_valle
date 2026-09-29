@@ -11461,3 +11461,176 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     grid-column: 1 / -1 !important;
   }
 }
+
+/* Pedidos en tablet baja (853x405 aprox.): los tres tiempos quedan visibles
+   simultaneamente. Mesas usa data-package-form y no entra en esta excepcion. */
+@media (min-width: 800px) and (max-width: 900px) and (max-height: 430px) {
+  .visual-package-dialog:has(form[data-internal-package]) {
+    width: calc(100vw - .45rem) !important;
+    max-width: 880px !important;
+    max-height: calc(100dvh - .35rem) !important;
+  }
+  .visual-package-dialog form[data-internal-package],
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] {
+    display: block !important;
+    max-height: calc(100dvh - .35rem) !important;
+    padding: .28rem !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .dialog-heading {
+    position: sticky;
+    top: -.28rem;
+    z-index: 10;
+    min-height: 2.55rem;
+    margin: -.28rem -.28rem .25rem !important;
+    padding: .28rem .55rem !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .dialog-heading h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.05;
+  }
+  .visual-package-dialog form[data-internal-package] > .dialog-heading p {
+    margin: .08rem 0 0;
+    font-size: .58rem;
+    line-height: 1;
+  }
+  .visual-package-dialog form[data-internal-package] > .dialog-heading button,
+  .visual-package-dialog form[data-internal-package] .package-modal-search-launcher {
+    width: 2rem;
+    min-width: 2rem;
+    height: 2rem;
+    min-height: 2rem;
+    padding: 0;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-visual-groups {
+    display: flex !important;
+    flex-flow: row wrap !important;
+    gap: .25rem !important;
+    align-items: stretch !important;
+    min-height: 0 !important;
+    width: 100% !important;
+  }
+  .visual-package-dialog form[data-internal-package] .package-visual-groups > .package-visual-field,
+  .visual-package-dialog form[data-internal-package] .package-visual-groups > .package-visual-field:nth-child(3) {
+    grid-area: auto !important;
+    grid-column: auto !important;
+    grid-row: 1 !important;
+    flex: 0 0 calc(28.35% - .17rem) !important;
+    min-width: 0 !important;
+    width: calc(28.35% - .17rem) !important;
+    max-width: calc(28.35% - .17rem) !important;
+    height: 13.2rem !important;
+    padding: .22rem !important;
+    overflow: hidden !important;
+  }
+  .visual-package-dialog form[data-internal-package] .package-visual-groups > .package-visual-field:nth-child(1) {
+    grid-column: 1 !important;
+  }
+  .visual-package-dialog form[data-internal-package] .package-visual-groups > .package-visual-field:nth-child(2) {
+    grid-column: 2 !important;
+  }
+  .visual-package-dialog form[data-internal-package] .package-visual-groups > .package-visual-field:nth-child(3) {
+    grid-column: 3 !important;
+    flex-basis: calc(43.3% - .17rem) !important;
+    width: calc(43.3% - .17rem) !important;
+    max-width: calc(43.3% - .17rem) !important;
+  }
+  .visual-package-dialog form[data-internal-package] .package-visual-groups > .package-packaging-options {
+    grid-area: auto !important;
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-top: 0 !important;
+  }
+  .visual-package-dialog form[data-internal-package] .package-visual-field h3 {
+    gap: .2rem;
+    margin: 0 0 .18rem;
+    font-size: .68rem;
+    line-height: 1;
+  }
+  .visual-package-dialog form[data-internal-package] .package-visual-field h3 span {
+    width: 1.15rem;
+    height: 1.15rem;
+    flex: 0 0 1.15rem;
+    font-size: .65rem;
+  }
+  .visual-package-dialog form[data-internal-package] .package-choice-grid,
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-field:nth-child(3) .package-choice-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-auto-rows: 5.65rem !important;
+    gap: .18rem !important;
+    max-height: 11.55rem !important;
+    padding-right: .08rem;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    align-content: start;
+  }
+  .visual-package-dialog form[data-internal-package] .package-visual-field:nth-child(3) .package-choice-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .visual-package-dialog form[data-internal-package] .package-choice-card,
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-field:nth-child(3) .package-choice-card {
+    grid-template-rows: 2rem minmax(1rem, auto) 2.1rem !important;
+    gap: .08rem !important;
+    min-height: 0 !important;
+    height: 5.65rem !important;
+    padding: .12rem !important;
+    border-width: 1px !important;
+    border-radius: .38rem !important;
+    font-size: .53rem !important;
+    line-height: 1.05 !important;
+  }
+  .visual-package-dialog form[data-internal-package] .package-choice-image {
+    height: 2rem !important;
+    min-height: 2rem !important;
+    border-radius: .25rem;
+  }
+  .visual-package-dialog form[data-internal-package] .package-choice-card strong {
+    align-self: center;
+    overflow: hidden;
+    font-size: .53rem !important;
+    line-height: 1.05 !important;
+  }
+  .visual-package-dialog form[data-internal-package] .package-choice-controls {
+    grid-template-columns: 1fr auto 1fr !important;
+    grid-template-rows: .92rem .92rem !important;
+    gap: .08rem !important;
+  }
+  .visual-package-dialog form[data-internal-package] .package-choice-controls button {
+    min-height: .92rem !important;
+    height: .92rem !important;
+    padding: 0 !important;
+    border-radius: .2rem !important;
+    font-size: .47rem !important;
+    line-height: 1 !important;
+  }
+  .visual-package-dialog form[data-internal-package] .package-choice-controls b {
+    min-width: .65rem;
+    font-size: .5rem;
+  }
+  .visual-package-dialog form[data-internal-package] .package-choice-controls [data-package-choice-customize] {
+    min-height: .92rem !important;
+    height: .92rem !important;
+    font-size: .42rem !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras,
+  .visual-package-dialog form[data-internal-package] > .package-secondary-fields {
+    margin-top: .25rem !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .confirm-package-button {
+    position: sticky;
+    z-index: 9;
+    bottom: -.28rem;
+    width: calc(100% + .56rem);
+    min-height: 1.9rem;
+    margin: .25rem -.28rem -.28rem;
+    padding: .25rem;
+    font-size: .68rem;
+  }
+}
