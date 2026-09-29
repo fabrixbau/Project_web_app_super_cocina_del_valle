@@ -31,7 +31,7 @@ cliente, asignar repartidor, registrar pago y confirmar cambio. Borra esta nota.
 <section class="card cashier-filter-card">
   <button class="cashier-panel-toggle" type="button" aria-expanded="false" data-cashier-panel-toggle="filters"><span>Buscar pedido</span><span aria-hidden="true">⌄</span></button>
   <form method="get" class="cashier-filters" data-cashier-filters>
-    <label>Buscar pedido<input name="q" value="{{ search }}" placeholder="Folio, cliente, teléfono o calle"></label>
+    <label>Buscar pedido<input type="search" name="q" value="{{ search }}" placeholder="Folio, cliente, teléfono o calle" enterkeyhint="search"></label>
     <label>Desde<input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}"></label>
     <label>Hasta<input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}"></label>
     <label>Mostrar<select name="scope"><option value="active" {% if selected_scope == 'active' %}selected{% endif %}>Activos</option><option value="all" {% if selected_scope == 'all' %}selected{% endif %}>Todos</option></select></label>
@@ -73,4 +73,4 @@ Borra esta nota después de leerla. -->
 {% endif %}
 </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/cashier-tools-toggle.js' %}?v=1"></script><script src="{% static 'js/cashier-board.js' %}?v=33"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/cashier-tools-toggle.js' %}?v=1"></script><script src="{% static 'js/cashier-board.js' %}?v=34"></script>{% endblock %}

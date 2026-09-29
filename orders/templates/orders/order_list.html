@@ -12,7 +12,7 @@ Borra esta nota después de leerla. -->
   <section class="card order-filter-card">
     <button class="order-filter-toggle" type="button" aria-expanded="false" aria-controls="order-filter-fields" data-order-filter-toggle><span>Buscar</span><span aria-hidden="true">⌄</span></button>
     <form method="get" class="filters" id="order-filter-fields" data-order-filters>
-    <label>Buscar <input name="q" value="{{ search }}" placeholder="Folio, cliente o teléfono"></label>
+    <label>Buscar <input type="search" name="q" value="{{ search }}" placeholder="Folio, cliente o teléfono" enterkeyhint="search"></label>
     <label>Desde <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}"></label>
     <label>Hasta <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}"></label>
     <label>Mostrar <select name="scope"><option value="active" {% if selected_scope == 'active' %}selected{% endif %}>Activos</option><option value="completed" {% if selected_scope == 'completed' %}selected{% endif %}>Entregados y recogidos</option><option value="all" {% if selected_scope == 'all' %}selected{% endif %}>Todos</option></select></label>
@@ -35,4 +35,4 @@ Borra esta nota después de leerla. -->
     </section>
   {% endif %}
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/order-list.js' %}?v=16"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/order-list.js' %}?v=17"></script>{% endblock %}

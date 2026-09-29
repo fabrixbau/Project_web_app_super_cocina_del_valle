@@ -39,12 +39,24 @@ if (filterForm) {
   // filtro de fecha o estado que quedó puesto de una búsqueda anterior. Borra
   // esta nota después de leerla.
   const searchField = filterForm.querySelector("input[name='q']");
-  searchField?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
+  const submitSearch = () => {
     const params = new URLSearchParams();
     if (searchField.value.trim()) params.set("q", searchField.value.trim());
-    window.location.href = `${window.location.pathname}?${params.toString()}`;
+    window.location.assign(`${window.location.pathname}?${params.toString()}`);
+  };
+  searchField?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.isComposing) return;
+    event.preventDefault();
+    submitSearch();
+  });
+  searchField?.addEventListener("search", (event) => {
+    event.preventDefault();
+    submitSearch();
+  });
+  filterForm.addEventListener("submit", (event) => {
+    if (document.activeElement !== searchField) return;
+    event.preventDefault();
+    submitSearch();
   });
 }
 

@@ -315,12 +315,24 @@ if (filters) { filters.querySelectorAll("select, input[type='date']").forEach((f
 // existe no se esconda por un filtro que quedó puesto de una búsqueda anterior.
 // Borra esta nota después de leerla.
 const cashierSearchField = filters?.querySelector("input[name='q']");
-cashierSearchField?.addEventListener("keydown", (event) => {
-  if (event.key !== "Enter") return;
-  event.preventDefault();
+const submitCashierSearch = () => {
   const params = new URLSearchParams();
   if (cashierSearchField.value.trim()) params.set("q", cashierSearchField.value.trim());
-  window.location.href = `${window.location.pathname}?${params.toString()}`;
+  window.location.assign(`${window.location.pathname}?${params.toString()}`);
+};
+cashierSearchField?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || event.isComposing) return;
+  event.preventDefault();
+  submitCashierSearch();
+});
+cashierSearchField?.addEventListener("search", (event) => {
+  event.preventDefault();
+  submitCashierSearch();
+});
+filters?.addEventListener("submit", (event) => {
+  if (document.activeElement !== cashierSearchField) return;
+  event.preventDefault();
+  submitCashierSearch();
 });
 
 const cashierTools = document.querySelector(".cashier-tools");

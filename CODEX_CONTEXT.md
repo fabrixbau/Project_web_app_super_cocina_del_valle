@@ -1,5 +1,11 @@
 # CODEX_CONTEXT — Super Cocina del Valle
 
+### Pedidos y Caja: Buscar desde teclado móvil (2026-09-29)
+
+- Los campos Buscar de `/app/pedidos/` y `/app/caja/` ahora son controles de búsqueda con `enterkeyhint="search"`; en celular/tablet la acción del teclado deja de avanzar al selector Mostrar.
+- Ambos scripts ejecutan la consulta al recibir Enter, el evento móvil `search` o un envío implícito mientras el campo está enfocado. La búsqueda sigue enviando sólo `q`, conservando la prioridad por folio completo.
+- `order-list.js` subió a v17 y `cashier-board.js` a v34.
+
 ### Pedidos y Caja: orden operativo y programados al final (2026-09-29)
 
 - `/app/pedidos/` y `/app/caja/` conservan sus filtros actuales, pero ordenan primero los pedidos normales por fecha de creación ascendente (el más antiguo arriba).
