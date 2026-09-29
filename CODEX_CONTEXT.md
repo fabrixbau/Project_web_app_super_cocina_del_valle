@@ -1,5 +1,11 @@
 # CODEX_CONTEXT — Super Cocina del Valle
 
+### Repartidor puede completar entregas con cualquier método de pago (2026-09-29)
+
+- En `/app/repartos/`, el perfil Repartidor puede mover su propio pedido asignado exclusivamente de `En reparto` a `Entregado`, sin importar si el pago es Efectivo, Terminal o Transferencia. Sigue sin poder asignarse pedidos, despacharlos desde estados anteriores, reiniciar ciclos ni completar pedidos de otro repartidor.
+- Marcar como entregado un pedido en Efectivo no confirma la devolución del dinero: `cash_settlement_confirmed` permanece falso y el registro continúa pendiente en `/app/caja/cambios/` hasta que Caja use “Confirmar devolución”.
+- Se actualizaron la visibilidad del botón y la validación backend, con pruebas para los tres métodos, la independencia de la conciliación y la acción visible en el tablero. No requiere migración ni cambio de archivos estáticos.
+
 ### Caja: segundo clic desasigna al repartidor seleccionado (2026-09-29)
 
 - En `/app/caja/`, los botones de repartidor ahora funcionan como interruptor: tocar uno lo asigna; tocar nuevamente el mismo botón ya seleccionado envía un valor vacío y deja el pedido “Sin asignar”. Tocar otro repartidor continúa sustituyendo la asignación como antes.

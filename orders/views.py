@@ -1636,13 +1636,11 @@ def delivery_board(request):
             if not is_delivery_profile
             # NOTA TEMPORAL PARA APRENDIZAJE: el Repartidor sólo ve sus propios
             # pedidos aquí (delivery_orders ya está filtrado arriba), así que sólo
-            # falta exigir Terminal/Transferencia (Efectivo sigue dependiendo de
-            # "Cambio devuelto" en Caja) y que siga "En reparto" — no puede
-            # despachar (READY), sólo completar. Borra esta nota después de leerla.
-            else (
-                order.status == Order.Status.OUT_FOR_DELIVERY
-                and order.payment_method in {Order.PaymentMethod.CARD, Order.PaymentMethod.TRANSFER}
-            )
+            # falta exigir que siga "En reparto": no puede despachar (READY), sólo
+            # completar. Esto aplica igual a Efectivo, Terminal y Transferencia; la
+            # devolución del efectivo continúa conciliándose por separado en Caja.
+            # Borra esta nota después de leerla.
+            else order.status == Order.Status.OUT_FOR_DELIVERY
         )
         # NOTA TEMPORAL PARA APRENDIZAJE: Administrador y Telefonista pueden mover el
         # pedido por cualquier estado válido directamente desde Repartos (igual que ya
@@ -1763,17 +1761,13 @@ def delivery_complete(request, order_id):
         and not user_has_any_role(request.user, (ADMIN, ORDER_TAKER))
     )
     # NOTA TEMPORAL PARA APRENDIZAJE: el Repartidor puede cerrar su propio pedido de
-    # En reparto a Entregado, pero sólo cuando el pago es Terminal o Transferencia.
-    # Efectivo sigue dependiendo únicamente de "Cambio devuelto" en Caja
-    # (confirm_cash_settlement), para no saltarse esa conciliación de cambio. El
-    # Repartidor tampoco inicia ni reinicia ciclos; sólo puede completar (nunca
-    # despachar) y sólo el pedido asignado a él mismo. Borra esta nota al leerla.
+    # En reparto a Entregado con cualquier forma de pago. En Efectivo esto no confirma
+    # que haya devuelto el dinero: `cash_settlement_confirmed` sigue siendo un control
+    # independiente de Caja. El Repartidor tampoco inicia ni reinicia ciclos; sólo
+    # puede completar (nunca despachar) el pedido asignado a él. Borra esta nota.
     if is_delivery_profile:
         is_own_order = order.delivery_person_id == request.user.pk
-        is_card_or_transfer = order.payment_method in (
-            Order.PaymentMethod.CARD, Order.PaymentMethod.TRANSFER,
-        )
-        if not (is_own_order and is_card_or_transfer):
+        if not is_own_order:
             if request.headers.get("X-Requested-With") == "XMLHttpRequest":
                 return JsonResponse({"ok": False, "error": "El repartidor no puede cambiar el estado de este pedido."}, status=403)
             raise PermissionDenied

@@ -132,17 +132,12 @@ class DeliveryProfileRestrictionTests(TestCase):
         )
         self.client.force_login(self.courier)
 
-    def test_courier_cannot_assign_orders_or_change_status(self):
+    def test_courier_cannot_assign_orders(self):
         assign_response = self.client.post(
             reverse("deliveries:delivery_assign", args=(self.order.pk,)),
             {"delivery_person": self.courier.pk},
         )
         self.assertEqual(assign_response.status_code, 403)
-        status_response = self.client.post(
-            reverse("deliveries:delivery_complete", args=(self.order.pk,)),
-            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
-        )
-        self.assertEqual(status_response.status_code, 403)
 
     def test_courier_only_sees_assigned_orders(self):
         unassigned = Order.objects.create(
@@ -155,6 +150,15 @@ class DeliveryProfileRestrictionTests(TestCase):
         self.assertContains(response, self.order.formatted_number)
         self.assertNotContains(response, unassigned.formatted_number)
         self.assertNotContains(response, "Asignarme este pedido")
+
+    def test_courier_sees_complete_action_for_assigned_cash_delivery(self):
+        response = self.client.get(reverse("deliveries:delivery_board"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            reverse("deliveries:delivery_complete", args=(self.order.pk,)),
+        )
+        self.assertContains(response, "Marcar como entregado")
 
     def test_courier_can_register_cash_tip_only_once(self):
         update_delivery_tip(order=self.order, amount=10, actor=self.courier)
@@ -169,8 +173,12 @@ class DeliveryProfileRestrictionTests(TestCase):
         with self.assertRaisesMessage(ValidationError, "Efectivo o Terminal"):
             update_delivery_tip(order=self.order, amount=10, actor=self.courier)
 
-    def test_courier_can_complete_own_card_or_transfer_delivery(self):
-        for payment_method in (Order.PaymentMethod.CARD, Order.PaymentMethod.TRANSFER):
+    def test_courier_can_complete_own_delivery_with_any_payment_method(self):
+        for payment_method in (
+            Order.PaymentMethod.CASH,
+            Order.PaymentMethod.CARD,
+            Order.PaymentMethod.TRANSFER,
+        ):
             with self.subTest(payment_method=payment_method):
                 order = Order.objects.create(
                     daily_number=970 + list(Order.PaymentMethod).index(payment_method),
@@ -186,15 +194,8 @@ class DeliveryProfileRestrictionTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 order.refresh_from_db()
                 self.assertEqual(order.status, Order.Status.DELIVERED)
-
-    def test_courier_still_cannot_complete_own_cash_delivery(self):
-        response = self.client.post(
-            reverse("deliveries:delivery_complete", args=(self.order.pk,)),
-            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
-        )
-        self.assertEqual(response.status_code, 403)
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.status, Order.Status.OUT_FOR_DELIVERY)
+                if payment_method == Order.PaymentMethod.CASH:
+                    self.assertFalse(order.cash_settlement_confirmed)
 
     def test_courier_cannot_complete_someone_elses_order(self):
         other_order = Order.objects.create(
