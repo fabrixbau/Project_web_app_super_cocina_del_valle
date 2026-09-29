@@ -1357,11 +1357,13 @@ def assign_delivery(*, order, delivery_person, assigned_by):
     order = Order.objects.select_for_update().get(pk=order.pk)
     if order.order_type != Order.OrderType.DELIVERY:
         raise ValidationError("Los pedidos para recoger no se asignan a repartidores.")
-    if not delivery_person.is_active or not delivery_person.groups.filter(name=DELIVERY).exists():
+    if delivery_person is not None and (
+        not delivery_person.is_active or not delivery_person.groups.filter(name=DELIVERY).exists()
+    ):
         raise ValidationError("Selecciona un usuario activo con rol Repartidor.")
     order.delivery_person = delivery_person
-    order.delivery_assigned_by = assigned_by
-    order.delivery_assigned_at = timezone.now()
+    order.delivery_assigned_by = assigned_by if delivery_person is not None else None
+    order.delivery_assigned_at = timezone.now() if delivery_person is not None else None
     if order.delivery_tip_amount > 0:
         order.delivery_tip_recipient = delivery_person
         # NOTA TEMPORAL PARA APRENDIZAJE: si el pedido ya estaba vinculado en Caja >

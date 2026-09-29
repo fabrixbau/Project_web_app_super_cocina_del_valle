@@ -41,18 +41,15 @@
     }
   }
 
-  document.addEventListener("click", async (event) => {
-    const link = event.target.closest("a[href]");
-    if (!link) return;
+  const printLinkMatch = (link) => new URL(link.href).pathname.match(/^\/app\/(pedidos\/(\d+)|mesas\/cuentas\/(\d+))\/imprimir\/(cocina|cobro)\/$/);
+
+  async function requestDirectPrint(link, { skipAutosave = false } = {}) {
     const match = new URL(link.href).pathname.match(/^\/app\/(pedidos\/(\d+)|mesas\/cuentas\/(\d+))\/imprimir\/(cocina|cobro)\/$/);
-    if (!match) return;
-    event.preventDefault();
-    if (link.getAttribute("aria-disabled") === "true") return;
-    if (sending) return;
+    if (!match || link.getAttribute("aria-disabled") === "true" || sending) return false;
     sending = true;
     try {
       const captureForm = document.querySelector("[data-internal-order-form]");
-      if (captureForm) {
+      if (captureForm && !skipAutosave) {
         const data = new FormData(captureForm);
         if (match[4] === "cobro") data.set("for_print", "1");
         const saved = await fetch(captureForm.dataset.autosaveUrl, {
@@ -79,10 +76,23 @@
       if (!response.ok) throw new Error(result.error || "No se pudo enviar el ticket.");
       notice(`${result.label}: enviado a la Dell (trabajo #${result.job_id}).`);
       watchJob(result.job_id, result.label);
+      return true;
     } catch (error) {
       notice(error.message || "Error al enviar el ticket.", true);
+      return false;
     } finally {
       sending = false;
     }
+  }
+
+  // La captura de Pedidos necesita validar/cerrar primero; su manejador llama esta
+  // misma función después. Ignorar ese primer clic evita enviar a la Dell y además
+  // navegar a la previsualización con una sola pulsación.
+  window.requestDirectPrint = requestDirectPrint;
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("a[href]");
+    if (!link || !printLinkMatch(link) || link.matches("[data-print-cobro]")) return;
+    event.preventDefault();
+    requestDirectPrint(link);
   });
 })();

@@ -238,11 +238,14 @@ document.addEventListener("submit", async (event) => {
   event.preventDefault(); const row = form.closest("[data-cashier-order]"); const panel = row.querySelector("[data-cashier-payment]");
   cashierRequestsInProgress += 1;
   try {
-    const response = await fetch(form.action, {method: "POST", body: new FormData(form), headers: {"X-Requested-With": "XMLHttpRequest", "X-CSRFToken": csrfToken, Accept: "application/json"}});
+    const button = form.querySelector("[data-person-id]");
+    const body = new FormData(form);
+    if (button?.classList.contains("is-selected")) body.set("delivery_person", "");
+    const response = await fetch(form.action, {method: "POST", body, headers: {"X-Requested-With": "XMLHttpRequest", "X-CSRFToken": csrfToken, Accept: "application/json"}});
     const data = await response.json(); if (!response.ok || !data.ok) throw new Error(data.error || "No se pudo asignar.");
     row.querySelectorAll("[data-person-id]").forEach((button) => button.classList.toggle("is-selected", button.dataset.personId === String(data.delivery_person_id)));
     const courier = row.querySelector("[data-priority-courier]");
-    if (courier) courier.textContent = data.delivery_person_name || form.querySelector("button").textContent.trim();
+    if (courier) courier.textContent = data.delivery_person_name;
     feedback.textContent = data.message; feedback.className = "message success"; feedback.hidden = false; panel.querySelector("[data-cashier-error]").hidden = true;
   } catch (error) { showError(panel, error); }
   finally { cashierRequestsInProgress -= 1; }

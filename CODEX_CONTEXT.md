@@ -1,5 +1,19 @@
 # CODEX_CONTEXT — Super Cocina del Valle
 
+### Caja: segundo clic desasigna al repartidor seleccionado (2026-09-29)
+
+- En `/app/caja/`, los botones de repartidor ahora funcionan como interruptor: tocar uno lo asigna; tocar nuevamente el mismo botón ya seleccionado envía un valor vacío y deja el pedido “Sin asignar”. Tocar otro repartidor continúa sustituyendo la asignación como antes.
+- Al desasignar se limpian `delivery_person`, `delivery_assigned_by`, `delivery_assigned_at` y `delivery_tip_recipient`. Si el pedido estaba vinculado a movimientos de Corte de terminales, también se limpia allí el destinatario de propina para no conservar al repartidor anterior.
+- El endpoint AJAX devuelve explícitamente id vacío/nombre “Sin asignar”, permitiendo que la tarjeta se repinte sin esperar el refresco automático. Se agregó una prueba del flujo completo; las 4 pruebas de sincronización de repartidor/propina pasan, junto con sintaxis JS, `manage.py check` y `git diff --check`.
+- `cashier-board.js` subió de v32 a v33. No requiere migración.
+
+### Corrección: “Imprimir cobro” ya no abre previsualización antes de imprimir (2026-09-29)
+
+- Causa del salto observado en `/app/pedidos/`: el clic de “Imprimir cobro” era procesado simultáneamente por `direct-print.js` (creaba el trabajo para la Dell) y por `internal-order-form.js` (validaba/cerraba y después navegaba a la vista HTML del ticket). Así se enviaba a imprimir, se abría una previsualización y ésta parecía cerrarse/cambiar mientras el trabajo térmico continuaba.
+- `direct-print.js` ahora expone un único `window.requestDirectPrint()`. El primer manejador omite deliberadamente enlaces `data-print-cobro`; el formulario de Pedidos guarda y valida/cierra primero, y sólo entonces llama una vez al envío directo, sin cambiar de página. Los botones directos de Mesas y de las vistas de detalle usan el mismo flujo único.
+- Si la estación no está disponible, el usuario permanece en la pantalla y recibe el aviso correspondiente; no se abre una previsualización como alternativa involuntaria. Se mantiene el fallback a la vista HTML únicamente si el script compartido no estuviera disponible.
+- Sintaxis de ambos JS, `manage.py check`, `git diff --check` y 14 pruebas de impresión/captura pasan. `direct-print.js` subió de v3 a v4 e `internal-order-form.js` de v52 a v53. No requiere migración.
+
 ### Huevo opcional: desplegable con comportamiento mostrar/ocultar (2026-09-29)
 
 - Todos los selectores generados dentro de `.package-egg-choice` (Pedidos, Mesas, comida corrida, ejecutiva y edición de extras) dejaron de tratarse como campos buscables. Ahora son listas compactas: primer clic/toque en la barra abre “Sin huevo” y los productos de huevo configurados; otro clic/toque en la misma barra cierra el panel; elegir una opción también lo cierra.

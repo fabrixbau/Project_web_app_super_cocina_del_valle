@@ -775,6 +775,10 @@
         return;
       }
     }
+    if (typeof window.requestDirectPrint === "function") {
+      await window.requestDirectPrint(link, { skipAutosave: true });
+      return;
+    }
     window.location.href = link.href;
   });
   noteForm?.addEventListener("submit", async (event) => {

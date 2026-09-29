@@ -325,6 +325,25 @@ class DeliveryTipTerminalMovementSyncTests(TestCase):
         self.assertEqual(self.movement.tip_recipient_id, self.courier4.pk)
         self.assertEqual(self.movement.total_amount, 120)
 
+    def test_clicking_the_selected_courier_can_unassign_it_from_cashier(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("deliveries:delivery_assign", args=(self.order.pk,)),
+            {"delivery_person": ""},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["delivery_person_id"], "")
+        self.assertEqual(response.json()["delivery_person_name"], "Sin asignar")
+        self.order.refresh_from_db()
+        self.movement.refresh_from_db()
+        self.assertIsNone(self.order.delivery_person_id)
+        self.assertIsNone(self.order.delivery_assigned_by_id)
+        self.assertIsNone(self.order.delivery_assigned_at)
+        self.assertIsNone(self.order.delivery_tip_recipient_id)
+        self.assertIsNone(self.movement.tip_recipient_id)
+
     def test_correcting_tip_and_reassigning_together_matches_the_users_scenario(self):
         update_delivery_tip(order=self.order, amount=10, actor=self.admin)
         assign_delivery(order=self.order, delivery_person=self.courier4, assigned_by=self.admin)

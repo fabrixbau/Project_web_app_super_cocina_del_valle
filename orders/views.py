@@ -1673,13 +1673,14 @@ def delivery_assign(request, order_id):
     order = get_object_or_404(Order, pk=order_id)
     if _order_locked_for_edit(order, request.user):
         return _locked_order_response(request, order)
+    delivery_person_id = request.POST.get("delivery_person", "").strip()
     delivery_person = get_object_or_404(
-        get_user_model(), pk=request.POST.get("delivery_person")
-    )
+        get_user_model(), pk=delivery_person_id,
+    ) if delivery_person_id else None
     # NOTA TEMPORAL PARA APRENDIZAJE: esta validación protege aunque alguien fabrique
     # el POST manualmente. Un Repartidor sólo puede elegirse a sí mismo y tomar una
     # entrega sin dueño o que ya sea suya. Borra esta nota después de leerla.
-    if not user_has_any_role(request.user, (ADMIN,)) and (
+    if delivery_person is not None and not user_has_any_role(request.user, (ADMIN,)) and (
         delivery_person.pk != request.user.pk
         or order.delivery_person_id not in (None, request.user.pk)
     ):
@@ -1696,11 +1697,17 @@ def delivery_assign(request, order_id):
         messages.error(request, error.message)
     else:
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            display_name = order.delivery_person.get_full_name() or order.delivery_person.username
+            display_name = (
+                order.delivery_person.get_full_name() or order.delivery_person.username
+                if order.delivery_person else "Sin asignar"
+            )
             return JsonResponse({
-                "ok": True, "delivery_person_id": order.delivery_person_id,
+                "ok": True, "delivery_person_id": order.delivery_person_id or "",
                 "delivery_person_name": display_name,
-                "message": f"{display_name} quedó asignado a {order.formatted_number}.",
+                "message": (
+                    f"{display_name} quedó asignado a {order.formatted_number}."
+                    if order.delivery_person else f"{order.formatted_number} quedó sin repartidor asignado."
+                ),
             })
         messages.success(request, f"El repartidor de {order.formatted_number} fue actualizado.")
     return redirect("deliveries:delivery_board")
