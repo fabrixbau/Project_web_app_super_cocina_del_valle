@@ -1,5 +1,11 @@
 # CODEX_CONTEXT — Super Cocina del Valle
 
+### Pedidos y Caja: orden operativo y programados al final (2026-09-29)
+
+- `/app/pedidos/` y `/app/caja/` conservan sus filtros actuales, pero ordenan primero los pedidos normales por fecha de creación ascendente (el más antiguo arriba).
+- Los pedidos que cumplen la regla existente de “Programado” —hora solicitada al menos una hora después de su creación— aparecen después de los normales y se ordenan entre sí por hora solicitada ascendente.
+- La búsqueda por folio completo conserva su prioridad sobre los filtros. No requiere migración.
+
 ### Pedidos: paquetes compactos en tablet 853x405 (2026-09-29)
 
 - En `/app/pedidos/<folio>/editar/`, los paneles de Comida corrida y Comida ejecutiva muestran simultáneamente primer, segundo y tercer tiempo cuando la pantalla mide entre 800–900 px de ancho y hasta 430 px de alto.

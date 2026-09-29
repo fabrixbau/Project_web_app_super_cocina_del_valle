@@ -1291,6 +1291,60 @@ class ExactFolioBoardSearchTests(TestCase):
         self.assertNotContains(response, self.order.customer_name)
 
 
+class OperationalBoardOrderingTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="board_order_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.client.force_login(self.admin)
+        now = timezone.now()
+        self.normal_old = self._make_order(801, "Normal anterior")
+        self.normal_new = self._make_order(802, "Normal posterior")
+        self.scheduled_late = self._make_order(803, "Programado tarde", now + timedelta(hours=4))
+        self.scheduled_early = self._make_order(804, "Programado temprano", now + timedelta(hours=2))
+        Order.objects.filter(pk=self.normal_old.pk).update(created_at=now - timedelta(minutes=20))
+        Order.objects.filter(pk=self.normal_new.pk).update(created_at=now - timedelta(minutes=10))
+        Order.objects.filter(pk__in=(self.scheduled_late.pk, self.scheduled_early.pk)).update(
+            created_at=now - timedelta(minutes=5),
+        )
+
+    def _make_order(self, number, name, requested_for=None):
+        return Order.objects.create(
+            daily_number=number,
+            operating_date=timezone.localdate(),
+            order_type=Order.OrderType.DELIVERY,
+            source=Order.Source.INTERNAL,
+            status=Order.Status.PREPARING,
+            customer_name=name,
+            total=100,
+            requested_for=requested_for,
+        )
+
+    def _delivery_ids(self, response):
+        return [order.pk for order in response.context["delivery_orders"]]
+
+    def test_order_board_lists_normal_by_creation_then_scheduled_by_requested_time(self):
+        response = self.client.get(reverse("orders:order_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self._delivery_ids(response), [
+            self.normal_old.pk,
+            self.normal_new.pk,
+            self.scheduled_early.pk,
+            self.scheduled_late.pk,
+        ])
+
+    def test_cashier_board_uses_the_same_operational_order(self):
+        response = self.client.get(reverse("cashier:cashier_board"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self._delivery_ids(response), [
+            self.normal_old.pk,
+            self.normal_new.pk,
+            self.scheduled_early.pk,
+            self.scheduled_late.pk,
+        ])
+
+
 class DraftOrderQuickCloseTests(TestCase):
     # NOTA: un pedido "Capturando" (DRAFT) se quedaba sin ninguna acción disponible en
     # el control rápido de estado (Caja/Repartos) — available_order_actions() no sabía

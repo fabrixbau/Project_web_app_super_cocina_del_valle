@@ -15,7 +15,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
-from django.db.models import Case, IntegerField, Prefetch, Q, Value, When
+from django.db.models import Case, DateTimeField, F, IntegerField, Prefetch, Q, Value, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -564,6 +564,23 @@ def _full_folio_search_query(search):
     )
 
 
+def _operational_board_ordering(queryset):
+    """Normales por creación; programados al final por hora solicitada."""
+    scheduled_condition = Q(requested_for__gte=F("created_at") + timedelta(hours=1))
+    return queryset.annotate(
+        _scheduled_group=Case(
+            When(scheduled_condition, then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField(),
+        ),
+        _scheduled_time=Case(
+            When(scheduled_condition, then=F("requested_for")),
+            default=Value(None),
+            output_field=DateTimeField(),
+        ),
+    ).order_by("_scheduled_group", "_scheduled_time", "created_at", "id")
+
+
 @role_required(*SECTION_ROLE_MATRIX["orders"])
 def order_list(request):
     # NOTA TEMPORAL PARA APRENDIZAJE: select_related trae al repartidor en la misma
@@ -613,7 +630,7 @@ def order_list(request):
         orders = orders.filter(status=status)
     if exact_folio_query is None and order_type in Order.OrderType.values:
         orders = orders.filter(order_type=order_type)
-    orders = list(orders)
+    orders = list(_operational_board_ordering(orders))
     # NOTA TEMPORAL PARA APRENDIZAJE: este aviso es independiente del filtro de fecha
     # de arriba (que puede estar mostrando otro día) — siempre revisa el día de hoy,
     # para que un administrador sepa de un vistazo si quedó algo por cerrar sin tener
@@ -2189,7 +2206,8 @@ def cashier_board(request):
             queryset = queryset.filter(status__in=active_statuses, cashier_released_at__isnull=True)
     queryset = queryset.select_related(
         "delivery_person", "cash_settlement_by", "customer_debt", "agenda_customer",
-    ).prefetch_related("items", "agenda_customer__debts__order").order_by("order_type", "requested_for", "created_at")
+    ).prefetch_related("items", "agenda_customer__debts__order")
+    queryset = _operational_board_ordering(queryset)
     order_type = request.GET.get("type", "").strip()
     delivery_person = request.GET.get("delivery_person", "").strip()
     payment_method = request.GET.get("payment_method", "").strip()
