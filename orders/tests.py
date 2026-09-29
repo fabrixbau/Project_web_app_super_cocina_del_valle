@@ -160,6 +160,37 @@ class DeliveryProfileRestrictionTests(TestCase):
         )
         self.assertContains(response, "Marcar como entregado")
 
+    def test_courier_orders_pending_actions_by_cashier_release_and_delivered_last(self):
+        now = timezone.now()
+        first_pending = Order.objects.create(
+            daily_number=975, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.OUT_FOR_DELIVERY, customer_name="Primero liberado",
+            total=90, payment_method=Order.PaymentMethod.CARD,
+            delivery_person=self.courier,
+        )
+        delivered = Order.objects.create(
+            daily_number=974, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.DELIVERED, customer_name="Ya entregado",
+            total=90, payment_method=Order.PaymentMethod.TRANSFER,
+            delivery_person=self.courier,
+        )
+        Order.objects.filter(pk=first_pending.pk).update(
+            cashier_released_at=now - timedelta(minutes=10),
+        )
+        Order.objects.filter(pk=self.order.pk).update(cashier_released_at=now)
+        Order.objects.filter(pk=delivered.pk).update(
+            cashier_released_at=now - timedelta(minutes=20),
+        )
+
+        response = self.client.get(reverse("deliveries:delivery_board"))
+
+        self.assertEqual(response.status_code, 200)
+        ordered_ids = [order.pk for order in response.context["delivery_orders"]]
+        self.assertLess(ordered_ids.index(first_pending.pk), ordered_ids.index(self.order.pk))
+        self.assertLess(ordered_ids.index(self.order.pk), ordered_ids.index(delivered.pk))
+
     def test_courier_can_register_cash_tip_only_once(self):
         update_delivery_tip(order=self.order, amount=10, actor=self.courier)
         self.order.refresh_from_db()

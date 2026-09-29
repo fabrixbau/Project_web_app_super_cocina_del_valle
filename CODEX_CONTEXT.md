@@ -1,5 +1,11 @@
 # CODEX_CONTEXT — Super Cocina del Valle
 
+### Repartos: acciones pendientes primero para el Repartidor (2026-09-29)
+
+- En `/app/repartos/`, el perfil Repartidor ve primero sus pedidos en `En reparto`, ordenados de forma ascendente por el momento en que fueron liberados de Caja. Así atiende primero el que lleva más tiempo esperando.
+- Cuando marca uno como `Entregado`, al actualizarse el tablero ese pedido baja al final y los pedidos que todavía muestran “Marcar como entregado” suben. Los pedidos entregados permanecen visibles para consulta.
+- Este orden prioritario sólo se aplica al perfil Repartidor; Administrador y Telefonista conservan su orden general. No requiere migración ni cambios de CSS/JS.
+
 ### Repartidor puede completar entregas con cualquier método de pago (2026-09-29)
 
 - En `/app/repartos/`, el perfil Repartidor puede mover su propio pedido asignado exclusivamente de `En reparto` a `Entregado`, sin importar si el pago es Efectivo, Terminal o Transferencia. Sigue sin poder asignarse pedidos, despacharlos desde estados anteriores, reiniciar ciclos ni completar pedidos de otro repartidor.

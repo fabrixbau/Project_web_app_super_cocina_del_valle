@@ -15,7 +15,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
-from django.db.models import Prefetch, Q
+from django.db.models import Case, IntegerField, Prefetch, Q, Value, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -1622,6 +1622,21 @@ def delivery_board(request):
         delivery_orders = delivery_orders.filter(delivery_person__isnull=True)
     elif exact_folio_query is None and not is_delivery_profile and delivery_person.isdigit():
         delivery_orders = delivery_orders.filter(delivery_person_id=int(delivery_person))
+    if is_delivery_profile:
+        # NOTA TEMPORAL PARA APRENDIZAJE: para el Repartidor, las entregas que aún
+        # requieren su acción van primero. Dentro de ese bloque respetamos el orden
+        # en que Caja las liberó; las ya entregadas bajan al final sin desaparecer.
+        # La prioridad se calcula en la base para que sea estable al recargar.
+        # Borra esta nota después de leerla.
+        delivery_orders = delivery_orders.annotate(
+            delivery_action_priority=Case(
+                When(status=Order.Status.OUT_FOR_DELIVERY, then=Value(0)),
+                default=Value(1),
+                output_field=IntegerField(),
+            ),
+        ).order_by(
+            "delivery_action_priority", "cashier_released_at", "created_at", "id",
+        )
     delivery_orders = list(delivery_orders)
     for order in delivery_orders:
         # NOTA TEMPORAL PARA APRENDIZAJE: la misma regla que protege los POST
