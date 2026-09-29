@@ -1,5 +1,11 @@
 # CODEX_CONTEXT — Super Cocina del Valle
 
+### Pedidos y Caja: autocompletado de cliente y folio (2026-09-29)
+
+- Los buscadores de `/app/pedidos/` y `/app/caja/` despliegan hasta 10 pedidos coincidentes al escribir al menos dos caracteres del nombre del cliente o folio.
+- Las opciones corresponden al rango Desde/Hasta visible; sin cambios del usuario, ambos campos usan hoy. Al elegir una opción se consulta su folio completo, por lo que conserva prioridad sobre alcance, estado y demás filtros.
+- Ambos tableros comparten `order-search-autocomplete.js?v=1`; Enter y la acción Buscar del teclado móvil conservan el comportamiento existente.
+
 ### Pedidos y Caja: Buscar desde teclado móvil (2026-09-29)
 
 - Los campos Buscar de `/app/pedidos/` y `/app/caja/` ahora son controles de búsqueda con `enterkeyhint="search"`; en celular/tablet la acción del teclado deja de avanzar al selector Mostrar.

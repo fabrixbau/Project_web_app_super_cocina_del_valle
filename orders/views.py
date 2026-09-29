@@ -581,6 +581,17 @@ def _operational_board_ordering(queryset):
     ).order_by("_scheduled_group", "_scheduled_time", "created_at", "id")
 
 
+def _board_order_search_options(date_from, date_to):
+    return [
+        {"folio": order.formatted_number, "customer": order.customer_name or "Sin nombre"}
+        for order in Order.objects.filter(
+            operating_date__range=(date_from, date_to),
+        ).only("daily_number", "operating_date", "customer_name").order_by(
+            "-operating_date", "-daily_number",
+        )
+    ]
+
+
 @role_required(*SECTION_ROLE_MATRIX["orders"])
 def order_list(request):
     # NOTA TEMPORAL PARA APRENDIZAJE: select_related trae al repartidor en la misma
@@ -705,6 +716,7 @@ def order_list(request):
         "selected_scope": scope,
         "date_from": date_from,
         "date_to": date_to,
+        "order_search_options": _board_order_search_options(date_from, date_to),
         "pending_today": pending_today,
         "can_capture_internal": user_has_any_role(request.user, (ADMIN, ORDER_TAKER)),
         "can_manage_debts": user_has_any_role(request.user, (ADMIN,)),
@@ -2261,6 +2273,7 @@ def cashier_board(request):
         "selected_scope": scope,
         "date_from": date_from,
         "date_to": date_to,
+        "order_search_options": _board_order_search_options(date_from, date_to),
     })
 
 

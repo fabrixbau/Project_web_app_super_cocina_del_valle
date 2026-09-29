@@ -1290,6 +1290,39 @@ class ExactFolioBoardSearchTests(TestCase):
 
         self.assertNotContains(response, self.order.customer_name)
 
+    def test_order_and_cashier_autocomplete_defaults_to_today(self):
+        today_order = Order.objects.create(
+            daily_number=733, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.PICKUP, source=Order.Source.INTERNAL,
+            status=Order.Status.PREPARING, customer_name="Cliente de hoy", total=75,
+        )
+
+        for view_name in ("orders:order_list", "cashier:cashier_board"):
+            with self.subTest(view=view_name):
+                response = self.client.get(reverse(view_name))
+                self.assertIn(
+                    {"folio": today_order.formatted_number, "customer": today_order.customer_name},
+                    response.context["order_search_options"],
+                )
+                self.assertNotIn(
+                    {"folio": self.order.formatted_number, "customer": self.order.customer_name},
+                    response.context["order_search_options"],
+                )
+
+    def test_order_and_cashier_autocomplete_uses_selected_date_range(self):
+        params = {
+            "date_from": self.old_date.isoformat(),
+            "date_to": self.old_date.isoformat(),
+        }
+
+        for view_name in ("orders:order_list", "cashier:cashier_board"):
+            with self.subTest(view=view_name):
+                response = self.client.get(reverse(view_name), params)
+                self.assertIn(
+                    {"folio": self.order.formatted_number, "customer": self.order.customer_name},
+                    response.context["order_search_options"],
+                )
+
 
 class OperationalBoardOrderingTests(TestCase):
     def setUp(self):
