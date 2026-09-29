@@ -154,11 +154,16 @@ def ticket_summary(account):
         )
         if key not in grouped:
             if item.item_type == TableAccountItem.ItemType.PACKAGE:
-                description_parts = [
-                    item.first_course_snapshot or "Primer tiempo pendiente",
-                    item.second_course_snapshot or "Segundo tiempo pendiente",
-                    item.main_course_snapshot or "Tercer tiempo pendiente",
-                ]
+                description_parts = []
+                if item.first_course_snapshot:
+                    description_parts.append(item.first_course_snapshot)
+                elif not item.is_two_course:
+                    description_parts.append("Primer tiempo pendiente")
+                if item.second_course_snapshot:
+                    description_parts.append(item.second_course_snapshot)
+                elif not item.is_two_course:
+                    description_parts.append("Segundo tiempo pendiente")
+                description_parts.append(item.main_course_snapshot or "Tercer tiempo pendiente")
                 if item.chicken_piece:
                     description_parts.append({"leg": "Pierna", "thigh": "Muslo"}.get(
                         item.chicken_piece, item.chicken_piece,
@@ -197,6 +202,7 @@ def ticket_summary(account):
                 "is_package": item.item_type == TableAccountItem.ItemType.PACKAGE,
                 "package_id": item.package_id,
                 "is_complete": item.is_complete,
+                "is_two_course": item.is_two_course,
                 "is_customized": item.is_customized,
                 "first_course_id": item.first_course_product_id,
                 "second_course_id": item.second_course_product_id,
@@ -561,6 +567,7 @@ def table_detail(request, account_id):
             "egg_product": item.egg_product_id,
             "refill_extra": item.refill_extra,
             "customization_comment": item.customization_comment,
+            "two_course": item.is_two_course,
         }
         prefix = f"package-edit-{item.pk}"
         package_edit_options.append({

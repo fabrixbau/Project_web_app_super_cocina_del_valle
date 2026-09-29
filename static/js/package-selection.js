@@ -69,6 +69,65 @@ document.querySelectorAll("[data-package-form], [data-internal-package]").forEac
   updateChickenPiece();
 });
 
+// Los paquetes internos pueden cobrarse con dos tiempos sin cambiar su precio.
+// La marca viaja en el formulario para que cocina, edición y transferencias conserven
+// cuál de los dos primeros tiempos fue omitido.
+document.querySelectorAll("[data-package-form], [data-internal-package]").forEach((form) => {
+  const firstInputs = [...form.querySelectorAll("input[name$='first_course']")];
+  const secondInputs = [...form.querySelectorAll("input[name$='second_course']")];
+  if (!firstInputs.length || !secondInputs.length) return;
+
+  let toggle = form.querySelector("input[name$='two_course']");
+  if (!toggle) {
+    toggle = document.createElement("input");
+    toggle.type = "checkbox";
+    toggle.name = firstInputs[0].name.replace(/first_course$/, "two_course");
+  }
+  let control = toggle.closest(".package-two-course-toggle");
+  if (!control) {
+    control = document.createElement("label");
+    control.className = "package-two-course-toggle";
+    toggle.before(control);
+    control.append(toggle);
+    const switcher = document.createElement("span");
+    switcher.className = "package-two-course-switch";
+    switcher.setAttribute("aria-hidden", "true");
+    const copy = document.createElement("span");
+    copy.innerHTML = "<strong>2 tiempos</strong>";
+    control.append(switcher, copy);
+  }
+  const heading = form.querySelector(":scope > .dialog-heading");
+  const searchButton = heading?.querySelector("[data-package-candidate-search-open]");
+  const closeButton = heading?.querySelector("[data-package-close]");
+  (searchButton || closeButton)?.before(control);
+
+  const groups = [firstInputs, secondInputs];
+  const clearGroup = (inputs) => inputs.forEach((input) => {
+    input.checked = false;
+    input.required = false;
+    input.dispatchEvent(new Event("change", {bubbles: true}));
+  });
+  const refresh = () => {
+    const enabled = toggle.checked;
+    groups.forEach((inputs) => inputs.forEach((input) => { input.required = !enabled; }));
+    form.classList.toggle("is-two-course-package", enabled);
+  };
+  [...firstInputs, ...secondInputs].forEach((input) => input.addEventListener("change", () => {
+    if (!toggle.checked || !input.checked) return;
+    clearGroup(firstInputs.includes(input) ? secondInputs : firstInputs);
+    refresh();
+  }));
+  toggle.addEventListener("change", () => {
+    if (toggle.checked) {
+      clearGroup(firstInputs);
+      clearGroup(secondInputs);
+    }
+    refresh();
+  });
+  form.addEventListener("reset", () => setTimeout(refresh));
+  refresh();
+});
+
 // Los controles de cada ficha manipulan el radio real del formulario. El grupo sigue
 // siendo atómico: sólo se envía cuando los tres tiempos están completos.
 document.querySelectorAll("[data-package-choice]").forEach((card) => {

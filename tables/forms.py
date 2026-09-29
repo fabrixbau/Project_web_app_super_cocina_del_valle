@@ -19,6 +19,7 @@ from .models import TableAccount
 
 
 class TablePackageForm(PackageSelectionForm):
+    two_course = forms.BooleanField(label="Paquete de 2 tiempos", required=False)
     egg_product = forms.ModelChoiceField(label="Huevo opcional", queryset=Product.objects.none(), required=False, empty_label="Sin huevo")
     refill_extra = forms.BooleanField(label="Refill extra", required=False)
     bread = forms.BooleanField(label="Lleva bolillo", required=False)
@@ -65,12 +66,27 @@ class TablePackageForm(PackageSelectionForm):
             self.add_error("chicken_piece", "La pieza solo aplica al guisado de pollo.")
         if cleaned_data.get("refill_extra") and not cleaned_data.get("with_water"):
             self.add_error("refill_extra", "El refill solo aplica cuando la comida lleva agua.")
+        if cleaned_data.get("two_course"):
+            first = cleaned_data.get("first_course")
+            second = cleaned_data.get("second_course")
+            if bool(first) == bool(second):
+                raise forms.ValidationError(
+                    "Para 2 tiempos elige primer tiempo o segundo tiempo, y siempre el tercer tiempo."
+                )
+            if not cleaned_data.get("main_course"):
+                self.add_error("main_course", "Selecciona el tercer tiempo.")
         return cleaned_data
 
     def is_complete(self):
-        courses_complete = all(self.cleaned_data.get(name) for name in (
-            "first_course", "second_course", "main_course",
-        ))
+        if self.cleaned_data.get("two_course"):
+            courses_complete = (
+                bool(self.cleaned_data.get("first_course"))
+                != bool(self.cleaned_data.get("second_course"))
+            ) and bool(self.cleaned_data.get("main_course"))
+        else:
+            courses_complete = all(self.cleaned_data.get(name) for name in (
+                "first_course", "second_course", "main_course",
+            ))
         main_course = self.cleaned_data.get("main_course")
         chicken_complete = not (
             main_course and main_course.pk == self.daily_menu.chicken_stew_id

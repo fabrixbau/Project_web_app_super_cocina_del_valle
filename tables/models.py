@@ -158,6 +158,7 @@ class TableAccountItem(models.Model):
     )
     item_type = models.CharField(max_length=20, choices=ItemType.choices, default=ItemType.PRODUCT)
     is_package_candidate = models.BooleanField(default=False)
+    is_two_course = models.BooleanField(default=False)
     package = models.ForeignKey(
         "menu.MealPackage", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="table_account_items",

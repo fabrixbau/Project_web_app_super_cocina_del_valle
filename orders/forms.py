@@ -34,6 +34,7 @@ class PackageCartForm(PackageSelectionForm):
 
 
 class InternalPackageForm(PackageCartForm):
+    two_course = forms.BooleanField(label="Paquete de 2 tiempos", required=False)
     egg_product = forms.ModelChoiceField(label="Huevo opcional", queryset=Product.objects.none(), required=False, empty_label="Sin huevo")
     bread = forms.BooleanField(label="Lleva bolillo", required=False)
     customization_comment = forms.CharField(
@@ -44,6 +45,24 @@ class InternalPackageForm(PackageCartForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["egg_product"].queryset = egg_products()
+        self.fields["first_course"].required = False
+        self.fields["second_course"].required = False
+
+    def clean(self):
+        data = super().clean()
+        first = data.get("first_course")
+        second = data.get("second_course")
+        if data.get("two_course"):
+            if bool(first) == bool(second):
+                raise forms.ValidationError(
+                    "Para 2 tiempos elige primer tiempo o segundo tiempo, y siempre el tercer tiempo."
+                )
+        else:
+            if not first:
+                self.add_error("first_course", "Selecciona el primer tiempo.")
+            if not second:
+                self.add_error("second_course", "Selecciona el segundo tiempo.")
+        return data
 
     def clean_customization_comment(self):
         return " ".join(self.cleaned_data["customization_comment"].split())

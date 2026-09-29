@@ -934,11 +934,12 @@ def add_internal_order_package(
     package = MealPackage.objects.select_for_update().get(pk=package.pk, is_active=True)
     daily_menu = DailyMenu.objects.select_for_update().get(pk=daily_menu.pk, status=DailyMenu.Status.PUBLISHED)
     first, second, main = (cleaned_data[name] for name in ("first_course", "second_course", "main_course"))
+    is_two_course = bool(cleaned_data.get("two_course"))
     comment = cleaned_data.get("customization_comment", "")
     egg = cleaned_data.get("egg_product")
     unit_price = (package.price_with_water if cleaned_data["with_water"] else package.price_without_water) + (egg.price if egg else Decimal("0"))
     signature = "|".join(map(str, (
-        first.pk, second.pk, main.pk, cleaned_data["chicken_piece"],
+        first.pk if first else "", second.pk if second else "", main.pk, int(is_two_course), cleaned_data["chicken_piece"],
         int(cleaned_data["with_water"]), cleaned_data["tortillas"], int(cleaned_data.get("bread", False)), cleaned_data["beans"], egg.pk if egg else "", comment.casefold(),
     )))
     item = None
@@ -957,9 +958,9 @@ def add_internal_order_package(
         item = OrderItem.objects.create(
             order=order, item_type=OrderItem.ItemType.PACKAGE, package=package,
             daily_menu=daily_menu,
-            package_name_snapshot=package.name, first_course=first,
-            first_course_name_snapshot=first.name, second_course=second,
-            second_course_name_snapshot=second.name, main_course=main,
+            package_name_snapshot=package.name, is_two_course=is_two_course, first_course=first,
+            first_course_name_snapshot=first.name if first else "", second_course=second,
+            second_course_name_snapshot=second.name if second else "", main_course=main,
             main_course_name_snapshot=main.name, chicken_piece=cleaned_data["chicken_piece"],
             with_water=cleaned_data["with_water"],
             water_name_snapshot=(daily_menu.water_product.name if daily_menu.water_product else "") if cleaned_data["with_water"] else "",
@@ -1519,6 +1520,7 @@ def add_cash_register_expense(*, cut, amount, concept, actor):
 def _order_item_to_table_account_kwargs(item):
     return {
         "item_type": item.item_type, "is_package_candidate": item.is_package_candidate,
+        "is_two_course": item.is_two_course,
         "package": item.package, "package_name_snapshot": item.package_name_snapshot,
         "daily_menu": item.daily_menu,
         "product": item.product, "product_name_snapshot": item.product_name_snapshot,
@@ -1540,6 +1542,7 @@ def _order_item_to_table_account_kwargs(item):
 def _table_item_to_order_kwargs(item):
     return {
         "item_type": item.item_type, "is_package_candidate": item.is_package_candidate,
+        "is_two_course": item.is_two_course,
         "package": item.package, "package_name_snapshot": item.package_name_snapshot,
         "daily_menu": item.daily_menu,
         "product": item.product, "product_name_snapshot": item.product_name_snapshot,

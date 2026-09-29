@@ -2052,3 +2052,13 @@ El desarrollador pidió explícitamente que, de aquí en adelante, él se encarg
 - Los nombres/referencias nuevos aparecen en la paleta inmediatamente después del autoguardado, sin recargar. Los cortes cerrados muestran las marcas guardadas, pero mantienen deshabilitada su edición igual que el resto de sus campos.
 - Se agregaron 3 pruebas en `TerminalMovementLinkingRulesTests`: persistir/cambiar/quitar color, rechazo de color inválido y composición diaria de la paleta con personal más referencias únicas. Suite completa: 232/232 pruebas pasando; `manage.py check`, `makemigrations --check`, validación de sintaxis JS y `git diff --check` sin errores.
 - **Nota para el desarrollador**: listo en el código local, sin commit ni despliegue. Se subieron `app.css` v287 → v288 y `cashier-terminal-board.js` v13 → v14. En producción hay que ejecutar `python manage.py migrate` después del despliegue.
+
+### Nueva modalidad: paquetes internos de 2 tiempos (2026-09-29)
+
+- En los paneles café de **Comida corrida** y **Comida ejecutiva**, tanto en Pedidos como en Mesas, se agregó un interruptor `2 tiempos`, apagado cada vez que se abre un formulario nuevo.
+- Encendido, sólo admite las combinaciones **primer tiempo + tercer tiempo** o **segundo tiempo + tercer tiempo**. El tercer tiempo siempre es obligatorio y elegir uno de los dos primeros limpia el otro. Apagado conserva el flujo normal de tres tiempos.
+- El paquete mantiene exactamente el mismo precio. Agua, huevo, refill, tortillas/frijoles/bolillo, comentarios y envases conservan sus reglas y cargos existentes.
+- La modalidad se guarda de forma explícita en `OrderItem.is_two_course` y `TableAccountItem.is_two_course` (migraciones `orders/0033` y `tables/0021`). Esto permite distinguir un paquete válido de dos tiempos de uno incompleto, conservarlo al editar y copiarlo correctamente en transferencias Pedido↔Mesa.
+- Cocina ya construía la impresión filtrando nombres vacíos; ahora el tiempo omitido se persiste vacío, por lo que la comanda imprime únicamente los dos tiempos elegidos y los extras. El resumen de Mesa tampoco presenta el tiempo intencionalmente omitido como pendiente.
+- Ajuste visual posterior: el encabezado conserva siempre el orden compacto `2 tiempos` → lupa → cerrar, sin el subtítulo de combinaciones y sin separar los tres controles. Versiones: `app.css` v297, `package-selection.js` v7, `internal-order-form.js` v55 y `table-pos.js` v32. En producción se debe ejecutar `python manage.py migrate`.
+- Verificación: `manage.py check`, `makemigrations --check --dry-run`, sintaxis de los tres JS y 26 pruebas enfocadas de paquetes/inventario/Mesas pasando.

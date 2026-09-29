@@ -934,6 +934,10 @@
     const dialog = document.querySelector(`#${button.dataset.internalPackageOpen}`);
     if (!dialog) return;
     const form = dialog.querySelector("form");
+    form?.reset();
+    form?.querySelectorAll("input[type='radio']").forEach((input) => {
+      input.dispatchEvent(new Event("change", {bubbles: true}));
+    });
     if (form) form.scrollTop = 0;
     dialog.scrollTop = 0;
     dialog.showModal();

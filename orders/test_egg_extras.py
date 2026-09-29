@@ -53,6 +53,24 @@ class EggExtraTests(TestCase):
         self.assertEqual(item.unit_price, Decimal("70.00"))
         self.assertEqual(self.stock.available_quantity, 2)
 
+    def test_two_course_order_keeps_price_and_prints_only_selected_courses(self):
+        order = Order.objects.create(
+            daily_number=995, operating_date=self.menu.date, order_type=Order.OrderType.PICKUP,
+            source=Order.Source.INTERNAL, status=Order.Status.DRAFT,
+            customer_name="Mostrador", phone="", total=0, created_by=self.actor,
+        )
+        item = add_internal_order_package(
+            order=order, package=self.package, daily_menu=self.menu, actor=self.actor,
+            cleaned_data={"first_course": None, "second_course": self.egg, "main_course": self.egg,
+                          "two_course": True, "chicken_piece": "", "with_water": False,
+                          "tortillas": "no", "bread": False, "beans": "no", "quantity": 1,
+                          "customization_comment": "", "egg_product": None},
+        )
+        self.assertTrue(item.is_two_course)
+        self.assertIsNone(item.first_course)
+        self.assertEqual(item.unit_price, Decimal("70.00"))
+        self.assertEqual(printable_item(item)["details"].count("Huevo revuelto"), 2)
+
     def test_table_egg_is_part_of_package_price(self):
         table = DiningTable.objects.create(name="Mesa huevo")
         account = TableAccount.objects.create(table=table, assigned_waiter=self.actor, opened_by=self.actor)

@@ -418,6 +418,7 @@ def add_package_to_table(
         price += package.table_refill_price
     signature = {
         "account": account, "item_type": TableAccountItem.ItemType.PACKAGE,
+        "is_two_course": bool(cleaned_data.get("two_course")),
         "package": package, "daily_menu": daily_menu,
         "first_course_product": first, "first_course_snapshot": first.name if first else "",
         "second_course_product": second, "second_course_snapshot": second.name if second else "",
@@ -491,6 +492,7 @@ def update_table_package(*, account, item, package, daily_menu, cleaned_data, ch
     item.second_course_snapshot = second.name if second else ""
     item.main_course_product = main
     item.main_course_snapshot = main.name if main else ""
+    item.is_two_course = bool(cleaned_data.get("two_course"))
     item.chicken_piece = cleaned_data["chicken_piece"]
     item.with_water = cleaned_data["with_water"]
     item.water_name_snapshot = daily_menu.water_product.name if cleaned_data["with_water"] else ""
@@ -512,7 +514,7 @@ def update_table_package(*, account, item, package, daily_menu, cleaned_data, ch
     item.subtotal = price * item.quantity
     item.save(update_fields=(
         "first_course_product", "first_course_snapshot", "second_course_product",
-        "second_course_snapshot", "main_course_product", "main_course_snapshot",
+        "second_course_snapshot", "main_course_product", "main_course_snapshot", "is_two_course",
         "chicken_piece", "with_water", "water_name_snapshot", "water_product", "refill_extra", "tortillas", "bread", "beans", "beans_product",
         "daily_menu", "is_complete", "customization_comment", "configuration_signature",
         "egg_product", "egg_name_snapshot", "egg_price_snapshot",

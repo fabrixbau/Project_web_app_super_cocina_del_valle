@@ -307,6 +307,7 @@ class OrderItem(models.Model):
     )
     item_type = models.CharField(max_length=20, choices=ItemType.choices, default=ItemType.PACKAGE)
     is_package_candidate = models.BooleanField(default=False)
+    is_two_course = models.BooleanField(default=False)
     package = models.ForeignKey(
         MealPackage, on_delete=models.SET_NULL, null=True, blank=True, related_name="order_items"
     )

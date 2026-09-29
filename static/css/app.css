@@ -11634,3 +11634,56 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     font-size: .68rem;
   }
 }
+
+/* Selector persistente para paquetes internos de dos tiempos. */
+.package-two-course-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  margin-left: auto;
+  padding: .35rem .55rem;
+  border: 1px solid rgba(255, 255, 255, .55);
+  border-radius: .65rem;
+  color: #fff;
+  cursor: pointer;
+  line-height: 1.05;
+}
+[data-package-form] > .dialog-heading,
+[data-internal-package] > .dialog-heading {
+  justify-content: flex-start;
+  align-items: center;
+  gap: .65rem;
+}
+[data-package-form] > .dialog-heading > div:first-child,
+[data-internal-package] > .dialog-heading > div:first-child { margin-right: auto; }
+[data-package-form] > .dialog-heading .package-two-course-toggle,
+[data-internal-package] > .dialog-heading .package-two-course-toggle,
+[data-package-form] > .dialog-heading .package-candidate-search-launcher,
+[data-internal-package] > .dialog-heading .package-modal-search-launcher { margin-left: 0 !important; }
+.package-two-course-toggle > input { position: absolute; opacity: 0; pointer-events: none; }
+.package-two-course-toggle > span:last-child { display: block; white-space: nowrap; }
+.package-two-course-switch {
+  position: relative;
+  width: 2.35rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .3);
+  transition: background .16s ease;
+}
+.package-two-course-switch::after {
+  content: "";
+  position: absolute;
+  top: .15rem;
+  left: .15rem;
+  width: .95rem;
+  height: .95rem;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform .16s ease;
+}
+.package-two-course-toggle > input:checked + .package-two-course-switch { background: #f8bd3f; }
+.package-two-course-toggle > input:checked + .package-two-course-switch::after { transform: translateX(1.1rem); }
+@media (max-width: 600px) {
+  .package-two-course-toggle { padding: .3rem .4rem; }
+}

@@ -573,9 +573,13 @@ document.addEventListener("click", (event) => {
     const waterInput = form.querySelector("input[name$='with_water']");
     const breadInput = form.querySelector("input[name$='bread']");
     const refillInput = form.querySelector("input[name$='refill_extra']");
+    const twoCourseInput = form.querySelector("input[name$='two_course']");
     if (waterInput) waterInput.checked = editButton.dataset.withWater === "true";
     if (breadInput) breadInput.checked = editButton.dataset.bread === "true" || (!Object.hasOwn(editButton.dataset, "bread") && breadInput.defaultChecked);
     if (refillInput) refillInput.checked = editButton.dataset.refillExtra === "true";
+    if (twoCourseInput && Object.hasOwn(editButton.dataset, "twoCourse")) {
+      twoCourseInput.checked = editButton.dataset.twoCourse === "true";
+    }
     // NOTA TEMPORAL PARA APRENDIZAJE: setRadio asigna .checked directamente, sin
     // disparar "change" — los contadores (+/-) y el resaltado de cada tarjeta de
     // primer/segundo/tercer tiempo sólo se sincronizan escuchando ese evento
