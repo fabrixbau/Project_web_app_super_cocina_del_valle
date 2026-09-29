@@ -1,5 +1,10 @@
 # CODEX_CONTEXT — Super Cocina del Valle
 
+### Pedidos y Caja: selector Mostrar táctil sin teclado (2026-09-29)
+
+- En celular y tablet táctil, `Mostrar` de `/app/pedidos/` y `/app/caja/` usa el mismo comportamiento de lista fija que Huevo opcional: un toque muestra opciones y otro toque sobre la misma barra las oculta.
+- El control ya no se convierte en campo editable ni abre el teclado. En escritorio conserva el selector buscable existente. `custom-select.js` subió a v8.
+
 ### Pedidos y Caja: autocompletado de cliente y folio (2026-09-29)
 
 - Los buscadores de `/app/pedidos/` y `/app/caja/` despliegan hasta 10 pedidos coincidentes al escribir al menos dos caracteres del nombre del cliente o folio.

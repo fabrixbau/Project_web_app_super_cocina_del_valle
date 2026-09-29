@@ -1300,6 +1300,7 @@ class ExactFolioBoardSearchTests(TestCase):
         for view_name in ("orders:order_list", "cashier:cashier_board"):
             with self.subTest(view=view_name):
                 response = self.client.get(reverse(view_name))
+                self.assertContains(response, "data-click-toggle-select")
                 self.assertIn(
                     {"folio": today_order.formatted_number, "customer": today_order.customer_name},
                     response.context["order_search_options"],

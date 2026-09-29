@@ -1,6 +1,7 @@
 (() => {
   const enhanced = new WeakSet();
   const compactViewport = window.matchMedia("(max-width: 900px)");
+  const touchTabletViewport = window.matchMedia("(max-width: 900px), (max-width: 1200px) and (pointer: coarse)");
 
   const isCompactViewport = () => compactViewport.matches;
   const resetCompactTrigger = (wrapper) => {
@@ -69,7 +70,8 @@
     // Every simple select is searchable by default. Mesa y Huevo opcional son listas
     // cortas: funcionan como botón desplegable, de modo que tocar otra vez la misma
     // barra cierre las opciones sin convertirla en campo de texto ni abrir teclado.
-    const searchable = select.name !== "table_id" && !select.closest(".package-egg-choice");
+    const fixedClickOptions = select.dataset.clickToggleSelect !== undefined && touchTabletViewport.matches;
+    const searchable = select.name !== "table_id" && !select.closest(".package-egg-choice") && !fixedClickOptions;
     const trigger = document.createElement(searchable ? "input" : "button");
     trigger.type = searchable ? "text" : "button";
     trigger.className = "app-select-trigger";
