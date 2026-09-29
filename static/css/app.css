@@ -2056,6 +2056,9 @@ columnas estables, renglones densos y selección directa del beneficiario. La di
 usa color y texto, no sólo color, para que sea inequívoca. Borra esta nota al leerla. */
 .terminal-filter-card form { display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: .75rem; }
 .terminal-filter-card label { display: grid; gap: .3rem; font-weight: 800; }
+.terminal-controls-row { display: grid; grid-template-columns: minmax(0, 65fr) minmax(0, 35fr); gap: .75rem; align-items: stretch; margin-bottom: .7rem; }
+.terminal-controls-row > .terminal-filter-card,
+.terminal-controls-row > .terminal-cut-heading { min-width: 0; margin: 0; }
 .terminal-provider-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin: 1rem 0; }
 .terminal-provider-tabs a { padding: 1rem; border: 2px solid #205b46; border-radius: .65rem; color: #194b39; background: #fff; text-align: center; text-decoration: none; font-size: 1.1rem; font-weight: 900; }
 .terminal-provider-tabs a.is-selected { color: #172c23; background: #f6c24b; box-shadow: 0 0 0 2px #fff inset; }
@@ -2256,15 +2259,46 @@ neutral porque se informa pero no es deuda del negocio. Borra esta nota al leerl
 ya conciliado. Las cantidades grandes permiten revisar el efectivo rápidamente al
 cierre con el repartidor presente. Borra esta nota después de leerla. */
 .change-filters form { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .7rem; }
+.change-order-search { position: relative; }
+.change-order-search-results {
+  position: absolute;
+  z-index: 30;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 18rem;
+  margin-top: .25rem;
+  padding: .35rem;
+  overflow-y: auto;
+  border: 2px solid #24634d;
+  border-radius: .7rem;
+  background: #fff;
+  box-shadow: 0 .8rem 1.8rem rgb(20 50 39 / 22%);
+}
+.change-order-search-results[hidden] { display: none !important; }
+.change-order-search-results button {
+  display: grid;
+  width: 100%;
+  gap: .1rem;
+  margin: 0 0 .3rem;
+  padding: .55rem .7rem;
+  border: 1px solid #d3dfd9;
+  background: #f5faf7;
+  color: #174c3a;
+  text-align: left;
+}
+.change-order-search-results button:last-child { margin-bottom: 0; }
+.change-order-search-results small { font-weight: 700; color: #68756f; }
 .change-filters .app-select-search { padding-right: 2.8rem; text-overflow: ellipsis; white-space: nowrap; }
 .order-debt-action { margin-top: .45rem; }
 .order-debt-action .danger, .order-debt-link { display: inline-flex; justify-content: center; width: 100%; box-sizing: border-box; }
 .change-filters label { display: grid; gap: .3rem; font-weight: 800; }
-.change-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin: 1rem 0; }
+.change-overview { display: grid; grid-template-columns: minmax(300px, .85fr) minmax(460px, 1.15fr); gap: .8rem; align-items: stretch; margin: 1rem 0; }
+.change-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; min-width: 0; }
 .change-total { border-top: 5px solid #c67622; }
 .change-total.settled { border-top-color: #24634d; }
 .change-total strong { display: block; margin-top: .3rem; font-size: 1.8rem; }
-.change-person-summary { margin-bottom: 1rem; }
+.change-person-summary { min-width: 0; margin: 0; }
 .change-person-summary > div { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: .7rem; padding: .6rem 0; border-bottom: 1px solid #ddd7cb; }
 .change-list { display: grid; gap: .65rem; }
 .change-row { display: grid; grid-template-columns: 1.5fr 1fr .8fr .8fr 1.1fr; gap: .8rem; align-items: center; border-left: 6px solid #c67622; }
@@ -2278,8 +2312,17 @@ cierre con el repartidor presente. Borra esta nota después de leerla. */
 .change-money.important { color: #702f12; background: #ffe3bd; }
 .change-row form { margin: 0 0 .4rem; }
 .change-row form button { width: 100%; font-weight: 900; }
-@media (max-width: 900px) { .change-filters form, .change-summary-grid { grid-template-columns: 1fr 1fr; } .change-row { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 560px) { .change-filters form, .change-summary-grid, .change-row, .change-person-summary > div { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .change-overview { grid-template-columns: 1fr; } .change-filters form, .change-summary-grid { grid-template-columns: 1fr 1fr; } .change-row { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) {
+  .change-filters form, .change-row { grid-template-columns: 1fr; }
+  .change-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; }
+  .change-total { min-width: 0; padding: .65rem .5rem; }
+  .change-total small { display: block; font-size: .68rem; line-height: 1.15; }
+  .change-total strong { font-size: 1.25rem; }
+  .change-person-summary > div { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem .55rem; }
+  .change-person-summary > div > strong { grid-column: 1 / -1; }
+  .change-person-summary > div > span { min-width: 0; font-size: .76rem; white-space: nowrap; }
+}
 
 /* Caja: dos carriles independientes y tarjetas compactas con los datos de cobro primero. */
 .cashier-board-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; align-items: start; }
@@ -2453,16 +2496,19 @@ html[data-theme="dark"] .ticket-note-cancel { color: #e4ede8; border-color: #5b7
 .table-tile.occupied .table-main-action strong { margin-top: auto; padding: .62rem .9rem; border-radius: .62rem; background: #9b4931; box-shadow: 0 3px 8px rgb(123 56 37 / 16%); }
 /* Menú "•••" de la ficha de mesa ocupada (Pasar a pedido Recoger). Va sobre la tarjeta
    (que ya es un enlace completo a "Continuar ticket"), no dentro de él. */
-.table-tile-more-actions { position: absolute; z-index: 3; top: .55rem; right: .55rem; }
-.table-tile-more-actions > summary { display: grid; width: 2.15rem; height: 2rem; place-items: center; border: 1px solid #d5a28f; border-radius: .5rem; color: #8f3f28; background: #fff; cursor: pointer; list-style: none; font-size: .85rem; font-weight: 900; letter-spacing: .1em; }
+.table-tile-more-actions { position: static; z-index: 3; }
+.table-tile-more-actions > summary { position: absolute; z-index: 61; top: .55rem; right: .55rem; display: grid; width: 2.15rem; height: 2rem; place-items: center; border: 1px solid #d5a28f; border-radius: .5rem; color: #8f3f28; background: #fff; cursor: pointer; list-style: none; font-size: .85rem; font-weight: 900; letter-spacing: .1em; }
 .table-tile-more-actions > summary::-webkit-details-marker { display: none; }
 .table-tile-more-actions > summary:hover,
 .table-tile-more-actions[open] > summary { border-color: #8f3f28; background: #fdf1ec; }
-.table-tile-more-actions-menu { position: absolute; z-index: 40; top: calc(100% + .3rem); right: 0; width: 195px; padding: .4rem; border: 1px solid #d4dcd7; border-radius: .65rem; background: #fff; box-shadow: 0 10px 24px rgb(25 57 44 / 18%); }
+.table-tile:has(.table-tile-more-actions[open]) { z-index: 60; overflow: visible; transform: none; }
+.table-tile-more-actions-menu { position: absolute; z-index: 60; top: 3rem; right: .55rem; width: min(220px, calc(100vw - 1rem)); padding: .4rem; border: 1px solid #d4dcd7; border-radius: .65rem; background: #fff; box-shadow: 0 10px 24px rgb(25 57 44 / 18%); }
 .table-tile-more-actions-menu form { padding: 0; }
 .table-tile-more-actions-menu button { display: block; width: 100%; min-height: 2.5rem; padding: .5rem .6rem; border: 0; border-radius: .5rem; color: #173c2f; background: transparent; text-align: left; font-size: .82rem; font-weight: 700; cursor: pointer; }
 .table-tile-more-actions-menu button:hover { background: #edf4f0; }
 @media (max-width: 1000px) { .table-map { height: auto; max-height: none; grid-template-columns: repeat(3, minmax(150px, 1fr)); grid-template-rows: none; } .table-tile { grid-row: auto !important; grid-column: auto !important; min-height: 220px; } .table-map-actions { justify-content: flex-start; } }
+@media (min-width: 1001px) { .table-map .table-tile:nth-child(5n + 1) .table-tile-more-actions-menu { right: auto; left: .55rem; } }
+@media (max-width: 1000px) { .table-map .table-tile:nth-child(3n + 1) .table-tile-more-actions-menu { right: auto; left: .55rem; } }
 @media (max-width: 620px) { .table-map { grid-template-columns: repeat(2, minmax(130px, 1fr)); } .table-tile { min-height: 205px; } .table-map-actions > * { flex: 1 1 100%; } .table-map-back, .table-map-actions .button-link { justify-content: center; } }
 @media (max-width: 420px) { .table-map { grid-template-columns: 1fr; } }
 
@@ -3587,6 +3633,21 @@ html[data-theme="dark"] .inventory-product-card strong { color: #eef4f1; }
 .cash-register-expense-empty { display: block; border: none; background: none; padding: .3rem 0; color: #68756f; }
 .cash-register-expense-delete button { min-height: 2.1rem; min-width: 2.1rem; padding: 0; border-radius: .4rem; }
 .cash-register-expense-total { display: flex; justify-content: space-between; margin: .75rem 0 0; padding-top: .6rem; border-top: 1px solid #e4ded0; font-weight: 800; }
+.cash-register-audit-count {
+  display: inline-flex;
+  min-width: 2rem;
+  min-height: 2rem;
+  margin-left: .4rem;
+  padding: .2rem .6rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #e4e7e5;
+  color: #59635f;
+  font-size: .85rem;
+  font-weight: 900;
+  vertical-align: middle;
+}
 @media (max-width: 900px) {
   .cash-register-amounts-grid { grid-template-columns: 1fr; }
   .cash-register-expense-form { grid-template-columns: 1fr; }
@@ -8265,12 +8326,67 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 
 /* Terminales: la acción de eliminar vive en la esquina de cada ficha. */
 .terminal-movement-list > header {
-  grid-template-columns: 2rem .75fr .7fr .75fr 1fr 1.25fr 2fr;
+  grid-template-columns: 2rem 4.5rem .75fr .7fr .75fr 1fr 1.25fr 2fr;
 }
 .terminal-movement-list > header > :last-child { display: none; }
 .terminal-movement-row {
-  grid-template-columns: 2rem .75fr .7fr .75fr 1fr 1.25fr 2fr;
+  grid-template-columns: 2rem 4.5rem .75fr .7fr .75fr 1fr 1.25fr 2fr;
   padding-right: 3.35rem;
+}
+.terminal-color-palette {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: .8rem;
+}
+.terminal-color-palette h3,
+.terminal-color-palette p { margin: 0; }
+.terminal-color-palette p { color: #5d6f67; font-size: .82rem; }
+[data-terminal-color-options] { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .4rem; }
+[data-terminal-color] {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  min-height: 2.35rem;
+  padding: .35rem .55rem;
+  border: 2px solid transparent;
+  background: #f5f7f5;
+  color: #173f32;
+}
+[data-terminal-color] > span {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 1.15rem;
+  border-radius: .3rem;
+  background: var(--terminal-mark-color);
+}
+[data-terminal-color].is-selected {
+  border-color: var(--terminal-mark-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--terminal-mark-color) 22%, transparent);
+}
+.terminal-movement-row.has-classification-color {
+  border-color: var(--terminal-row-color);
+  background: color-mix(in srgb, var(--terminal-row-color) 11%, #fff);
+  box-shadow: inset 5px 0 var(--terminal-row-color);
+}
+.terminal-movement-row .terminal-row-number { order: -2; }
+.terminal-row-mark {
+  order: -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .3rem;
+  min-width: 0;
+  font-size: .72rem;
+  font-weight: 800;
+}
+.terminal-row-mark::before { display: none !important; }
+.terminal-row-mark input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: var(--terminal-row-color, #23634e);
 }
 .terminal-movement-row .terminal-delete {
   position: absolute;
@@ -8300,6 +8416,8 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 }
 
 @media (max-width: 900px) {
+  .terminal-color-palette { align-items: flex-start; flex-direction: column; }
+  [data-terminal-color-options] { justify-content: flex-start; }
   .terminal-movement-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     padding: .55rem 3.35rem .55rem .55rem;
@@ -8333,7 +8451,9 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 
 /* Mesas: tres fichas visibles por fila también en teléfonos. */
 @media (max-width: 620px) {
+  .terminal-controls-row { grid-template-columns: 1fr; }
   .terminal-movement-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  [data-terminal-color] small { max-width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .table-map {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -8356,7 +8476,9 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   .table-map .table-main-action > small { font-size: .6rem; }
   .table-map .table-tile-total { font-size: .85rem; }
   .table-map .table-tile-more-actions { top: .3rem; right: .3rem; }
-  .table-map .table-tile-more-actions > summary { width: 1.7rem; height: 1.6rem; font-size: .7rem; }
+  .table-map .table-tile-more-actions > summary { top: .3rem; right: .3rem; width: 1.7rem; height: 1.6rem; font-size: .7rem; }
+  .table-map .table-tile-more-actions-menu { top: 2.25rem; right: .3rem; }
+  .table-map .table-tile:nth-child(3n + 1) .table-tile-more-actions-menu { right: auto; left: .3rem; }
   .table-map .table-tile-more-actions-menu { width: 165px; }
   .table-map .waiter-choice-buttons { gap: .22rem; }
   .table-map .waiter-choice-buttons button {

@@ -6,6 +6,7 @@
 # Productos generales también respetan la visibilidad pública de su categoría según horario.
 
 import csv
+import re
 from datetime import date, time, timedelta
 from decimal import Decimal
 
@@ -19,7 +20,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, WAITER, SECTION_ROLE_MATRIX, role_required, user_has_any_role
 from config.printing import order_print_context, printable_item, selected_printable_items
@@ -549,6 +550,20 @@ def _folio_search_query(search):
     return query
 
 
+def _full_folio_search_query(search):
+    """Return the exact visible-folio query, or None for ordinary search text."""
+    digits = search.strip().lstrip("#")
+    # El folio visible siempre contiene DDMM y un consecutivo de al menos tres
+    # posiciones. Un consecutivo corto sigue siendo una búsqueda normal.
+    if len(digits) < 7 or not digits.isdigit():
+        return None
+    return Q(
+        operating_date__day=int(digits[:2]),
+        operating_date__month=int(digits[2:4]),
+        daily_number=int(digits[4:]),
+    )
+
+
 @role_required(*SECTION_ROLE_MATRIX["orders"])
 def order_list(request):
     # NOTA TEMPORAL PARA APRENDIZAJE: select_related trae al repartidor en la misma
@@ -562,8 +577,12 @@ def order_list(request):
     date_to = _report_date(request.GET.get("date_to"), today)
     if date_from > date_to:
         date_from, date_to = date_to, date_from
-    orders = orders.filter(operating_date__range=(date_from, date_to))
     search = request.GET.get("q", "").strip()
+    exact_folio_query = _full_folio_search_query(search)
+    if exact_folio_query is not None:
+        orders = orders.filter(exact_folio_query)
+    else:
+        orders = orders.filter(operating_date__range=(date_from, date_to))
     status = request.GET.get("status", "").strip()
     order_type = request.GET.get("order_type", "").strip()
     scope = request.GET.get("scope", "active").strip()
@@ -573,21 +592,26 @@ def order_list(request):
     # Borra esta nota después de leerla.
     final_statuses = (Order.Status.DELIVERED, Order.Status.PICKED_UP)
     inactive_statuses = (*final_statuses, Order.Status.CANCELED, Order.Status.TRANSFERRED)
-    if scope == "completed":
-        orders = orders.filter(status__in=final_statuses)
-    elif scope == "all":
-        pass
+    if exact_folio_query is not None:
+        scope = "all"
+        status = ""
+        order_type = ""
     else:
-        scope = "active"
-        orders = orders.exclude(status__in=inactive_statuses)
-    if search:
+        if scope == "completed":
+            orders = orders.filter(status__in=final_statuses)
+        elif scope == "all":
+            pass
+        else:
+            scope = "active"
+            orders = orders.exclude(status__in=inactive_statuses)
+    if search and exact_folio_query is None:
         number_query = _folio_search_query(search)
         orders = orders.filter(
             number_query | Q(customer_name__icontains=search) | Q(phone__icontains=search)
         )
-    if status in Order.Status.values:
+    if exact_folio_query is None and status in Order.Status.values:
         orders = orders.filter(status=status)
-    if order_type in Order.OrderType.values:
+    if exact_folio_query is None and order_type in Order.OrderType.values:
         orders = orders.filter(order_type=order_type)
     orders = list(orders)
     # NOTA TEMPORAL PARA APRENDIZAJE: este aviso es independiente del filtro de fecha
@@ -641,7 +665,7 @@ def order_list(request):
         order.customer_debt_note = _order_debt_badge(order)
         order.can_transfer_to_table = (
             can_transfer_order_to_table
-            and order.order_type == Order.OrderType.PICKUP
+            and order.order_type in {Order.OrderType.PICKUP, Order.OrderType.DELIVERY}
             and order.status not in {
                 Order.Status.CANCELED, Order.Status.DELIVERED,
                 Order.Status.PICKED_UP, Order.Status.TRANSFERRED,
@@ -1560,10 +1584,14 @@ def delivery_board(request):
     date_to = _report_date(request.GET.get("date_to"), today)
     if date_from > date_to:
         date_from, date_to = date_to, date_from
-    delivery_orders = Order.objects.filter(
-        order_type=Order.OrderType.DELIVERY,
-        operating_date__range=(date_from, date_to),
-    ).select_related(
+    search = request.GET.get("q", "").strip()
+    exact_folio_query = _full_folio_search_query(search)
+    delivery_orders = Order.objects.filter(order_type=Order.OrderType.DELIVERY)
+    if exact_folio_query is not None:
+        delivery_orders = delivery_orders.filter(exact_folio_query)
+    else:
+        delivery_orders = delivery_orders.filter(operating_date__range=(date_from, date_to))
+    delivery_orders = delivery_orders.select_related(
         "delivery_person", "delivery_assigned_by", "delivery_tip_recipient",
         "delivery_tip_updated_by", "agenda_customer",
     ).prefetch_related("agenda_customer__debts")
@@ -1572,10 +1600,13 @@ def delivery_board(request):
     ).distinct().order_by("first_name", "username")
     if is_delivery_profile:
         delivery_orders = delivery_orders.filter(delivery_person=request.user)
-    search = request.GET.get("q", "").strip()
     selected_statuses = [value for value in request.GET.getlist("status") if value in Order.Status.values]
     delivery_person = request.GET.get("delivery_person", "").strip()
-    if search:
+    if exact_folio_query is not None:
+        selected_statuses = []
+        if not is_delivery_profile:
+            delivery_person = ""
+    if search and exact_folio_query is None:
         number_query = _folio_search_query(search)
         delivery_orders = delivery_orders.filter(
             number_query | Q(customer_name__icontains=search) | Q(phone__icontains=search)
@@ -1585,11 +1616,11 @@ def delivery_board(request):
             | Q(delivery_person__last_name__icontains=search)
             | Q(delivery_person__username__icontains=search)
         )
-    if selected_statuses:
+    if selected_statuses and exact_folio_query is None:
         delivery_orders = delivery_orders.filter(status__in=selected_statuses)
-    if not is_delivery_profile and delivery_person == "unassigned":
+    if exact_folio_query is None and not is_delivery_profile and delivery_person == "unassigned":
         delivery_orders = delivery_orders.filter(delivery_person__isnull=True)
-    elif not is_delivery_profile and delivery_person.isdigit():
+    elif exact_folio_query is None and not is_delivery_profile and delivery_person.isdigit():
         delivery_orders = delivery_orders.filter(delivery_person_id=int(delivery_person))
     delivery_orders = list(delivery_orders)
     for order in delivery_orders:
@@ -2119,34 +2150,43 @@ def cashier_board(request):
     if date_from > date_to:
         date_from, date_to = date_to, date_from
     scope = request.GET.get("scope", "active").strip()
-    queryset = Order.objects.filter(operating_date__range=(date_from, date_to))
-    if scope == "all":
-        pass
+    search = request.GET.get("q", "").strip()
+    exact_folio_query = _full_folio_search_query(search)
+    if exact_folio_query is not None:
+        queryset = Order.objects.filter(exact_folio_query)
     else:
-        scope = "active"
-        queryset = queryset.filter(status__in=active_statuses, cashier_released_at__isnull=True)
+        queryset = Order.objects.filter(operating_date__range=(date_from, date_to))
+        if scope == "all":
+            pass
+        else:
+            scope = "active"
+            queryset = queryset.filter(status__in=active_statuses, cashier_released_at__isnull=True)
     queryset = queryset.select_related(
         "delivery_person", "cash_settlement_by", "customer_debt", "agenda_customer",
     ).prefetch_related("items", "agenda_customer__debts__order").order_by("order_type", "requested_for", "created_at")
-    search = request.GET.get("q", "").strip()
     order_type = request.GET.get("type", "").strip()
     delivery_person = request.GET.get("delivery_person", "").strip()
     payment_method = request.GET.get("payment_method", "").strip()
-    if search:
+    if exact_folio_query is not None:
+        scope = "all"
+        order_type = ""
+        delivery_person = ""
+        payment_method = ""
+    if search and exact_folio_query is None:
         queryset = queryset.filter(
             _folio_search_query(search) | Q(customer_name__icontains=search)
             | Q(phone__icontains=search) | Q(street__icontains=search)
             | Q(exterior_number__icontains=search)
         )
-    if order_type in Order.OrderType.values:
+    if exact_folio_query is None and order_type in Order.OrderType.values:
         queryset = queryset.filter(order_type=order_type)
-    if delivery_person == "unassigned":
+    if exact_folio_query is None and delivery_person == "unassigned":
         queryset = queryset.filter(delivery_person__isnull=True)
-    elif delivery_person.isdigit():
+    elif exact_folio_query is None and delivery_person.isdigit():
         queryset = queryset.filter(delivery_person_id=int(delivery_person))
-    if payment_method == "undefined":
+    if exact_folio_query is None and payment_method == "undefined":
         queryset = queryset.filter(payment_method="")
-    elif payment_method in Order.PaymentMethod.values:
+    elif exact_folio_query is None and payment_method in Order.PaymentMethod.values:
         queryset = queryset.filter(payment_method=payment_method)
     orders = list(queryset)
     # NOTA TEMPORAL PARA APRENDIZAJE: Caja reutiliza la misma máquina de estados que
@@ -2240,6 +2280,33 @@ def cashier_coffee_settlement(request):
     return redirect(f'{reverse("cashier:coffee_report")}?date={selected_date.isoformat()}')
 
 
+def _cash_register_audit_querysets(selected_date):
+    unpaid_orders = CustomerDebt.objects.filter(
+        order__operating_date=selected_date,
+        status__in=(CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL),
+    )
+    pending_orders = Order.objects.filter(
+        operating_date=selected_date,
+    ).exclude(status=Order.Status.CANCELED).exclude(
+        status__in=(Order.Status.DELIVERED, Order.Status.PICKED_UP),
+    ).exclude(
+        status=Order.Status.TRANSFERRED,
+        transferred_to_table__status=TableAccount.Status.CLOSED,
+    ).exclude(customer_debt__isnull=False)
+    return unpaid_orders, pending_orders
+
+
+@require_GET
+@role_required(ADMIN)
+def cashier_register_cut_audit_counts(request):
+    selected_date = _report_date(request.GET.get("date"), timezone.localdate())
+    unpaid_orders, pending_orders = _cash_register_audit_querysets(selected_date)
+    return JsonResponse({
+        "unpaid_count": unpaid_orders.count(),
+        "pending_count": pending_orders.count(),
+    })
+
+
 @role_required(ADMIN)
 def cashier_register_cut(request):
     # NOTA TEMPORAL PARA APRENDIZAJE: el desarrollador pidió un corte de caja
@@ -2289,21 +2356,15 @@ def cashier_register_cut(request):
 
     # NOTA TEMPORAL PARA APRENDIZAJE: "pendiente de pago" es el mismo criterio
     # que ya usa Cuentas por cobrar, sólo acotado a este día. Borra esta nota.
-    unpaid_orders = list(CustomerDebt.objects.filter(
-        order__operating_date=selected_date,
-        status__in=(CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL),
-    ).select_related("order", "customer"))
+    unpaid_queryset, pending_queryset = _cash_register_audit_querysets(selected_date)
+    unpaid_orders = list(unpaid_queryset.select_related("order", "customer"))
 
     # NOTA TEMPORAL PARA APRENDIZAJE: "quedó sin resolver" ignora el status tal
     # cual si el pedido ya está registrado como no pagado o cancelado — ambos
     # cuentan como resueltos aunque su status operativo nunca haya llegado a
     # Entregado/Recogido. Lo que sobra son pedidos genuinamente olvidados.
     # Borra esta nota después de leerla.
-    pending_orders = list(Order.objects.filter(
-        operating_date=selected_date,
-    ).exclude(status=Order.Status.CANCELED).exclude(
-        status__in=(Order.Status.DELIVERED, Order.Status.PICKED_UP),
-    ).exclude(customer_debt__isnull=False).order_by("daily_number"))
+    pending_orders = list(pending_queryset.order_by("daily_number"))
 
     expenses = list(cut.expenses.select_related("registered_by"))
     total_expenses = sum((expense.amount for expense in expenses), Decimal("0"))
@@ -2448,15 +2509,27 @@ def cashier_change_board(request):
     order_type = request.GET.get("order_type", Order.OrderType.DELIVERY).strip()
     payment_filter = request.GET.get("payment_method", "cash_change").strip()
     status = request.GET.get("status", "").strip()
-    queryset = Order.objects.filter(
-        operating_date__range=(start_date, end_date),
-    ).select_related(
+    search = request.GET.get("q", "").strip()
+    exact_folio_query = _full_folio_search_query(search)
+    queryset = Order.objects.all()
+    if exact_folio_query is not None:
+        queryset = queryset.filter(exact_folio_query)
+        person_id = ""
+        settlement = "all"
+        order_type = ""
+        payment_filter = "all"
+        status = ""
+    else:
+        queryset = queryset.filter(operating_date__range=(start_date, end_date))
+    queryset = queryset.select_related(
         "delivery_person", "cash_settlement_by", "agenda_customer", "customer_debt",
     )
     # NOTA TEMPORAL PARA APRENDIZAJE: cash_change conserva el listado anterior. Los
     # demás medios consultan pedidos finalizados, cuando ya puede saberse que no pagaron.
     # Borra esta nota después de leerla.
-    if payment_filter == "cash_change":
+    if exact_folio_query is not None:
+        pass
+    elif payment_filter == "cash_change":
         queryset = queryset.filter(
             order_type=Order.OrderType.DELIVERY,
             payment_method=Order.PaymentMethod.CASH,
@@ -2477,12 +2550,16 @@ def cashier_change_board(request):
             )
         if order_type in Order.OrderType.values:
             queryset = queryset.filter(order_type=order_type)
-    if status in Order.Status.values:
+    if exact_folio_query is None and search:
+        queryset = queryset.filter(
+            _folio_search_query(search) | Q(customer_name__icontains=search) | Q(phone__icontains=search)
+        )
+    if exact_folio_query is None and status in Order.Status.values:
         queryset = queryset.filter(status=status)
     queryset = queryset.order_by(
         "cash_settlement_confirmed", "delivery_person__username", "cashier_released_at", "created_at",
     )
-    if person_id.isdigit():
+    if exact_folio_query is None and person_id.isdigit():
         queryset = queryset.filter(delivery_person_id=int(person_id))
     # El resumen debe representar todo el periodo y repartidor seleccionados. El
     # filtro Pendientes/Devueltos sólo decide qué renglones se ven debajo; si se
@@ -2494,6 +2571,20 @@ def cashier_change_board(request):
         elif settlement == "settled":
             queryset = queryset.filter(cash_settlement_confirmed=True)
     orders = list(queryset)
+    for order in orders:
+        order.show_cash_settlement_action = (
+            payment_filter == "cash_change"
+            or (
+                exact_folio_query is not None
+                and order.order_type == Order.OrderType.DELIVERY
+                and order.payment_method == Order.PaymentMethod.CASH
+                and order.cashier_released_at is not None
+            )
+        )
+    today_search_options = [
+        {"folio": order.formatted_number, "customer": order.customer_name or "Sin nombre"}
+        for order in Order.objects.filter(operating_date=today).order_by("-daily_number")
+    ]
     person_totals = {}
     for order in summary_orders:
         key = order.delivery_person_id or 0
@@ -2513,6 +2604,7 @@ def cashier_change_board(request):
         "order_type_choices": Order.OrderType.choices,
         "payment_method_choices": ASSIGNABLE_PAYMENT_METHOD_CHOICES,
         "status_choices": Order.Status.choices, "selected_status": status,
+        "search": search, "today_search_options": today_search_options,
     })
 
 
@@ -2563,9 +2655,9 @@ def cashier_terminal_board(request):
     if provider not in (*TerminalCut.Provider.values, reconciliation_view):
         provider = TerminalCut.Provider.CLOVER
     person_id = request.GET.get("person", "").strip()
-    employees = get_user_model().objects.filter(
+    employees = list(get_user_model().objects.filter(
         is_active=True, groups__name__in=(WAITER, DELIVERY),
-    ).distinct().order_by("first_name", "username")
+    ).distinct().order_by("first_name", "username"))
     provider_tabs = [*TerminalCut.Provider.choices, (reconciliation_view, "Conciliación")]
     cuts = {}
     for value, _label in TerminalCut.Provider.choices:
@@ -2622,6 +2714,22 @@ def cashier_terminal_board(request):
     if person_id.isdigit():
         movements = movements.filter(tip_recipient_id=int(person_id))
     movements = list(movements)
+    palette_labels = [person.get_full_name() or person.username for person in employees]
+    known_palette_labels = {label.casefold() for label in palette_labels}
+    manual_references = TerminalMovement.objects.filter(
+        cut__operating_date=selected_date,
+    ).exclude(terminal_name_reference="").order_by("created_at", "id").values_list(
+        "terminal_name_reference", flat=True,
+    )
+    for reference in manual_references:
+        normalized = reference.casefold()
+        if normalized not in known_palette_labels:
+            known_palette_labels.add(normalized)
+            palette_labels.append(reference)
+    color_palette = [
+        {"label": label, "color": f"hsl({(index * 137 + 12) % 360} 68% 48%)"}
+        for index, label in enumerate(palette_labels)
+    ]
     combined = TerminalMovement.objects.filter(
         cut__operating_date=selected_date,
         cut__provider__in=reconciliation_providers,
@@ -2714,6 +2822,7 @@ def cashier_terminal_board(request):
         "expected_payment_label": "Transferencia" if is_transfer_provider else "Terminal",
         "selected_person": person_id,
         "employees": employees, "link_candidates": link_candidates,
+        "color_palette": color_palette,
         "selected_total": sum((row.total_amount for row in movements), Decimal("0")),
         "selected_tip": sum((row.tip_amount for row in movements), Decimal("0")),
         "actual_total": actual_total, "actual_tip": actual_tip,
@@ -2731,6 +2840,7 @@ def _terminal_movement_payload(movement):
         "consumption": f"{movement.consumption_amount:.2f}",
         "recipient_id": movement.tip_recipient_id or "",
         "recipient": (recipient.get_full_name() or recipient.username) if recipient else "Sin asignar",
+        "classification_color": movement.classification_color,
     }
 
 
@@ -2763,6 +2873,13 @@ def cashier_terminal_movement_save(request):
     movement.tip_amount = tip
     movement.tip_recipient = recipient
     movement.terminal_name_reference = request.POST.get("terminal_name_reference", "").strip()[:150]
+    classification_color = request.POST.get("classification_color", "").strip()
+    if classification_color and not re.fullmatch(
+        r"hsl\((?:[0-9]|[1-9][0-9]|[12][0-9]{2}|3[0-5][0-9]) 68% 48%\)",
+        classification_color,
+    ):
+        return JsonResponse({"ok": False, "error": "Selecciona un color válido de la paleta."}, status=400)
+    movement.classification_color = classification_color
     movement.order = None
     movement.table_account = None
     link = request.POST.get("linked_record", "")

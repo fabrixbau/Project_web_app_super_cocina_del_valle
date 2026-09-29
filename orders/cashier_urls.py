@@ -13,6 +13,7 @@ urlpatterns = [
     path("bebidas-calientes/", views.cashier_coffee_report, name="coffee_report"),
     path("bebidas-calientes/entregas/", views.cashier_coffee_settlement, name="coffee_settlement"),
     path("corte/", views.cashier_register_cut, name="register_cut"),
+    path("corte/auditoria/", views.cashier_register_cut_audit_counts, name="register_cut_audit_counts"),
     path("propinas/detalle/<str:source>/<int:record_id>/", views.cashier_tip_detail, name="tip_detail"),
     path("cambios/", views.cashier_change_board, name="change_board"),
     path("terminales/", views.cashier_terminal_board, name="terminal_board"),

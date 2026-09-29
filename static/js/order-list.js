@@ -157,8 +157,9 @@ document.addEventListener("submit", async (event) => {
 const refreshOrderBoard = async () => {
   const region = document.querySelector("[data-order-live-region]");
   const activeInside = region?.contains(document.activeElement)
-    && document.activeElement?.matches("button, a, input, select, textarea");
-  if (!region || document.hidden || orderBoardRequestsInProgress > 0 || activeInside) return;
+    && document.activeElement?.matches("button, a, input, select, textarea, summary");
+  const openActionsMenu = region?.querySelector(".order-more-actions[open]");
+  if (!region || document.hidden || orderBoardRequestsInProgress > 0 || activeInside || openActionsMenu) return;
   try {
     const response = await fetch(window.location.href, {
       headers: {"X-Requested-With": "XMLHttpRequest"}, cache: "no-store",

@@ -1,5 +1,54 @@
 # CODEX_CONTEXT — Super Cocina del Valle
 
+### Huevo opcional: desplegable con comportamiento mostrar/ocultar (2026-09-29)
+
+- Todos los selectores generados dentro de `.package-egg-choice` (Pedidos, Mesas, comida corrida, ejecutiva y edición de extras) dejaron de tratarse como campos buscables. Ahora son listas compactas: primer clic/toque en la barra abre “Sin huevo” y los productos de huevo configurados; otro clic/toque en la misma barra cierra el panel; elegir una opción también lo cierra.
+- En celular ya no aparece el teclado en el segundo toque ni el panel queda siguiendo un input editable. El resto de los selectores buscables conserva su comportamiento anterior.
+- Sintaxis de `custom-select.js`, `manage.py check`, `git diff --check` y las 3 pruebas de extras de huevo pasan. `custom-select.js` subió de v6 a v7. No requiere migración ni CSS nuevo.
+
+### Mesas: menú `•••` visible fuera de la ficha (2026-09-29)
+
+- En `/app/mesas/`, el menú de acciones de una mesa ocupada ya no queda recortado por el `overflow: hidden` de la tarjeta. Cuando el `<details>` está abierto, esa ficha eleva temporalmente su nivel, permite desbordamiento y el panel se dibuja por encima de las tarjetas vecinas.
+- El panel tiene ancho legible y límite relativo al viewport. En la primera columna se abre hacia la derecha; en las demás se alinea hacia la izquierda, evitando salir del borde en celular y tablet. El botón conserva el comportamiento nativo de interruptor: cada toque en `•••` abre o cierra el mismo menú.
+- `TableMapTransferMenuTests` pasa (5/5), además de `manage.py check` y `git diff --check`. `app.css` subió de v290 a v291. No requiere migración ni cambios de lógica.
+
+### Pedidos: menú de acciones estable y Entrega también transferible a mesa (2026-09-29)
+
+- Se corrigió el refresco automático de `/app/pedidos/`: antes sólo detectaba interacción si el foco estaba en botón/enlace/campo, pero no reconocía el `<summary>` de `•••`; por eso cada 7 segundos podía reemplazar el tablero y cerrar el panel mientras se elegía una mesa. Ahora el refresco se pausa mientras cualquier menú `.order-more-actions` permanezca abierto (y también reconoce `summary` como foco interactivo), conservando la mesa y el mesero seleccionados hasta cerrar o enviar el formulario.
+- “Pasar a mesa” ahora está disponible tanto para pedidos activos de Recoger como de Entrega a domicilio. El servicio conserva las mismas protecciones: productos obligatorios, comidas completas, sin saldo a favor ya aplicado, mesa activa/libre y asignación válida de mesero; el pedido original queda `Transferido a mesa` y sus partidas/inventario pasan a la cuenta nueva.
+- Se sustituyó la prueba que rechazaba Entrega por una de transferencia exitosa y se agregó otra que confirma que el tablero muestra la acción para una Entrega. Las 23 pruebas de `OrderTableTransferTests` pasan; sintaxis JS, `manage.py check` y `git diff --check` sin errores. `order-list.js` subió de v14 a v15. No requiere migración.
+
+### Ajuste visual: filtros y cierre en Corte de terminales (2026-09-28)
+
+- En las pestañas operativas de `/app/caja/terminales/`, Fecha/Persona y el panel de estado con “Cerrar corte”/“Reabrir corte” ahora comparten una fila inmediatamente antes de “Clasificar filas por color”, con relación 65%/35%.
+- En teléfonos de hasta 620 px se apilan para no cortar los dos filtros ni la acción; tablet y escritorio conservan la distribución horizontal. La pestaña “Conciliación”, que no tiene corte individual para cerrar, conserva únicamente sus filtros.
+- Se agregó una prueba de estructura/orden y se verificaron `manage.py check` y `git diff --check`. `app.css` subió de v289 a v290. No requiere migración ni cambio de lógica.
+
+### Ajuste responsivo: resumen de Cambios pendientes (2026-09-28)
+
+- En `/app/caja/cambios/`, escritorio y tablet horizontal muestran en una sola franja los dos totales (“Efectivo pendiente por devolver” y “Efectivo ya devuelto”) junto al “Resumen por repartidor”; cada renglón del resumen conserva Nombre/Pendiente/Devuelto en una fila.
+- En celular, las tarjetas naranja y verde permanecen juntas en dos columnas. En cada repartidor, el nombre ocupa la parte superior y Pendiente/Devuelto quedan juntos en la siguiente fila, evitando la columna vertical larga anterior.
+- Se agregó el contenedor semántico `.change-overview`, estilos responsivos específicos y una comprobación de la estructura renderizada. `app.css` subió de v288 a v289. No requiere migración ni cambios de lógica.
+
+### Corrección: transferencias a mesas cerradas ya no quedan “sin resolver” (2026-09-28)
+
+- En `/app/caja/corte/`, un pedido con estado `Transferido a mesa` ya no aparece en “Pedidos que quedaron sin resolver este día” cuando su cuenta de mesa destino está `Cerrada`: el cierre de esa mesa completa el flujo y resuelve el pedido original.
+- Se conserva visible una transferencia cuya mesa destino todavía está `Abierta`, porque esa operación sí sigue pendiente. El contador de auditoría en tiempo real reutiliza el mismo queryset y refleja automáticamente esta distinción.
+- Se agregó una prueba con ambos escenarios (mesa cerrada excluida y mesa abierta incluida). Las 13 pruebas de `CashRegisterCutTests` pasan; `manage.py check` y `git diff --check` sin errores. No requiere migración ni cambio de archivos estáticos.
+
+### Corte de caja: numeración y contadores vivos de auditoría (2026-09-28)
+
+- En `/app/caja/corte/`, las tablas "Pedidos pendientes de pago este día" y "Pedidos que quedaron sin resolver este día" ahora tienen una primera columna `#`, numerada de forma ascendente desde 1, y una insignia gris junto al título con el total actual.
+- Se agregó un endpoint administrativo ligero (`/app/caja/corte/auditoria/`) que reutiliza exactamente los mismos querysets de ambas tablas. `cashier-register-cut.js` lo consulta cada 5 segundos y actualiza los dos contadores sin recargar la página ni borrar importes que se estén capturando; pausa las consultas cuando la pestaña no está visible y actualiza al regresar.
+- Se añadieron pruebas de numeración/conteo inicial y de actualización de los conteos al pagar un adeudo y resolver un pedido. Suite completa: 229/229 pruebas pasando. No requiere migración. `app.css` quedó en v287 y el script nuevo en v1.
+
+### Pedidos, Caja, Cambios y Repartos: búsqueda directa por folio completo (2026-09-28)
+
+- En `/app/pedidos/`, `/app/caja/` y `/app/repartos/`, una búsqueda que sea un folio visible completo (`DDMM` + consecutivo, opcionalmente precedido por `#`) ahora tiene prioridad sobre los filtros ordinarios. Encuentra el pedido aunque quede fuera del rango de fechas o no coincida con estado, alcance Activos/Todos, tipo, repartidor o método de pago.
+- `/app/caja/cambios/` sigue la misma regla de prioridad. Se añadió un campo combinado "Folio o cliente": el folio completo ignora fecha, conciliación, estado, modalidad, pago y repartidor; al escribir al menos dos caracteres del cliente despliega hasta 10 pedidos coincidentes exclusivamente de hoy, mostrando nombre y folio. Elegir una opción busca inmediatamente ese folio. Si el resultado exacto todavía permite confirmar una devolución de efectivo, conserva ese botón.
+- Las búsquedas parciales por consecutivo, cliente, teléfono o domicilio conservan el comportamiento filtrado anterior. En Repartos también se conserva la frontera de permisos: un perfil Repartidor no puede usar el folio para consultar pedidos asignados a otra persona.
+- Se agregaron pruebas de regresión para los cuatro tableros, búsqueda corta, sugerencias limitadas al día actual y conservación de la acción de conciliación. Suite completa: 227/227 pruebas pasando. No requiere migración. `cashier-change-board.js` quedó en v5 y `app.css` en v286.
+
 ### Mesas: registrar cuenta no pagada y selector de mesa sin teclado (2026-09-28)
 
 - En `/app/pedidos/`, el selector `table_id` de "Pasar a mesa" dejó de ser un campo de búsqueda: ahora es un botón desplegable que abre/cierra las mesas disponibles al tocarlo, sin enfocar un input ni abrir el teclado. Se actualizó `custom-select.js` a v6.
@@ -1908,3 +1957,12 @@ El desarrollador pidió explícitamente que, de aquí en adelante, él se encarg
 - Se agregaron 21 pruebas nuevas (`orders/tests.py`, `OrderTableTransferTests`) cubriendo ambas direcciones: éxito copiando partidas y marcando estados correctamente, todos los rechazos de validación (Entrega en vez de Recoger, estado inactivo, sin productos, comida incompleta, saldo a favor aplicado, mesa desactivada u ocupada, cuenta de mesa no abierta), el reabrir-el-mismo-pedido vs. crear-uno-nuevo, el movimiento real de inventario reservado entre los canales Pedidos/Mesas, y los permisos de las dos vistas nuevas (Telefonista recibe 403, Mesero/Administrador funcionan y redirigen a donde corresponde). 211/211 pruebas de la suite completa pasando, sin regresiones.
 - **Verificación pendiente del desarrollador**: siguiendo la preferencia ya registrada de probar manualmente los cambios de interfaz en vez de usar Playwright, esta función quedó cubierta por pruebas automatizadas pero sin verificación visual en vivo de mi parte. Para probarla: 1) en `/app/pedidos/`, abrir el menú "•••" de un pedido Recoger activo con productos y usar "Pasar a mesa"; 2) confirmar que la mesa aparece ocupada en `/app/mesas/` con los mismos productos y el mesero correcto; 3) desde el ticket de esa mesa, usar "Pasar a Recoger" y confirmar que reaparece en `/app/pedidos/` con el mismo folio que el pedido original (o uno nuevo, si la mesa se abrió directo sin venir de un pedido).
 - **Nota para el desarrollador**: listo en el código local, con sus migraciones ya generadas y aplicadas localmente, pero sin commitear ni desplegar — recuerda correr `python manage.py migrate` en producción después de desplegar. Se subió el número de versión de `app.css` (v281 → v282).
+
+### Nueva función: clasificación visual persistente por colores en Corte de terminales (2026-09-28)
+
+- En `/app/caja/terminales/` se agregó una paleta diaria encima de la tabla. Genera un color por cada usuario activo con perfil Mesero o Repartidor y agrega dinámicamente otro por cada nombre/referencia manual distinto capturado en cualquier terminal del mismo día. Las referencias se deduplican sin distinguir mayúsculas/minúsculas y las de otros días no contaminan la paleta actual.
+- Cada fila tiene ahora una casilla `Marcar`: primero se elige un color de la paleta y después se toca la casilla. Tocar nuevamente una fila que ya tiene ese mismo color lo quita; elegir otro color y tocarla sustituye el anterior. La fila completa y su checkbox reflejan el color, y el diseño se adapta a escritorio, tablet y celular.
+- La marca se persiste en `TerminalMovement.classification_color` (migración `0031_terminalmovement_classification_color`), por lo que se conserva al recargar o navegar a otra pantalla. El servidor limita el valor a los HSL que genera la propia paleta para evitar inyectar estilos arbitrarios.
+- Los nombres/referencias nuevos aparecen en la paleta inmediatamente después del autoguardado, sin recargar. Los cortes cerrados muestran las marcas guardadas, pero mantienen deshabilitada su edición igual que el resto de sus campos.
+- Se agregaron 3 pruebas en `TerminalMovementLinkingRulesTests`: persistir/cambiar/quitar color, rechazo de color inválido y composición diaria de la paleta con personal más referencias únicas. Suite completa: 232/232 pruebas pasando; `manage.py check`, `makemigrations --check`, validación de sintaxis JS y `git diff --check` sin errores.
+- **Nota para el desarrollador**: listo en el código local, sin commit ni despliegue. Se subieron `app.css` v287 → v288 y `cashier-terminal-board.js` v13 → v14. En producción hay que ejecutar `python manage.py migrate` después del despliegue.

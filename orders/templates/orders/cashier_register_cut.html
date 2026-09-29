@@ -50,15 +50,15 @@ después de leerla. -->
   </div>
 </section>
 
-<section class="card coffee-report-panel">
-  <h2>Pedidos pendientes de pago este día</h2>
-  <div class="coffee-report-scroll"><table class="coffee-report-table"><thead><tr><th>Cliente</th><th>Pedido</th><th>Importe</th><th>Abonado</th><th>Saldo</th><th>Estado</th></tr></thead><tbody>{% for debt in unpaid_orders %}<tr><td><strong>{{ debt.customer.name }}</strong><br><small>{{ debt.customer.phone|default:'Sin teléfono' }}</small></td><td><a href="{% url 'orders:order_detail' debt.order_id %}">{{ debt.order.formatted_number }}</a></td><td>${{ debt.original_amount|floatformat:2 }}</td><td>${{ debt.paid_amount|floatformat:2 }}</td><td>${{ debt.balance|floatformat:2 }}</td><td>{{ debt.get_status_display }}</td></tr>{% empty %}<tr><td colspan="6">No quedó ningún pedido pendiente de pago este día.</td></tr>{% endfor %}</tbody></table></div>
+<section class="card coffee-report-panel cash-register-audit" data-register-cut-audit data-audit-url="{% url 'cashier:register_cut_audit_counts' %}" data-audit-date="{{ selected_date|date:'Y-m-d' }}">
+  <h2>Pedidos pendientes de pago este día <span class="cash-register-audit-count" data-unpaid-count aria-live="polite">{{ unpaid_orders|length }}</span></h2>
+  <div class="coffee-report-scroll"><table class="coffee-report-table"><thead><tr><th>#</th><th>Cliente</th><th>Pedido</th><th>Importe</th><th>Abonado</th><th>Saldo</th><th>Estado</th></tr></thead><tbody>{% for debt in unpaid_orders %}<tr><td>{{ forloop.counter }}</td><td><strong>{{ debt.customer.name }}</strong><br><small>{{ debt.customer.phone|default:'Sin teléfono' }}</small></td><td><a href="{% url 'orders:order_detail' debt.order_id %}">{{ debt.order.formatted_number }}</a></td><td>${{ debt.original_amount|floatformat:2 }}</td><td>${{ debt.paid_amount|floatformat:2 }}</td><td>${{ debt.balance|floatformat:2 }}</td><td>{{ debt.get_status_display }}</td></tr>{% empty %}<tr><td colspan="7">No quedó ningún pedido pendiente de pago este día.</td></tr>{% endfor %}</tbody></table></div>
 </section>
 
 <section class="card coffee-report-panel">
-  <h2>Pedidos que quedaron sin resolver este día</h2>
+  <h2>Pedidos que quedaron sin resolver este día <span class="cash-register-audit-count" data-pending-count aria-live="polite">{{ pending_orders|length }}</span></h2>
   <p>No están cancelados, no están registrados como no pagados, y nunca se marcaron como entregados o recogidos.</p>
-  <div class="coffee-report-scroll"><table class="coffee-report-table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Modalidad</th><th>Total</th><th>Estado</th></tr></thead><tbody>{% for order in pending_orders %}<tr><td><a href="{% url 'orders:order_detail' order.id %}">{{ order.formatted_number }}</a></td><td>{{ order.customer_name|default:'Sin nombre' }}</td><td>{{ order.get_order_type_display }}</td><td>${{ order.total|floatformat:2 }}</td><td>{{ order.get_status_display }}</td></tr>{% empty %}<tr><td colspan="5">Todos los pedidos de este día quedaron bien resueltos.</td></tr>{% endfor %}</tbody></table></div>
+  <div class="coffee-report-scroll"><table class="coffee-report-table"><thead><tr><th>#</th><th>Pedido</th><th>Cliente</th><th>Modalidad</th><th>Total</th><th>Estado</th></tr></thead><tbody>{% for order in pending_orders %}<tr><td>{{ forloop.counter }}</td><td><a href="{% url 'orders:order_detail' order.id %}">{{ order.formatted_number }}</a></td><td>{{ order.customer_name|default:'Sin nombre' }}</td><td>{{ order.get_order_type_display }}</td><td>${{ order.total|floatformat:2 }}</td><td>{{ order.get_status_display }}</td></tr>{% empty %}<tr><td colspan="6">Todos los pedidos de este día quedaron bien resueltos.</td></tr>{% endfor %}</tbody></table></div>
 </section>
 
 <section class="card coffee-report-panel">
@@ -77,4 +77,4 @@ después de leerla. -->
   <div class="coffee-report-scroll"><table class="coffee-report-table"><thead><tr><th>Semana</th><th>Efectivo</th><th>Terminal</th><th>Transferencia</th><th>Total ingresos</th><th>Total egresos</th></tr></thead><tbody>{% for week in weekly_cuts %}<tr><td>{{ week.week_start|date:'d/m' }} – {{ week.week_end|date:'d/m/Y' }}</td><td>${{ week.closing_cash|floatformat:2 }}</td><td>${{ week.closing_card|floatformat:2 }}</td><td>${{ week.closing_transfer|floatformat:2 }}</td><td><strong>${{ week.total_income|floatformat:2 }}</strong></td><td>${{ week.total_expenses|floatformat:2 }}</td></tr>{% empty %}<tr><td colspan="6">No hay cortes registrados en este rango.</td></tr>{% endfor %}</tbody></table></div>
 </section>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/cashier-tools-toggle.js' %}?v=1"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/cashier-tools-toggle.js' %}?v=1"></script><script src="{% static 'js/cashier-register-cut.js' %}?v=1"></script>{% endblock %}

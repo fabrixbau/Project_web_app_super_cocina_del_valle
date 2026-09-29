@@ -431,6 +431,7 @@ class TerminalMovement(models.Model):
         related_name="terminal_movements_received",
     )
     terminal_name_reference = models.CharField(max_length=150, blank=True)
+    classification_color = models.CharField(max_length=32, blank=True)
     order = models.ForeignKey(
         Order, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="terminal_movements",

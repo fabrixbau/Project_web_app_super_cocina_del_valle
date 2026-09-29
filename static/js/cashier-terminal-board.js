@@ -7,6 +7,9 @@ terminalFilters?.querySelectorAll("input, select").forEach((field) => field.addE
 
 const board = document.querySelector("[data-terminal-board]");
 const feedback = document.querySelector("[data-terminal-feedback]");
+const colorPalette = document.querySelector("[data-terminal-color-palette]");
+const colorOptions = colorPalette?.querySelector("[data-terminal-color-options]");
+let selectedClassificationColor = "";
 const timers = new WeakMap();
 const versions = new WeakMap();
 const money = (value) => Number(value || 0).toFixed(2);
@@ -21,9 +24,61 @@ function rowData(row) {
     tip_amount: row.querySelector("[name='tip_amount']").value || "0",
     tip_recipient: row.querySelector("[name='tip_recipient']").value,
     terminal_name_reference: row.querySelector("[name='terminal_name_reference']").value,
+    classification_color: row.querySelector("[name='classification_color']").value,
     linked_record: row.querySelector("[name='linked_record']").value,
   };
 }
+
+const generatedColor = (index) => `hsl(${(index * 137 + 12) % 360} 68% 48%)`;
+function paintClassification(row, color) {
+  row.dataset.classificationColor = color;
+  row.querySelector("[name='classification_color']").value = color;
+  const checkbox = row.querySelector("[data-row-color-toggle]");
+  checkbox.checked = Boolean(color);
+  checkbox.style.accentColor = color || "";
+  row.classList.toggle("has-classification-color", Boolean(color));
+  if (color) row.style.setProperty("--terminal-row-color", color);
+  else row.style.removeProperty("--terminal-row-color");
+}
+function selectPaletteButton(button) {
+  selectedClassificationColor = button.dataset.terminalColor;
+  colorOptions?.querySelectorAll("[data-terminal-color]").forEach((item) => {
+    item.classList.toggle("is-selected", item === button);
+    item.setAttribute("aria-pressed", String(item === button));
+  });
+}
+function installPaletteButton(button) {
+  button.setAttribute("aria-pressed", "false");
+  button.addEventListener("click", () => selectPaletteButton(button));
+}
+function ensureReferenceColor(label) {
+  const normalized = label.trim().toLocaleLowerCase("es-MX");
+  if (!normalized || !colorOptions) return;
+  const existing = [...colorOptions.querySelectorAll("[data-color-label]")].some(
+    (button) => button.dataset.colorLabel.trim().toLocaleLowerCase("es-MX") === normalized,
+  );
+  if (existing) return;
+  colorOptions.querySelector("[data-empty-color-palette]")?.remove();
+  const index = colorOptions.querySelectorAll("[data-terminal-color]").length;
+  const color = generatedColor(index);
+  const button = document.createElement("button");
+  const swatch = document.createElement("span");
+  const caption = document.createElement("small");
+  button.type = "button";
+  button.dataset.terminalColor = color;
+  button.dataset.colorLabel = label.trim();
+  button.style.setProperty("--terminal-mark-color", color);
+  button.title = label.trim();
+  button.setAttribute("aria-label", `Seleccionar color para ${label.trim()}`);
+  caption.textContent = label.trim();
+  button.append(swatch, caption);
+  installPaletteButton(button);
+  colorOptions.append(button);
+}
+colorOptions?.querySelectorAll("[data-terminal-color]").forEach(installPaletteButton);
+board?.querySelectorAll(".terminal-movement-row").forEach((row) => {
+  paintClassification(row, row.dataset.classificationColor || "");
+});
 
 function updateConsumption(row) {
   const data = rowData(row); const total = Number(data.total_amount || 0); const tip = Number(data.tip_amount || 0);
@@ -55,6 +110,7 @@ function appendBlankFrom(row) {
   delete clone.dataset.saving; delete clone.dataset.pendingSave;
   clone.querySelector("[name='total_amount']").value = ""; clone.querySelector("[name='tip_amount']").value = "0";
   clone.querySelector("[name='terminal_name_reference']").value = ""; clone.querySelector("[name='linked_record']").value = ""; clone.querySelector("[name='tip_recipient']").value = "";
+  paintClassification(clone, "");
   clone.querySelector("[data-link-trigger]").textContent = "Vincular";
   clone.querySelectorAll("[data-recipient-id]").forEach((button) => button.classList.remove("is-selected")); clone.querySelector("[data-consumption]").textContent = "$0.00";
   clone.querySelector("[data-delete-movement]").hidden = true; clone.querySelector("[data-row-save-state]").textContent = "Escribe el total para crear el movimiento."; board.append(clone);
@@ -86,6 +142,8 @@ async function saveRow(row) {
     } if (versions.get(row) !== version) return;
     const wasNew = !row.dataset.movementId; const previousTotal = Number(row.dataset.savedTotal || 0); const previousTip = Number(row.dataset.savedTip || 0);
     row.dataset.movementId = result.movement.id; row.dataset.savedTotal = result.movement.total; row.dataset.savedTip = result.movement.tip; row.classList.remove("is-new"); row.querySelector("[data-delete-movement]").hidden = false; state.textContent = "Guardado";
+    paintClassification(row, result.movement.classification_color || "");
+    ensureReferenceColor(row.querySelector("[name='terminal_name_reference']").value);
     setNumber("[data-selected-total]", numberFrom("[data-selected-total]") - previousTotal + Number(result.movement.total)); setNumber("[data-selected-tip]", numberFrom("[data-selected-tip]") - previousTip + Number(result.movement.tip));
     if (wasNew) { appendBlankFrom(row); renumberRows(); }
     scheduleSummaryRefresh();
@@ -120,8 +178,25 @@ async function refreshPersonSummary() {
 }
 function scheduleSummaryRefresh() { window.clearTimeout(summaryRefreshTimer); summaryRefreshTimer = window.setTimeout(refreshPersonSummary, 400); }
 
-board?.addEventListener("input", (event) => { const row = event.target.closest("[data-movement-id]"); if (row) scheduleSave(row); });
+board?.addEventListener("input", (event) => { if (event.target.matches("[data-row-color-toggle]")) return; const row = event.target.closest("[data-movement-id]"); if (row) scheduleSave(row); });
 board?.addEventListener("click", async (event) => {
+  const colorToggle = event.target.closest("[data-row-color-toggle]");
+  if (colorToggle) {
+    const row = colorToggle.closest("[data-movement-id]");
+    if (!selectedClassificationColor) {
+      paintClassification(row, row.dataset.classificationColor || "");
+      feedback.textContent = "Selecciona primero un color de la paleta.";
+      feedback.className = "message error";
+      feedback.hidden = false;
+      return;
+    }
+    const nextColor = row.dataset.classificationColor === selectedClassificationColor
+      ? "" : selectedClassificationColor;
+    paintClassification(row, nextColor);
+    feedback.hidden = true;
+    scheduleSave(row, true);
+    return;
+  }
   const recipientButton = event.target.closest("[data-recipient-id]");
   if (recipientButton) { const row = recipientButton.closest("[data-movement-id]"); const hidden = row.querySelector("[name='tip_recipient']"); const deselect = hidden.value === recipientButton.dataset.recipientId; hidden.value = deselect ? "" : recipientButton.dataset.recipientId; row.querySelectorAll("[data-recipient-id]").forEach((button) => button.classList.toggle("is-selected", !deselect && button === recipientButton)); scheduleSave(row, true); return; }
   const linkTrigger = event.target.closest("[data-link-trigger]");

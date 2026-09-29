@@ -20,7 +20,48 @@ changeOrderType?.addEventListener("change", () => {
 changePaymentMethod?.addEventListener("change", () => {
   if (changePaymentMethod.value === "cash_change") changeOrderType.value = "delivery";
 });
-changeFilters?.querySelectorAll("input, select").forEach((field) => field.addEventListener("change", () => changeFilters.requestSubmit()));
+changeFilters?.querySelectorAll("select, input[type='date']").forEach((field) => field.addEventListener("change", () => changeFilters.requestSubmit()));
+const changeSearchInput = changeFilters?.querySelector("[data-change-order-search-input]");
+const changeSearchResults = changeFilters?.querySelector("[data-change-order-search-results]");
+const changeSearchOptions = (() => {
+  try { return JSON.parse(document.querySelector("#change-order-search-options")?.textContent || "[]"); }
+  catch (error) { return []; }
+})();
+const closeChangeSearch = () => { if (changeSearchResults) changeSearchResults.hidden = true; };
+const renderChangeSearch = () => {
+  if (!changeSearchInput || !changeSearchResults) return;
+  const query = changeSearchInput.value.trim().toLocaleLowerCase("es-MX");
+  changeSearchResults.replaceChildren();
+  if (query.length < 2) { closeChangeSearch(); return; }
+  const matches = changeSearchOptions.filter((order) => (
+    order.customer.toLocaleLowerCase("es-MX").includes(query) || order.folio.includes(query.replace(/^#/, ""))
+  )).slice(0, 10);
+  if (!matches.length) { closeChangeSearch(); return; }
+  matches.forEach((order) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    const customer = document.createElement("strong");
+    const folio = document.createElement("small");
+    customer.textContent = order.customer;
+    folio.textContent = `Pedido ${order.folio}`;
+    button.append(customer, folio);
+    button.addEventListener("click", () => {
+      changeSearchInput.value = order.folio;
+      closeChangeSearch();
+      changeFilters.requestSubmit();
+    });
+    changeSearchResults.append(button);
+  });
+  changeSearchResults.hidden = false;
+};
+changeSearchInput?.addEventListener("input", renderChangeSearch);
+changeSearchInput?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") { event.preventDefault(); closeChangeSearch(); changeFilters.requestSubmit(); }
+  if (event.key === "Escape") closeChangeSearch();
+});
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("[data-change-order-search]")) closeChangeSearch();
+});
 const settlementFeedback = document.querySelector("[data-settlement-feedback]");
 const moneyValue = (element) => Number((element?.textContent || "0").replace(/[^0-9.-]/g, ""));
 const paintMoney = (element, amount) => { if (element) element.textContent = new Intl.NumberFormat("es-MX", {style: "currency", currency: "MXN"}).format(Math.max(0, amount)); };

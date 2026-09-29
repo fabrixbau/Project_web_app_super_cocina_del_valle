@@ -366,6 +366,16 @@ class TerminalMovementLinkingRulesTests(TestCase):
             "linked_record": linked_record,
         })
 
+    def test_filters_and_cut_controls_share_the_row_before_color_palette(self):
+        response = self.client.get(
+            reverse("cashier:terminal_board"), {"provider": TerminalCut.Provider.TRANSFER},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="terminal-controls-row"')
+        self.assertContains(response, "data-terminal-filters", count=1)
+        html = response.content.decode()
+        self.assertLess(html.index("terminal-controls-row"), html.index("terminal-color-palette"))
+
     def test_clover_can_link_closed_card_table_but_not_a_delivery_order(self):
         table = self.make_closed_table(payment_method=TableAccount.PaymentMethod.CARD)
         response = self.save_movement(provider=TerminalCut.Provider.CLOVER, linked_record=f"table:{table.pk}")
@@ -454,6 +464,72 @@ class TerminalMovementLinkingRulesTests(TestCase):
         self.assertIn(f"table:{tipped_table.pk}", candidate_values)
         self.assertNotIn(f"order:{no_tip_order.pk}", candidate_values)
         self.assertNotIn(f"table:{no_tip_table.pk}", candidate_values)
+
+    def test_row_classification_color_is_saved_changed_and_removed(self):
+        cut = TerminalCut.objects.create(
+            operating_date=self.today, provider=TerminalCut.Provider.TRANSFER,
+        )
+        response = self.client.post(reverse("cashier:terminal_movement_save"), {
+            "cut_id": cut.pk,
+            "total_amount": "125.00",
+            "tip_amount": "5.00",
+            "linked_record": "",
+            "terminal_name_reference": "Referencia manual",
+            "classification_color": "hsl(12 68% 48%)",
+        })
+        self.assertEqual(response.status_code, 200)
+        movement = TerminalMovement.objects.get()
+        self.assertEqual(movement.classification_color, "hsl(12 68% 48%)")
+        self.assertEqual(response.json()["movement"]["classification_color"], "hsl(12 68% 48%)")
+
+        response = self.client.post(reverse("cashier:terminal_movement_save"), {
+            "cut_id": cut.pk,
+            "movement_id": movement.pk,
+            "total_amount": "125.00",
+            "tip_amount": "5.00",
+            "linked_record": "",
+            "terminal_name_reference": "Referencia manual",
+            "classification_color": "",
+        })
+        self.assertEqual(response.status_code, 200)
+        movement.refresh_from_db()
+        self.assertEqual(movement.classification_color, "")
+
+    def test_invalid_row_classification_color_is_rejected(self):
+        cut = TerminalCut.objects.create(
+            operating_date=self.today, provider=TerminalCut.Provider.TRANSFER,
+        )
+        response = self.client.post(reverse("cashier:terminal_movement_save"), {
+            "cut_id": cut.pk, "total_amount": "100.00", "tip_amount": "0",
+            "linked_record": "", "classification_color": "red; background:url(x)",
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(TerminalMovement.objects.exists())
+
+    def test_daily_palette_contains_active_staff_and_distinct_manual_references(self):
+        courier = get_user_model().objects.create_user(username="terminal_courier")
+        courier.groups.add(Group.objects.get_or_create(name=DELIVERY)[0])
+        cut = TerminalCut.objects.create(
+            operating_date=self.today, provider=TerminalCut.Provider.TRANSFER,
+        )
+        TerminalMovement.objects.create(
+            cut=cut, total_amount=100, terminal_name_reference="Manual uno", created_by=self.admin,
+        )
+        TerminalMovement.objects.create(
+            cut=cut, total_amount=80, terminal_name_reference="manual UNO", created_by=self.admin,
+        )
+        other_cut = TerminalCut.objects.create(
+            operating_date=self.today - timedelta(days=1), provider=TerminalCut.Provider.TRANSFER,
+        )
+        TerminalMovement.objects.create(
+            cut=other_cut, total_amount=70, terminal_name_reference="No debe aparecer", created_by=self.admin,
+        )
+
+        response = self.client.get(f"{reverse('cashier:terminal_board')}?provider=transfer")
+        self.assertEqual(response.status_code, 200)
+        labels = [item["label"] for item in response.context["color_palette"]]
+        self.assertEqual(labels, [courier.username, self.waiter.username, "Manual uno"])
+        self.assertEqual(len({item["color"] for item in response.context["color_palette"]}), 3)
 
 
 class CapturePrintTests(TestCase):
@@ -667,6 +743,9 @@ class OrderInventoryIntegrationTests(TestCase):
         response = self.client.get(reverse("cashier:change_board"), {"settlement": "pending"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["settled_total"], settled.courier_return_amount)
+        self.assertContains(response, 'class="change-overview"')
+        self.assertContains(response, 'class="change-summary-grid"')
+        self.assertContains(response, 'class="card change-person-summary"')
 
     def test_completed_pickup_marks_reservation_as_consumption(self):
         item = add_internal_order_product(order=self.order, product=self.product, actor=self.actor, require_individual=False)
@@ -977,6 +1056,121 @@ class DeliveryBoardQuickStatusControlTests(TestCase):
         self.assertTrue(data["ok"])
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.OUT_FOR_DELIVERY)
+
+
+class ExactFolioBoardSearchTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="exact_folio_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.courier = get_user_model().objects.create_user(username="exact_folio_courier")
+        self.courier.groups.add(Group.objects.get_or_create(name=DELIVERY)[0])
+        self.old_date = timezone.localdate() - timedelta(days=40)
+        self.order = Order.objects.create(
+            daily_number=731, operating_date=self.old_date,
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.DELIVERED, customer_name="Folio fuera de filtros",
+            total=120, payment_method=Order.PaymentMethod.TRANSFER,
+            delivery_person=self.courier, cashier_released_at=timezone.now(),
+        )
+        self.client.force_login(self.admin)
+
+    def test_cashier_full_folio_ignores_date_scope_type_courier_and_payment_filters(self):
+        today = timezone.localdate().isoformat()
+        response = self.client.get(reverse("cashier:cashier_board"), {
+            "q": self.order.formatted_number,
+            "date_from": today,
+            "date_to": today,
+            "scope": "active",
+            "type": Order.OrderType.PICKUP,
+            "delivery_person": "unassigned",
+            "payment_method": Order.PaymentMethod.CASH,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.order.formatted_number)
+        self.assertContains(response, self.order.customer_name)
+
+    def test_delivery_full_folio_ignores_date_status_and_courier_filters(self):
+        today = timezone.localdate().isoformat()
+        response = self.client.get(reverse("deliveries:delivery_board"), {
+            "q": f"#{self.order.formatted_number}",
+            "date_from": today,
+            "date_to": today,
+            "status": Order.Status.READY,
+            "delivery_person": "unassigned",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.order.formatted_number)
+        self.assertContains(response, self.order.customer_name)
+
+    def test_order_board_full_folio_ignores_date_scope_status_and_type_filters(self):
+        today = timezone.localdate().isoformat()
+        response = self.client.get(reverse("orders:order_list"), {
+            "q": self.order.formatted_number,
+            "date_from": today,
+            "date_to": today,
+            "scope": "active",
+            "status": Order.Status.READY,
+            "order_type": Order.OrderType.PICKUP,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.order.formatted_number)
+        self.assertContains(response, self.order.customer_name)
+
+    def test_change_board_full_folio_ignores_every_other_filter(self):
+        self.order.payment_method = Order.PaymentMethod.CASH
+        self.order.cash_tendered = 200
+        self.order.needs_change = True
+        self.order.save(update_fields=("payment_method", "cash_tendered", "needs_change"))
+        today = timezone.localdate().isoformat()
+        response = self.client.get(reverse("cashier:change_board"), {
+            "q": self.order.formatted_number,
+            "from": today,
+            "to": today,
+            "settlement": "pending",
+            "order_type": Order.OrderType.PICKUP,
+            "payment_method": "cash_change",
+            "status": Order.Status.READY,
+            "delivery_person": "999999",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.order.formatted_number)
+        self.assertContains(response, self.order.customer_name)
+        self.assertContains(response, "data-settlement-form")
+
+    def test_change_board_customer_suggestions_only_include_orders_from_today(self):
+        today_order = Order.objects.create(
+            daily_number=732, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.DELIVERY, source=Order.Source.INTERNAL,
+            status=Order.Status.READY, customer_name="Alicia Coincidente", total=90,
+        )
+
+        response = self.client.get(reverse("cashier:change_board"))
+
+        options = response.context["today_search_options"]
+        self.assertIn(
+            {"folio": today_order.formatted_number, "customer": today_order.customer_name},
+            options,
+        )
+        self.assertNotIn(
+            {"folio": self.order.formatted_number, "customer": self.order.customer_name},
+            options,
+        )
+        self.assertContains(response, 'id="change-order-search-options"')
+
+    def test_short_consecutive_does_not_bypass_cashier_filters(self):
+        today = timezone.localdate().isoformat()
+        response = self.client.get(reverse("cashier:cashier_board"), {
+            "q": str(self.order.daily_number),
+            "date_from": today,
+            "date_to": today,
+            "scope": "all",
+        })
+
+        self.assertNotContains(response, self.order.customer_name)
 
 
 class DraftOrderQuickCloseTests(TestCase):
@@ -1848,6 +2042,51 @@ class CashRegisterCutTests(TestCase):
         self.assertContains(response, "$150.00")
         self.assertContains(response, order.formatted_number)
 
+    def test_audit_tables_show_ascending_numbers_and_initial_counters(self):
+        debt_order = self.make_order(
+            operating_date=self.today, status=Order.Status.DELIVERED,
+            total=150, daily_number=3010,
+        )
+        create_customer_debt(order=debt_order, actor=self.admin)
+        pending_order = self.make_order(
+            operating_date=self.today, status=Order.Status.PREPARING,
+            daily_number=3011,
+        )
+
+        response = self.client.get(reverse("cashier:register_cut"), {"date": self.today.isoformat()})
+
+        self.assertContains(response, 'data-unpaid-count aria-live="polite">1</span>')
+        self.assertContains(response, 'data-pending-count aria-live="polite">1</span>')
+        self.assertContains(response, "<th>#</th>", count=2, html=True)
+        self.assertContains(response, "<tr><td>1</td><td><strong>", html=False)
+        self.assertContains(response, "<tr><td>1</td><td><a", html=False)
+        self.assertContains(response, debt_order.formatted_number)
+        self.assertContains(response, pending_order.formatted_number)
+
+    def test_audit_count_endpoint_reflects_changes_without_reloading_the_cut(self):
+        debt_order = self.make_order(
+            operating_date=self.today, status=Order.Status.DELIVERED,
+            total=150, daily_number=3020,
+        )
+        debt = create_customer_debt(order=debt_order, actor=self.admin)
+        pending_order = self.make_order(
+            operating_date=self.today, status=Order.Status.PREPARING,
+            daily_number=3021,
+        )
+        url = reverse("cashier:register_cut_audit_counts")
+
+        response = self.client.get(url, {"date": self.today.isoformat()})
+        self.assertEqual(response.json(), {"unpaid_count": 1, "pending_count": 1})
+
+        debt.status = CustomerDebt.Status.PAID
+        debt.paid_amount = debt.original_amount
+        debt.save(update_fields=("status", "paid_amount", "updated_at"))
+        pending_order.status = Order.Status.DELIVERED
+        pending_order.save(update_fields=("status", "updated_at"))
+
+        response = self.client.get(url, {"date": self.today.isoformat()})
+        self.assertEqual(response.json(), {"unpaid_count": 0, "pending_count": 0})
+
     def test_unresolved_orders_exclude_cancelled_and_already_marked_unpaid(self):
         # NOTA: reproduce la regla exacta que pidió el desarrollador — cancelado
         # y "no pagó" cuentan como resueltos aunque su status operativo nunca
@@ -1864,6 +2103,52 @@ class CashRegisterCutTests(TestCase):
         # de PAGO (tiene un adeudo real) — sólo debe faltar en la de "sin resolver".
         pending_ids = {order.id for order in response.context["pending_orders"]}
         self.assertEqual(pending_ids, {stuck_order.id})
+
+    def test_unresolved_orders_exclude_transfer_when_destination_table_is_closed(self):
+        closed_table = DiningTable.objects.create(name="Mesa transferencia cerrada")
+        closed_account = TableAccount.objects.create(
+            table=closed_table,
+            assigned_waiter=self.admin,
+            opened_by=self.admin,
+            status=TableAccount.Status.CLOSED,
+            closed_at=timezone.now(),
+            closed_by=self.admin,
+        )
+        resolved_order = self.make_order(
+            operating_date=self.today,
+            status=Order.Status.TRANSFERRED,
+            daily_number=3030,
+        )
+        resolved_order.transferred_to_table = closed_account
+        resolved_order.save(update_fields=("transferred_to_table", "updated_at"))
+
+        open_table = DiningTable.objects.create(name="Mesa transferencia abierta")
+        open_account = TableAccount.objects.create(
+            table=open_table,
+            assigned_waiter=self.admin,
+            opened_by=self.admin,
+            status=TableAccount.Status.OPEN,
+        )
+        still_pending_order = self.make_order(
+            operating_date=self.today,
+            status=Order.Status.TRANSFERRED,
+            daily_number=3031,
+        )
+        still_pending_order.transferred_to_table = open_account
+        still_pending_order.save(update_fields=("transferred_to_table", "updated_at"))
+
+        response = self.client.get(
+            reverse("cashier:register_cut"), {"date": self.today.isoformat()},
+        )
+
+        pending_ids = {order.id for order in response.context["pending_orders"]}
+        self.assertNotIn(resolved_order.id, pending_ids)
+        self.assertIn(still_pending_order.id, pending_ids)
+        counts = self.client.get(
+            reverse("cashier:register_cut_audit_counts"),
+            {"date": self.today.isoformat()},
+        ).json()
+        self.assertEqual(counts["pending_count"], 1)
 
     def test_daily_and_weekly_history(self):
         monday = self.today - timedelta(days=self.today.weekday())
@@ -1904,10 +2189,11 @@ class OrderTableTransferTests(TestCase):
         self.table = DiningTable.objects.create(name="Mesa transferencias", display_order=200)
         self.table_two = DiningTable.objects.create(name="Mesa transferencias 2", display_order=201)
 
-    def make_pickup_order(self, *, status=Order.Status.PREPARING, daily_number=None):
+    def make_pickup_order(self, *, status=Order.Status.PREPARING, daily_number=None,
+                          order_type=Order.OrderType.PICKUP):
         return Order.objects.create(
             daily_number=daily_number or (900 + Order.objects.count()),
-            operating_date=timezone.localdate(), order_type=Order.OrderType.PICKUP,
+            operating_date=timezone.localdate(), order_type=order_type,
             source=Order.Source.INTERNAL, status=status, customer_name="Cliente transferible",
             phone="", total=0, created_by=self.admin,
         )
@@ -1954,13 +2240,15 @@ class OrderTableTransferTests(TestCase):
             order.status_history.filter(to_status=Order.Status.TRANSFERRED).exists()
         )
 
-    def test_transfer_rejects_delivery_orders(self):
-        order = self.make_pickup_order()
-        order.order_type = Order.OrderType.DELIVERY
-        order.save(update_fields=("order_type",))
+    def test_transfer_accepts_delivery_orders(self):
+        order = self.make_pickup_order(order_type=Order.OrderType.DELIVERY)
         add_internal_order_product(order=order, product=self.product, actor=self.admin)
-        with self.assertRaisesMessage(ValidationError, "Sólo los pedidos para Recoger"):
-            transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
+        new_account = transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.TRANSFERRED)
+        self.assertEqual(order.transferred_to_table_id, new_account.pk)
+        self.assertEqual(new_account.items.count(), 1)
 
     def test_transfer_rejects_inactive_statuses(self):
         for status in (
@@ -2109,6 +2397,19 @@ class OrderTableTransferTests(TestCase):
         self.client.force_login(self.waiter)
         response = self.client.get(reverse("orders:order_list"))
         self.assertContains(response, "data-order-transfer-form")
+
+    def test_delivery_order_also_exposes_transfer_to_table(self):
+        order = self.make_pickup_order(order_type=Order.OrderType.DELIVERY)
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        self.client.force_login(self.waiter)
+
+        response = self.client.get(reverse("orders:order_list"))
+
+        rendered_order = next(item for item in response.context["delivery_orders"] if item.pk == order.pk)
+        self.assertTrue(rendered_order.can_transfer_to_table)
+        self.assertContains(
+            response, reverse("orders:order_transfer_to_table", args=(order.pk,)),
+        )
 
     def test_order_transfer_to_table_view_rejects_roles_without_access(self):
         order = self.make_pickup_order()

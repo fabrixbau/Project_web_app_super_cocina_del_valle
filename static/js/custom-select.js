@@ -66,9 +66,10 @@
     enhanced.add(select);
     const wrapper = document.createElement("div");
     wrapper.className = "app-select";
-    // Every simple select is a searchable combobox by default. Screens that truly need
-    // the browser control can opt out with data-native-select; multiple selects remain native.
-    const searchable = select.name !== "table_id";
+    // Every simple select is searchable by default. Mesa y Huevo opcional son listas
+    // cortas: funcionan como botón desplegable, de modo que tocar otra vez la misma
+    // barra cierre las opciones sin convertirla en campo de texto ni abrir teclado.
+    const searchable = select.name !== "table_id" && !select.closest(".package-egg-choice");
     const trigger = document.createElement(searchable ? "input" : "button");
     trigger.type = searchable ? "text" : "button";
     trigger.className = "app-select-trigger";

@@ -1518,19 +1518,19 @@ def _table_item_to_order_kwargs(item):
 @transaction.atomic
 def transfer_order_to_table(*, order, table, actor, assigned_waiter=None):
     # NOTA TEMPORAL PARA APRENDIZAJE: caso real que reportó el desarrollador — un
-    # cliente pidió para Recoger pero, al llegar, decide comer en el restaurante. El
+    # cliente pidió para Recoger o Entrega pero decide comer en el restaurante. El
     # pedido nunca se borra: queda marcado "Transferido a mesa" (histórico completo,
     # incluye sus partidas originales) y enlazado a la cuenta nueva; su inventario
     # reservado se mueve del canal Pedidos al canal Mesas para los mismos productos
-    # y cantidades. Sólo Recoger puede transferirse (Entrega no aplica aquí). Borra
+    # y cantidades. Ambas modalidades activas pueden transferirse. Borra
     # esta nota después de leerla.
     from tables.models import DiningTable, TableAccount, TableAccountItem, TableActivity
     from tables.services import record_activity, validate_waiter
     from tables.services import _change_item_stock as _change_table_item_stock
 
     order = Order.objects.select_for_update().get(pk=order.pk)
-    if order.order_type != Order.OrderType.PICKUP:
-        raise ValidationError("Sólo los pedidos para Recoger se pueden pasar a una mesa.")
+    if order.order_type not in {Order.OrderType.PICKUP, Order.OrderType.DELIVERY}:
+        raise ValidationError("Este tipo de pedido no se puede pasar a una mesa.")
     if order.status in {
         Order.Status.CANCELED, Order.Status.DELIVERED, Order.Status.PICKED_UP, Order.Status.TRANSFERRED,
     }:
