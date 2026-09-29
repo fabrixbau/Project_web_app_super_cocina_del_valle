@@ -18,6 +18,7 @@ urlpatterns = [
     path("cambios/", views.cashier_change_board, name="change_board"),
     path("terminales/", views.cashier_terminal_board, name="terminal_board"),
     path("terminales/movimientos/guardar/", views.cashier_terminal_movement_save, name="terminal_movement_save"),
+    path("terminales/movimientos/ordenar/", views.cashier_terminal_movement_reorder, name="terminal_movement_reorder"),
     path("terminales/movimientos/<int:movement_id>/eliminar/", views.cashier_terminal_movement_delete, name="terminal_movement_delete"),
     path("terminales/cortes/<int:cut_id>/estado/", views.cashier_terminal_cut_status, name="terminal_cut_status"),
     path("adeudos/", views.cashier_debt_board, name="debt_board"),

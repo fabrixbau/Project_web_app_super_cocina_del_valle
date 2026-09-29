@@ -1,5 +1,17 @@
 # CODEX_CONTEXT — Super Cocina del Valle
 
+### Corte de terminales: captura nueva arriba (2026-09-29)
+
+- En `/app/caja/terminales/`, la fila vacía de captura ahora permanece al inicio de la tabla. Cada registro nuevo queda inmediatamente debajo como fila `1`, desplaza los registros anteriores hacia abajo y renumera la lista en pantalla.
+- El orden nuevo se persiste en backend y sigue siendo compatible con el arrastre manual: sólo las filas guardadas se pueden mover; la captura vacía siempre permanece arriba.
+- No requiere una migración adicional a `0032`; reutiliza `TerminalMovement.display_position`.
+
+### Corte de terminales: filas reordenables por arrastre (2026-09-29)
+
+- En `/app/caja/terminales/`, cada registro guardado de un corte abierto tiene un asa `☰`: se mantiene presionada y se arrastra la fila hacia arriba o abajo. Funciona con mouse, lápiz y pantalla táctil sin interferir con los campos, colores, vínculos o el botón de eliminar.
+- Al soltar se persiste el orden en `TerminalMovement.display_position`; se conserva al recargar o cambiar de pantalla. Si hay un filtro por persona, se reordenan las filas visibles dentro de sus lugares y las filas ocultas no se alteran. La fila nueva permanece al final y no puede arrastrarse hasta guardarse.
+- Los cortes cerrados muestran el orden guardado pero bloquean el movimiento. Requiere aplicar la migración `orders.0032_terminalmovement_display_position`. `cashier-terminal-board.js` subió a v15 y `app.css` a v292.
+
 ### Repartos: acciones pendientes primero para el Repartidor (2026-09-29)
 
 - En `/app/repartos/`, el perfil Repartidor ve primero sus pedidos en `En reparto`, ordenados de forma ascendente por el momento en que fueron liberados de Caja. Así atiende primero el que lleva más tiempo esperando.

@@ -432,6 +432,10 @@ class TerminalMovement(models.Model):
     )
     terminal_name_reference = models.CharField(max_length=150, blank=True)
     classification_color = models.CharField(max_length=32, blank=True)
+    # NOTA TEMPORAL PARA APRENDIZAJE: esta posición permite que Caja acomode
+    # manualmente los registros arrastrando una fila. Cero conserva el orden histórico
+    # de los movimientos existentes hasta que alguien los reordene. Borra esta nota.
+    display_position = models.PositiveIntegerField(default=0)
     order = models.ForeignKey(
         Order, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="terminal_movements",
@@ -448,7 +452,7 @@ class TerminalMovement(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ("created_at", "id")
+        ordering = ("display_position", "created_at", "id")
         constraints = [
             models.UniqueConstraint(
                 fields=("order",), condition=models.Q(order__isnull=False),

@@ -557,6 +557,71 @@ class TerminalMovementLinkingRulesTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse(TerminalMovement.objects.exists())
 
+    def test_terminal_movements_can_be_reordered_and_keep_the_new_order(self):
+        cut = TerminalCut.objects.create(
+            operating_date=self.today, provider=TerminalCut.Provider.TRANSFER,
+        )
+        movements = [
+            TerminalMovement.objects.create(
+                cut=cut, total_amount=amount, display_position=index,
+                created_by=self.admin,
+            )
+            for index, amount in enumerate((100, 200, 300), start=1)
+        ]
+
+        response = self.client.post(reverse("cashier:terminal_movement_reorder"), {
+            "cut_id": cut.pk,
+            "movement_ids[]": [movements[2].pk, movements[0].pk, movements[1].pk],
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            list(cut.movements.values_list("pk", flat=True)),
+            [movements[2].pk, movements[0].pk, movements[1].pk],
+        )
+        board = self.client.get(
+            reverse("cashier:terminal_board"), {"provider": TerminalCut.Provider.TRANSFER},
+        )
+        self.assertEqual(
+            [movement.pk for movement in board.context["movements"]],
+            [movements[2].pk, movements[0].pk, movements[1].pk],
+        )
+
+    def test_new_terminal_movement_is_inserted_above_previous_records(self):
+        cut = TerminalCut.objects.create(
+            operating_date=self.today, provider=TerminalCut.Provider.TRANSFER,
+        )
+        previous = TerminalMovement.objects.create(
+            cut=cut, total_amount=80, display_position=1, created_by=self.admin,
+        )
+
+        response = self.client.post(reverse("cashier:terminal_movement_save"), {
+            "cut_id": cut.pk, "total_amount": "120.00", "tip_amount": "0",
+            "linked_record": "", "terminal_name_reference": "Nuevo",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        new_movement = TerminalMovement.objects.get(pk=response.json()["movement"]["id"])
+        self.assertEqual(
+            list(cut.movements.values_list("pk", flat=True)),
+            [new_movement.pk, previous.pk],
+        )
+
+    def test_closed_terminal_cut_cannot_be_reordered(self):
+        cut = TerminalCut.objects.create(
+            operating_date=self.today, provider=TerminalCut.Provider.TRANSFER,
+            status=TerminalCut.Status.CLOSED,
+        )
+        movement = TerminalMovement.objects.create(
+            cut=cut, total_amount=100, created_by=self.admin,
+        )
+
+        response = self.client.post(reverse("cashier:terminal_movement_reorder"), {
+            "cut_id": cut.pk, "movement_ids[]": [movement.pk],
+        })
+
+        self.assertEqual(response.status_code, 400)
+
     def test_daily_palette_contains_active_staff_and_distinct_manual_references(self):
         courier = get_user_model().objects.create_user(username="terminal_courier")
         courier.groups.add(Group.objects.get_or_create(name=DELIVERY)[0])

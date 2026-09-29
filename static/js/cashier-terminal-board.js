@@ -99,6 +99,84 @@ function renumberRows() {
   });
 }
 
+function orderedMovementRows() {
+  return [...board.querySelectorAll(".terminal-movement-row:not(.is-new)[data-movement-id]")];
+}
+
+function restoreMovementOrder(ids) {
+  ids.forEach((id) => {
+    const row = board.querySelector(`.terminal-movement-row[data-movement-id="${CSS.escape(id)}"]`);
+    if (row) board.append(row);
+  });
+  renumberRows();
+}
+
+async function persistMovementOrder(previousIds) {
+  const movementIds = orderedMovementRows().map((row) => row.dataset.movementId);
+  const body = new FormData();
+  body.append("csrfmiddlewaretoken", document.querySelector("input[name='csrfmiddlewaretoken']").value);
+  body.append("cut_id", board.dataset.cutId);
+  movementIds.forEach((id) => body.append("movement_ids[]", id));
+  try {
+    const response = await fetch(board.dataset.reorderUrl, {
+      method: "POST", body,
+      headers: {"X-Requested-With": "XMLHttpRequest", Accept: "application/json"},
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo guardar el orden.");
+    feedback.textContent = "Orden de registros guardado.";
+    feedback.className = "message success";
+    feedback.hidden = false;
+  } catch (error) {
+    restoreMovementOrder(previousIds);
+    feedback.textContent = error.message;
+    feedback.className = "message error";
+    feedback.hidden = false;
+  }
+}
+
+// NOTA TEMPORAL PARA APRENDIZAJE: Pointer Events permite usar el mismo gesto de
+// mantener y arrastrar con mouse, lápiz o dedo. El gesto empieza exclusivamente en
+// el asa para no interferir con inputs, colores, vínculos ni eliminar. Borra esta nota.
+let dragState = null;
+board?.addEventListener("pointerdown", (event) => {
+  const handle = event.target.closest("[data-terminal-drag-handle]");
+  if (!handle || handle.disabled || board.dataset.cutOpen !== "1") return;
+  const row = handle.closest(".terminal-movement-row:not(.is-new)");
+  if (!row?.dataset.movementId) return;
+  dragState = {
+    pointerId: event.pointerId,
+    row,
+    handle,
+    startY: event.clientY,
+    moved: false,
+    previousIds: orderedMovementRows().map((item) => item.dataset.movementId),
+  };
+  handle.setPointerCapture(event.pointerId);
+  event.preventDefault();
+});
+board?.addEventListener("pointermove", (event) => {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  if (!dragState.moved && Math.abs(event.clientY - dragState.startY) < 6) return;
+  dragState.moved = true;
+  dragState.row.classList.add("is-dragging");
+  const siblings = orderedMovementRows().filter((row) => row !== dragState.row);
+  const nextRow = siblings.find((row) => event.clientY < row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2);
+  board.insertBefore(dragState.row, nextRow || null);
+  renumberRows();
+  event.preventDefault();
+});
+async function finishMovementDrag(event) {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  const state = dragState;
+  dragState = null;
+  state.row.classList.remove("is-dragging");
+  if (state.handle.hasPointerCapture(event.pointerId)) state.handle.releasePointerCapture(event.pointerId);
+  if (state.moved) await persistMovementOrder(state.previousIds);
+}
+board?.addEventListener("pointerup", finishMovementDrag);
+board?.addEventListener("pointercancel", finishMovementDrag);
+
 function appendBlankFrom(row) {
   if (board.querySelector(".terminal-movement-row.is-new[data-movement-id='']")) return;
   const clone = row.cloneNode(true); clone.dataset.movementId = ""; clone.dataset.savedTotal = "0"; clone.dataset.savedTip = "0"; clone.classList.add("is-new");
@@ -113,7 +191,11 @@ function appendBlankFrom(row) {
   paintClassification(clone, "");
   clone.querySelector("[data-link-trigger]").textContent = "Vincular";
   clone.querySelectorAll("[data-recipient-id]").forEach((button) => button.classList.remove("is-selected")); clone.querySelector("[data-consumption]").textContent = "$0.00";
-  clone.querySelector("[data-delete-movement]").hidden = true; clone.querySelector("[data-row-save-state]").textContent = "Escribe el total para crear el movimiento."; board.append(clone);
+  clone.querySelector("[data-delete-movement]").hidden = true;
+  const cloneDragHandle = clone.querySelector("[data-terminal-drag-handle]");
+  if (cloneDragHandle) { cloneDragHandle.hidden = true; cloneDragHandle.disabled = true; }
+  clone.querySelector("[data-row-save-state]").textContent = "Escribe el total para crear el movimiento.";
+  board.insertBefore(clone, board.querySelector(".terminal-movement-row"));
 }
 
 async function saveRow(row) {
@@ -142,6 +224,8 @@ async function saveRow(row) {
     } if (versions.get(row) !== version) return;
     const wasNew = !row.dataset.movementId; const previousTotal = Number(row.dataset.savedTotal || 0); const previousTip = Number(row.dataset.savedTip || 0);
     row.dataset.movementId = result.movement.id; row.dataset.savedTotal = result.movement.total; row.dataset.savedTip = result.movement.tip; row.classList.remove("is-new"); row.querySelector("[data-delete-movement]").hidden = false; state.textContent = "Guardado";
+    const dragHandle = row.querySelector(".terminal-drag-handle");
+    if (dragHandle) { dragHandle.hidden = false; dragHandle.disabled = false; dragHandle.dataset.terminalDragHandle = ""; dragHandle.setAttribute("aria-label", "Mover registro"); }
     paintClassification(row, result.movement.classification_color || "");
     ensureReferenceColor(row.querySelector("[name='terminal_name_reference']").value);
     setNumber("[data-selected-total]", numberFrom("[data-selected-total]") - previousTotal + Number(result.movement.total)); setNumber("[data-selected-tip]", numberFrom("[data-selected-tip]") - previousTip + Number(result.movement.tip));

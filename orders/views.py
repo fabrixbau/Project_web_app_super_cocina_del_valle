@@ -2862,12 +2862,16 @@ def _terminal_movement_payload(movement):
 
 @require_POST
 @role_required(ADMIN)
+@transaction.atomic
 def cashier_terminal_movement_save(request):
-    cut = get_object_or_404(TerminalCut, pk=request.POST.get("cut_id"))
+    cut = get_object_or_404(TerminalCut.objects.select_for_update(), pk=request.POST.get("cut_id"))
     if cut.status == TerminalCut.Status.CLOSED:
         return JsonResponse({"ok": False, "error": "Reabre el corte antes de modificarlo."}, status=400)
     movement_id = request.POST.get("movement_id", "")
-    movement = get_object_or_404(TerminalMovement, pk=movement_id, cut=cut) if movement_id else TerminalMovement(cut=cut, created_by=request.user)
+    is_new_movement = not movement_id
+    movement = get_object_or_404(TerminalMovement, pk=movement_id, cut=cut) if movement_id else TerminalMovement(
+        cut=cut, created_by=request.user, display_position=1,
+    )
     try:
         total = Decimal(request.POST.get("total_amount", "0"))
         tip = Decimal(request.POST.get("tip_amount", "0") or "0")
@@ -2947,8 +2951,49 @@ def cashier_terminal_movement_save(request):
                 "error": "Esa mesa acaba de vincularse en otro movimiento. Selecciona otra.",
             }, status=409)
         movement.table_account = linked_table
+    if is_new_movement:
+        # NOTA TEMPORAL PARA APRENDIZAJE: la captura vacía vive arriba; por eso el
+        # movimiento nuevo ocupa siempre la primera posición y empuja hacia abajo a
+        # los anteriores. También normaliza registros viejos que todavía tenían 0.
+        # Borra esta nota después de leerla.
+        previous_movements = list(cut.movements.select_for_update())
+        for position, previous in enumerate(previous_movements, start=2):
+            previous.display_position = position
+        TerminalMovement.objects.bulk_update(previous_movements, ("display_position",))
     movement.save()
     return JsonResponse({"ok": True, "movement": _terminal_movement_payload(movement)})
+
+
+@require_POST
+@role_required(ADMIN)
+@transaction.atomic
+def cashier_terminal_movement_reorder(request):
+    # NOTA TEMPORAL PARA APRENDIZAJE: el navegador manda sólo las filas visibles,
+    # que pueden estar filtradas por persona. Sustituimos esas filas dentro de sus
+    # posiciones actuales y dejamos intactas las filas ocultas por el filtro.
+    # Borra esta nota después de leerla.
+    cut = get_object_or_404(TerminalCut.objects.select_for_update(), pk=request.POST.get("cut_id"))
+    if cut.status == TerminalCut.Status.CLOSED:
+        return JsonResponse({"ok": False, "error": "Reabre el corte antes de reordenar movimientos."}, status=400)
+    raw_ids = request.POST.getlist("movement_ids[]") or request.POST.getlist("movement_ids")
+    if not raw_ids or any(not value.isdigit() for value in raw_ids):
+        return JsonResponse({"ok": False, "error": "El orden enviado no es válido."}, status=400)
+    movement_ids = [int(value) for value in raw_ids]
+    if len(movement_ids) != len(set(movement_ids)):
+        return JsonResponse({"ok": False, "error": "El orden contiene registros repetidos."}, status=400)
+    movements = list(cut.movements.select_for_update())
+    by_id = {movement.pk: movement for movement in movements}
+    if any(movement_id not in by_id for movement_id in movement_ids):
+        return JsonResponse({"ok": False, "error": "Una fila ya no pertenece a este corte."}, status=400)
+    visible_ids = set(movement_ids)
+    visible_slots = [index for index, movement in enumerate(movements) if movement.pk in visible_ids]
+    reordered = list(movements)
+    for slot, movement_id in zip(visible_slots, movement_ids):
+        reordered[slot] = by_id[movement_id]
+    for position, movement in enumerate(reordered, start=1):
+        movement.display_position = position
+    TerminalMovement.objects.bulk_update(reordered, ("display_position",))
+    return JsonResponse({"ok": True, "movement_ids": movement_ids})
 
 
 @require_POST

@@ -8403,6 +8403,34 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   line-height: 1;
 }
 .terminal-movement-row .terminal-delete[hidden] { display: none; }
+.terminal-drag-handle {
+  position: absolute;
+  z-index: 3;
+  left: .55rem;
+  bottom: .3rem;
+  display: grid;
+  width: 2.15rem;
+  min-width: 2.15rem;
+  min-height: 1.8rem;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #7e958b;
+  border-radius: .5rem;
+  background: #eef3f0;
+  color: #245542;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.terminal-drag-handle:active { cursor: grabbing; }
+.terminal-drag-handle[hidden] { display: none; }
+.terminal-movement-row.is-dragging {
+  z-index: 8;
+  opacity: .82;
+  border: 2px dashed #23634e;
+  box-shadow: 0 .75rem 1.4rem rgba(16, 54, 42, .2);
+}
+.terminal-movement-row:has(.terminal-drag-handle:not([hidden])) { padding-bottom: 2.45rem; }
 
 /* Pedidos: Huevo opcional siempre permanece dentro del panel de extras. */
 .internal-pos-main,
