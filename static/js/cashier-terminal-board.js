@@ -287,7 +287,28 @@ board?.addEventListener("click", async (event) => {
   if (linkTrigger) { openLinkDialog(linkTrigger.closest("[data-movement-id]")); return; }
   const deleteButton = event.target.closest("[data-delete-movement]"); if (!deleteButton || deleteButton.hidden) return;
   const row = deleteButton.closest("[data-movement-id]"); deleteButton.disabled = true;
-  try { const body = new FormData(); body.append("csrfmiddlewaretoken", document.querySelector("input[name='csrfmiddlewaretoken']").value); const url = board.dataset.deleteTemplate.replace("/0/", `/${row.dataset.movementId}/`); const response = await fetch(url, {method: "POST", body, headers: {"X-Requested-With": "XMLHttpRequest", Accept: "application/json"}}); const result = await response.json(); if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo eliminar."); setNumber("[data-selected-total]", numberFrom("[data-selected-total]") - Number(row.dataset.savedTotal || 0)); setNumber("[data-selected-tip]", numberFrom("[data-selected-tip]") - Number(row.dataset.savedTip || 0)); row.remove(); renumberRows(); scheduleSummaryRefresh(); } catch (error) { row.querySelector("[data-row-save-state]").textContent = error.message; deleteButton.disabled = false; }
+  try {
+    const movementId = Number(row.dataset.movementId);
+    const releasedLink = row.querySelector("[name='linked_record']").value;
+    const body = new FormData();
+    body.append("csrfmiddlewaretoken", document.querySelector("input[name='csrfmiddlewaretoken']").value);
+    const url = board.dataset.deleteTemplate.replace("/0/", `/${row.dataset.movementId}/`);
+    const response = await fetch(url, {method: "POST", body, headers: {"X-Requested-With": "XMLHttpRequest", Accept: "application/json"}});
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo eliminar.");
+    // NOTA TEMPORAL PARA APRENDIZAJE: los candidatos se cargan una vez al abrir la
+    // página. Al borrar una fila vinculada liberamos también esa copia en memoria;
+    // de lo contrario el diálogo seguiría creyendo que el ticket está ocupado hasta
+    // refrescar manualmente. Borra esta nota después de leerla.
+    linkCandidatesData.forEach((candidate) => {
+      if (candidate.value === releasedLink || candidate.movement_id === movementId) {
+        candidate.movement_id = null;
+      }
+    });
+    setNumber("[data-selected-total]", numberFrom("[data-selected-total]") - Number(row.dataset.savedTotal || 0));
+    setNumber("[data-selected-tip]", numberFrom("[data-selected-tip]") - Number(row.dataset.savedTip || 0));
+    row.remove(); renumberRows(); scheduleSummaryRefresh();
+  } catch (error) { row.querySelector("[data-row-save-state]").textContent = error.message; deleteButton.disabled = false; }
 });
 
 document.querySelector("[data-cut-status-form]")?.addEventListener("submit", async (event) => { event.preventDefault(); const form = event.currentTarget; const button = form.querySelector("button"); button.disabled = true; try { const response = await fetch(form.action, {method: "POST", body: new FormData(form), headers: {"X-Requested-With": "XMLHttpRequest", Accept: "application/json"}}); const result = await response.json(); if (!response.ok || !result.ok) throw new Error(result.error || "No se pudo cambiar el corte."); window.location.reload(); } catch (error) { feedback.textContent = error.message; feedback.className = "message error"; feedback.hidden = false; button.disabled = false; } });

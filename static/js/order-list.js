@@ -80,6 +80,43 @@ document.addEventListener("click", async (event) => {
 
 const feedback = document.querySelector("[data-order-board-feedback]");
 let orderBoardRequestsInProgress = 0;
+// NOTA TEMPORAL PARA APRENDIZAJE: Pasar a mesa ya no depende de interpretar una
+// redirección HTML. Espera una confirmación JSON del servidor y sólo entonces abre
+// la cuenta creada; así una transferencia exitosa nunca se reporta como error.
+// Borra esta nota después de leerla.
+document.addEventListener("submit", async (event) => {
+  const transferForm = event.target.closest("[data-order-transfer-form]");
+  if (!transferForm) return;
+  event.preventDefault();
+  const button = transferForm.querySelector("button[type='submit']");
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "Transfiriendo…";
+  orderBoardRequestsInProgress += 1;
+  try {
+    const response = await fetch(transferForm.getAttribute("action"), {
+      method: "POST", body: new FormData(transferForm),
+      headers: {
+        "X-Requested-With": "XMLHttpRequest",
+        "Accept": "application/json",
+        "X-CSRFToken": transferForm.querySelector("[name='csrfmiddlewaretoken']").value,
+      },
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "No se pudo pasar el pedido a la mesa.");
+    window.location.assign(data.redirect_url);
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = originalLabel;
+    if (feedback) {
+      feedback.className = "message error";
+      feedback.textContent = error.message;
+      feedback.hidden = false;
+    }
+  } finally {
+    orderBoardRequestsInProgress -= 1;
+  }
+});
 document.addEventListener("submit", async (event) => {
   const statusForm = event.target.closest(".order-row-actions form");
   // NOTA TEMPORAL PARA APRENDIZAJE: la columna también contiene la acción contable

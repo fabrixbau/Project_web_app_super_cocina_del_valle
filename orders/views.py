@@ -650,6 +650,8 @@ def order_list(request):
         order.ticket_summary = " · ".join(names) if names else "Sin productos"
         order.has_no_products = not items
         actions = [action for action in _order_actions_for_user(order, request.user) if action != "cancel"]
+        if order.has_no_products or any(item.is_package_candidate for item in items):
+            actions = [action for action in actions if action != "mark_ready"]
         order.quick_action = actions[0] if actions else ""
         order.quick_action_label = ACTION_LABELS.get(order.quick_action, "")
         order.can_cancel = (
@@ -711,8 +713,16 @@ def order_transfer_to_table(request, order_id):
             order=order, table=table, actor=request.user, assigned_waiter=assigned_waiter,
         )
     except ValidationError as error:
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse({"ok": False, "error": error.message}, status=400)
         messages.error(request, error.message)
         return redirect("orders:order_list")
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({
+            "ok": True,
+            "account_id": new_account.pk,
+            "redirect_url": reverse("tables:table_detail", args=(new_account.pk,)),
+        })
     messages.success(request, f"{order.formatted_number} se pasó a {table.name}.")
     return redirect("tables:table_detail", account_id=new_account.pk)
 

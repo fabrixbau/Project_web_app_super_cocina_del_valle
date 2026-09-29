@@ -569,6 +569,34 @@ def sync_order_customer_agenda(order, form_data):
     return order
 
 
+def _internal_order_has_customer_data(order):
+    """Distingue datos capturados del nombre inicial de mostrador."""
+    return bool(
+        order.agenda_customer_id
+        or (order.customer_name.strip() and order.customer_name.strip().casefold() != "mostrador")
+        or order.phone.strip()
+        or order.street.strip()
+        or order.exterior_number.strip()
+        or order.interior_number.strip()
+        or order.references.strip()
+    )
+
+
+def _promote_internal_order_to_preparing(*, order, actor=None):
+    # NOTA TEMPORAL PARA APRENDIZAJE: Capturando sólo representa un folio totalmente
+    # vacío. En cuanto existe cliente real o una partida, el pedido ya debe sobrevivir
+    # aunque el operador regrese al listado sin pulsar Cerrar captura. Borra esta nota.
+    if order.status != Order.Status.DRAFT:
+        return order
+    order.status = Order.Status.PREPARING
+    order.save(update_fields=("status", "updated_at"))
+    OrderStatusHistory.objects.create(
+        order=order, from_status=Order.Status.DRAFT,
+        to_status=Order.Status.PREPARING, changed_by=actor,
+    )
+    return order
+
+
 @transaction.atomic
 def save_internal_order(*, form_data, actor, order=None):
     """Crea el folio una sola vez o actualiza sus datos sin borrar el ticket."""
@@ -602,6 +630,8 @@ def save_internal_order(*, form_data, actor, order=None):
     order.cash_tendered = form_data["cash_tendered"]
     order.save()
     sync_order_customer_agenda(order, form_data)
+    if _internal_order_has_customer_data(order) or order.items.exists():
+        _promote_internal_order_to_preparing(order=order, actor=actor)
     if not order.status_history.exists():
         OrderStatusHistory.objects.create(order=order, from_status="", to_status=order.status, changed_by=actor)
     return order
@@ -644,6 +674,8 @@ def autosave_internal_order_customer(*, order, form_data, actor=None):
         "delivery_tip_updated_at", "updated_at",
     ))
     sync_order_customer_agenda(order, form_data)
+    if _internal_order_has_customer_data(order) or order.items.exists():
+        _promote_internal_order_to_preparing(order=order, actor=actor)
     return order
 
 
@@ -674,7 +706,7 @@ def start_internal_order(*, order_type, actor):
 @transaction.atomic
 def close_internal_order_capture(*, order, actor):
     order = Order.objects.select_for_update().get(pk=order.pk)
-    if order.status != Order.Status.DRAFT:
+    if order.status not in {Order.Status.DRAFT, Order.Status.PREPARING}:
         return order
     if not order.items.exists():
         raise ValidationError("Agrega al menos un producto antes de cerrar el ticket.")
@@ -710,9 +742,11 @@ def close_internal_order_capture(*, order, actor):
         if order.cash_tendered is None or order.cash_tendered < order.amount_due:
             raise ValidationError("Actualiza el efectivo: la cantidad no cubre el total.")
     previous = order.status
-    order.status = scheduled_initial_status(order)
-    order.save(update_fields=("status", "updated_at"))
-    OrderStatusHistory.objects.create(order=order, from_status=previous, to_status=order.status, changed_by=actor)
+    target_status = scheduled_initial_status(order)
+    if target_status != previous:
+        order.status = target_status
+        order.save(update_fields=("status", "updated_at"))
+        OrderStatusHistory.objects.create(order=order, from_status=previous, to_status=order.status, changed_by=actor)
     return order
 
 
@@ -765,6 +799,7 @@ def add_internal_order_product(
         )
     _change_order_item_stock(item=item, quantity=1, actor=actor, reserve=True)
     recalculate_order_total(order)
+    _promote_internal_order_to_preparing(order=order, actor=actor)
     return item
 
 
@@ -938,6 +973,7 @@ def add_internal_order_package(
         )
     _change_order_item_stock(item=item, quantity=quantity, actor=actor, reserve=True)
     recalculate_order_total(order)
+    _promote_internal_order_to_preparing(order=order, actor=actor)
     for packaging_product, quantity in selected_packaging_products(packaging_quantities or {}):
         for _ in range(quantity):
             add_internal_order_product(
@@ -1256,6 +1292,11 @@ def transition_order(*, order, action, actor=None):
         # (artículos, cliente, fecha/hora, domicilio, forma de pago) — nunca el mapa
         # genérico de abajo, que no sabe nada de esos requisitos. Borra esta nota.
         return close_internal_order_capture(order=order, actor=actor)
+    if action == "mark_ready":
+        if not order.items.exists():
+            raise ValidationError("Agrega al menos un producto antes de marcar el pedido como listo.")
+        if order.items.filter(is_package_candidate=True).exists():
+            raise ValidationError("Completa la comida antes de marcar el pedido como listo.")
     transitions = {
         (Order.Status.PENDING_CONFIRMATION, "cancel"): Order.Status.CANCELED,
         (Order.Status.CONFIRMED, "start_preparing"): Order.Status.PREPARING,

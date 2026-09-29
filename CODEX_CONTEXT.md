@@ -1,5 +1,22 @@
 # CODEX_CONTEXT — Super Cocina del Valle
 
+### Corrección: transferencia Pedido→Mesa sin falso error (2026-09-29)
+
+- En `/app/pedidos/`, “Pasar a mesa” ahora usa un flujo AJAX propio. El servidor responde JSON con `ok` y la URL exacta de la cuenta creada; el navegador sólo abre esa mesa después de recibir la confirmación.
+- Se elimina el falso negativo producido al interpretar una redirección HTML como respuesta de cambio de estado. Los errores reales de validación se muestran en el tablero y no navegan. El POST normal se conserva como alternativa sin JavaScript.
+- `order-list.js` subió a v16. No requiere migración ni cambios de CSS.
+
+### Terminales: eliminar libera el vínculo sin refrescar (2026-09-29)
+
+- En `/app/caja/terminales/`, al eliminar con `×` una fila vinculada a un pedido o mesa, el candidato se libera también en la lista mantenida por JavaScript. Puede seleccionarse inmediatamente desde otra fila sin recargar la página.
+- El cambio no altera las validaciones del backend ni permite duplicar vínculos; solamente sincroniza el estado visual después de que el servidor confirma la eliminación. `cashier-terminal-board.js` subió a v16.
+
+### Pedidos: autoguardado pasa a En preparación (2026-09-29)
+
+- En `/app/pedidos/<folio>/editar/`, un pedido interno en `Capturando` cambia automáticamente a `En preparación` en cuanto se agrega la primera partida o se capturan/vinculan datos reales de un cliente. Ya no depende de pulsar “Cerrar captura y enviar al listado” para sobrevivir al botón Atrás o a salir de la pantalla.
+- El nombre inicial `Mostrador` de un pedido Recoger totalmente vacío no cuenta como cliente capturado. Si el navegador sale durante los 650 ms del debounce, `pagehide` envía el formulario pendiente mediante `sendBeacon`.
+- Un pedido promovido sólo por cliente aparece en el tablero con estado `En preparación` y conserva `Sin productos` con marco rojo. No ofrece ni acepta “Marcar como listo” hasta tener productos y comidas completas. `internal-order-form.js` subió a v54. No requiere migración.
+
 ### Corte de terminales: captura nueva arriba (2026-09-29)
 
 - En `/app/caja/terminales/`, la fila vacía de captura ahora permanece al inicio de la tabla. Cada registro nuevo queda inmediatamente debajo como fila `1`, desplaza los registros anteriores hacia abajo y renumera la lista en pantalla.

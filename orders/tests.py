@@ -800,6 +800,8 @@ class OrderInventoryIntegrationTests(TestCase):
             order=self.order, product=self.product, actor=self.actor,
             require_individual=False,
         )
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.PREPARING)
         self.assertEqual(self.pickup_stock.available_quantity, 1)
         change_internal_order_item(order=self.order, item=item, action="increase", actor=self.actor)
         self.assertEqual(self.pickup_stock.available_quantity, 0)
@@ -1332,6 +1334,54 @@ class DraftOrderQuickCloseTests(TestCase):
         self.assertIn("al menos un producto", response.json()["error"])
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.DRAFT)
+
+
+class InternalOrderAutomaticPreparingTests(TestCase):
+    def setUp(self):
+        self.operator = get_user_model().objects.create_user(username="automatic_preparing_operator")
+        self.operator.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
+        self.client.force_login(self.operator)
+        self.order = Order.objects.create(
+            daily_number=972, operating_date=timezone.localdate(),
+            order_type=Order.OrderType.PICKUP, source=Order.Source.INTERNAL,
+            status=Order.Status.DRAFT, customer_name="Mostrador", total=0,
+            requested_date=timezone.localdate(), requested_time=timezone.localtime().time(),
+            created_by=self.operator,
+        )
+
+    def autosave(self, customer_name):
+        return self.client.post(
+            reverse("orders:internal_order_customer_autosave", args=(self.order.pk,)),
+            {"order_type": Order.OrderType.PICKUP, "customer_name": customer_name},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+    def test_customer_data_promotes_draft_even_without_products(self):
+        response = self.autosave("Cliente sin productos")
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.PREPARING)
+        self.assertFalse(self.order.items.exists())
+
+        board = self.client.get(reverse("orders:order_list"))
+        self.assertContains(board, "Cliente sin productos")
+        self.assertContains(board, "Sin productos")
+        self.assertContains(board, "order-board-summary is-empty")
+        self.assertNotContains(board, "Marcar como listo")
+
+    def test_untouched_pickup_default_does_not_promote_the_empty_draft(self):
+        response = self.autosave("Mostrador")
+        self.assertEqual(response.status_code, 200)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.DRAFT)
+
+    def test_preparing_order_without_products_cannot_be_marked_ready(self):
+        self.order.status = Order.Status.PREPARING
+        self.order.customer_name = "Cliente sin productos"
+        self.order.save(update_fields=("status", "customer_name"))
+
+        with self.assertRaisesMessage(ValidationError, "Agrega al menos un producto"):
+            transition_order(order=self.order, action="mark_ready", actor=self.operator)
 
 
 class MarkOrderAsUnpaidTests(TestCase):
@@ -2513,6 +2563,27 @@ class OrderTableTransferTests(TestCase):
         self.client.force_login(self.waiter)
         response = self.client.get(reverse("orders:order_list"))
         self.assertContains(response, "data-order-transfer-form")
+
+    def test_order_transfer_to_table_ajax_returns_confirmed_destination(self):
+        order = self.make_pickup_order()
+        add_internal_order_product(order=order, product=self.product, actor=self.admin)
+        self.client.force_login(self.waiter)
+
+        response = self.client.post(
+            reverse("orders:order_transfer_to_table", args=(order.pk,)),
+            {"table_id": self.table.pk},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        account = TableAccount.objects.get(pk=response.json()["account_id"])
+        self.assertEqual(
+            response.json()["redirect_url"],
+            reverse("tables:table_detail", args=(account.pk,)),
+        )
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.TRANSFERRED)
 
     def test_delivery_order_also_exposes_transfer_to_table(self):
         order = self.make_pickup_order(order_type=Order.OrderType.DELIVERY)

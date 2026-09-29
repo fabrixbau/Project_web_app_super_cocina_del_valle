@@ -197,6 +197,7 @@
   });
 
   let autosaveTimer = null;
+  let customerAutosavePending = false;
   async function autosaveCustomer() {
     if (!form.dataset.autosaveUrl) return;
     if (autosaveState) autosaveState.textContent = "Guardando…";
@@ -213,15 +214,25 @@
       if (data.agenda_address_id) form.querySelector("input[name='agenda_address_id']").value = data.agenda_address_id;
       if (data.duplicate_customer) showDuplicateCustomer(data.duplicate_customer);
       if (autosaveState) autosaveState.textContent = "Datos guardados automáticamente";
+      customerAutosavePending = false;
     } catch (error) {
       if (autosaveState) autosaveState.textContent = "No se pudo guardar; revisa los campos";
     }
   }
   function scheduleAutosave() {
     window.clearTimeout(autosaveTimer);
+    customerAutosavePending = true;
     if (autosaveState) autosaveState.textContent = "Cambios pendientes…";
     autosaveTimer = window.setTimeout(autosaveCustomer, 650);
   }
+  // NOTA TEMPORAL PARA APRENDIZAJE: si el usuario escribe un cliente y vuelve atrás
+  // antes de que terminen los 650 ms del debounce, pagehide entrega el formulario al
+  // mismo endpoint de autoguardado. Así el pedido no se pierde al navegar. Borra esta nota.
+  window.addEventListener("pagehide", () => {
+    if (!customerAutosavePending || !form.dataset.autosaveUrl) return;
+    window.clearTimeout(autosaveTimer);
+    navigator.sendBeacon(form.dataset.autosaveUrl, new FormData(form));
+  });
 
   // NOTA TEMPORAL PARA APRENDIZAJE: la búsqueda sólo trae fichas internas. Al
   // elegir un domicilio copiamos sus valores a los campos reales y usamos el mismo
