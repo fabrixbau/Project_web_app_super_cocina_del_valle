@@ -10,6 +10,7 @@ SECTIONS = (
     {"key": "customers", "title": "Clientes", "description": "Agenda de clientes y domicilios.", "url_name": "orders:customer_list"},
     {"key": "debts", "title": "Adeudos", "description": "Consulta de cuentas por cobrar de clientes.", "url_name": "cashier:debt_board"},
     {"key": "deliveries", "title": "Repartos", "description": "Asignación y seguimiento de entregas.", "url_name": "deliveries:delivery_board"},
+    {"key": "inventory_tracking", "title": "Existencias", "description": "Seguimiento de productos preparados y comprometidos.", "url_name": "menu:inventory_tracking"},
     {"key": "reports", "title": "Reportes", "description": "Información administrativa.", "url_name": "internal_portal:reports"},
     {"key": "menu", "title": "Menú", "description": "Categorías y productos.", "url_name": "menu:configuration"},
 )

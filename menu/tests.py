@@ -1,9 +1,12 @@
 from types import SimpleNamespace
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.contrib.auth.models import Group
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
+from django.utils import timezone
+
+from accounts.roles import DELIVERY, ORDER_TAKER, WAITER
 
 from .catalog import limit_cold_drinks_to_daily_water
 from .forms import DailyMenuForm
@@ -102,18 +105,13 @@ class DailyStockLedgerTests(TestCase):
 
         self.assertEqual(stock.low_stock_threshold, 15)
 
-    def test_rejects_a_reservation_that_would_make_stock_negative(self):
-        with self.assertRaisesMessage(ValidationError, "Disponibles: 4"):
-            reserve_stock(
-                stock=self.delivery_stock,
-                quantity=5,
-                actor=self.actor,
-                reference_type="order",
-                reference_id=120,
-            )
-
-        self.assertEqual(self.delivery_stock.movements.count(), 0)
-        self.assertEqual(self.delivery_stock.available_quantity, 4)
+    def test_allows_a_reservation_that_makes_stock_negative(self):
+        reserve_stock(
+            stock=self.delivery_stock, quantity=5, actor=self.actor,
+            reference_type="order", reference_id=120,
+        )
+        self.assertEqual(self.delivery_stock.movements.count(), 1)
+        self.assertEqual(self.delivery_stock.available_quantity, -1)
 
     def test_release_returns_reserved_stock(self):
         reserve_stock(
@@ -127,7 +125,7 @@ class DailyStockLedgerTests(TestCase):
 
         self.assertEqual(self.table_stock.available_quantity, 9)
 
-    def test_manual_adjustment_is_audited_and_cannot_make_stock_negative(self):
+    def test_manual_adjustment_is_audited_and_can_make_stock_negative(self):
         movement = adjust_stock(
             stock=self.table_stock, quantity=-2, actor=self.actor,
             note="Merma detectada en conteo físico",
@@ -135,11 +133,11 @@ class DailyStockLedgerTests(TestCase):
         self.assertEqual(self.table_stock.available_quantity, 8)
         self.assertEqual(movement.reason, StockMovement.Reason.ADJUSTMENT)
         self.assertEqual(movement.actor, self.actor)
-        with self.assertRaisesMessage(ValidationError, "Disponibles: 8"):
-            adjust_stock(
-                stock=self.table_stock, quantity=-9, actor=self.actor,
-                note="Corrección inválida",
-            )
+        adjust_stock(
+            stock=self.table_stock, quantity=-9, actor=self.actor,
+            note="Merma adicional",
+        )
+        self.assertEqual(self.table_stock.available_quantity, -1)
 
     def test_transfer_moves_stock_between_channels_with_two_movements(self):
         transfer_stock(
@@ -175,6 +173,12 @@ class InventoryControlViewTests(TestCase):
         )
         self.client.force_login(self.admin)
 
+    def make_daily_stock(self):
+        return DailyProductStock.objects.create(
+            date=timezone.localdate(), product=self.product,
+            channel=DailyProductStock.Channel.ORDERS, initial_quantity=2,
+        )
+
     def test_saving_fixed_inventory_locks_only_stock_rows(self):
         response = self.client.post(reverse("menu:inventory_control"), {
             "action": "save_fixed",
@@ -186,6 +190,52 @@ class InventoryControlViewTests(TestCase):
         self.stock.refresh_from_db()
         self.assertEqual(self.stock.available_quantity, 6)
         self.assertEqual(self.stock.low_stock_threshold, 2)
+
+    def test_tracking_view_displays_negative_free_stock(self):
+        daily = self.make_daily_stock()
+        reserve_stock(
+            stock=daily, quantity=3, actor=self.admin,
+            reference_type="order_item", reference_id=999999,
+        )
+
+        response = self.client.get(reverse("menu:inventory_tracking"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Producto vigilado")
+        self.assertContains(response, "Ver comprometidas (3)")
+        self.assertContains(response, ">-1<", html=False)
+
+    def test_waiter_and_delivery_can_read_but_cannot_edit_tracking(self):
+        daily = self.make_daily_stock()
+        for role in (WAITER, DELIVERY):
+            with self.subTest(role=role):
+                user = get_user_model().objects.create_user(username=f"readonly-{role}")
+                user.groups.add(Group.objects.get_or_create(name=role)[0])
+                self.client.force_login(user)
+                response = self.client.get(reverse("menu:inventory_tracking"))
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "Vista de consulta")
+                self.assertNotContains(response, 'class="stock-prepared-form"')
+                response = self.client.post(reverse("menu:inventory_tracking"), {
+                    "action": "set_prepared", "date": timezone.localdate().isoformat(),
+                    "stock_id": daily.pk, "prepared": "30",
+                })
+                self.assertEqual(response.status_code, 403)
+                self.assertEqual(daily.available_quantity, 2)
+
+    def test_order_taker_can_edit_tracking(self):
+        daily = self.make_daily_stock()
+        user = get_user_model().objects.create_user(username="tracking-order-taker")
+        user.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
+        self.client.force_login(user)
+
+        response = self.client.post(reverse("menu:inventory_tracking"), {
+            "action": "set_prepared", "date": timezone.localdate().isoformat(),
+            "stock_id": daily.pk, "prepared": "7",
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(daily.available_quantity, 7)
 
     def test_inventory_history_filters_and_summarizes_movements(self):
         adjust_stock(

@@ -40,7 +40,7 @@ from django.views.decorators.http import require_GET, require_POST
 from accounts.roles import ADMIN, ORDER_TAKER, SECTION_ROLE_MATRIX, WAITER, role_required, user_has_any_role
 from config.printing import printable_item, selected_printable_items, table_print_context
 from print_station.views import queue_ticket
-from menu.inventory import filter_products_by_stock
+from menu.inventory import filter_products_by_stock, stock_warning_payload
 from menu.egg import egg_products, selected_egg
 from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product
 from menu.packaging import parse_packaging_quantities
@@ -242,6 +242,7 @@ def ticket_summary(account):
         "count": sum(item["quantity"] for item in items),
         "standard_quantities": standard_quantities,
         "candidate_quantities": candidate_quantities,
+        "stock_warnings": stock_warning_payload(selected_date=timezone.localdate(account.opened_at)),
     }
 
 

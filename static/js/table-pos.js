@@ -393,6 +393,7 @@ function packageEditButton(item) {
 }
 
 function renderTicket(ticket) {
+  renderStockWarnings(ticket.stock_warnings || []);
   window.__tableTicketItems = ticket.items;
   ticketItems.replaceChildren();
   ticket.items.forEach((item) => {
@@ -440,6 +441,22 @@ function renderTicket(ticket) {
   pos.classList.toggle("has-ticket", hasItems);
   renderStandardQuantities(ticket.standard_quantities || {});
   renderCandidateQuantities(ticket.candidate_quantities || {});
+}
+
+function renderStockWarnings(warnings) {
+  let panel = ticketPanel.querySelector("[data-stock-warnings]");
+  if (!panel) {
+    panel = document.createElement("aside");
+    panel.dataset.stockWarnings = "";
+    panel.className = "ticket-stock-warnings";
+    ticketItems.before(panel);
+  }
+  panel.replaceChildren(...warnings.map((warning) => {
+    const message = document.createElement("strong");
+    message.textContent = `⚠ ${warning.message}`;
+    return message;
+  }));
+  panel.hidden = warnings.length === 0;
 }
 
 function renderStandardQuantities(quantities) {

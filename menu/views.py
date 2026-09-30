@@ -9,6 +9,7 @@
 # payload JSON validado por Django; los IDs existentes se conservan. Borra esta nota.
 
 import json
+from collections import defaultdict
 from io import BytesIO
 from calendar import monthrange
 from datetime import date, time, timedelta
@@ -16,7 +17,7 @@ from datetime import date, time, timedelta
 from PIL import Image, ImageOps
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Count, Max, Prefetch, Q, Sum
 from django.db.models.deletion import ProtectedError
@@ -26,7 +27,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from accounts.roles import SECTION_ROLE_MATRIX, role_required
+from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, WAITER, SECTION_ROLE_MATRIX, role_required, user_has_any_role
 
 from .customization import (
     parse_customization_payload, serialize_group, serialize_product_customization,
@@ -226,6 +227,127 @@ def inventory_control(request):
     return render(request, "menu/inventory_control.html", {
         "selected_date": selected_date, "stock_rows": list(stocks), "daily_groups": daily_groups,
         "fixed_rows": fixed_rows, "fixed_form": fixed_form,
+    })
+
+
+@role_required(ADMIN, ORDER_TAKER, WAITER, DELIVERY)
+def inventory_tracking(request):
+    can_edit = user_has_any_role(request.user, (ADMIN, ORDER_TAKER))
+    raw_date = request.POST.get("date") or request.GET.get("date") or timezone.localdate().isoformat()
+    try:
+        selected_date = date.fromisoformat(raw_date)
+    except ValueError:
+        selected_date = timezone.localdate()
+
+    stocks = list(DailyProductStock.objects.filter(
+        stock_type=DailyProductStock.StockType.DAILY,
+        date=selected_date,
+        is_tracked=True,
+    ).select_related("product", "product__category"))
+
+    def identity(stock):
+        return (stock.item_kind, stock.product_id, stock.chicken_piece)
+
+    if request.method == "POST" and request.POST.get("action") == "set_prepared":
+        if not can_edit:
+            raise PermissionDenied
+        stock = get_object_or_404(DailyProductStock, pk=request.POST.get("stock_id"), date=selected_date)
+        siblings = [row for row in stocks if identity(row) == identity(stock)]
+        try:
+            desired = int(request.POST.get("prepared", ""))
+            if desired < 0:
+                raise ValueError
+        except ValueError:
+            messages.error(request, "La cantidad preparada debe ser cero o mayor.")
+        else:
+            committed = finalized = free = 0
+            for row in siblings:
+                free += row.available_quantity
+                committed -= row.movements.filter(reason__in=(
+                    StockMovement.Reason.RESERVATION, StockMovement.Reason.RELEASE,
+                )).aggregate(total=Sum("quantity"))["total"] or 0
+                finalized -= row.movements.filter(
+                    reason=StockMovement.Reason.CONSUMPTION,
+                ).aggregate(total=Sum("quantity"))["total"] or 0
+            current_prepared = free + committed + finalized
+            difference = desired - current_prepared
+            if difference:
+                adjust_stock(
+                    stock=stock, quantity=difference, actor=request.user,
+                    note=request.POST.get("note", "").strip() or "Actualización del total preparado",
+                )
+            messages.success(request, f"Total preparado de {stock.item_name}: {desired}.")
+        return redirect(f"{reverse('menu:inventory_tracking')}?date={selected_date.isoformat()}")
+
+    groups = {}
+    stock_to_key = {}
+    for stock in stocks:
+        key = identity(stock)
+        stock_to_key[stock.pk] = key
+        group = groups.setdefault(key, {
+            "name": stock.item_name, "stock": stock, "free": 0, "committed": 0,
+            "finalized": 0, "prepared": 0, "threshold": 0,
+            "committed_refs": defaultdict(int), "finalized_refs": defaultdict(int),
+        })
+        group["free"] += stock.available_quantity
+        group["threshold"] += stock.low_stock_threshold
+
+    movements = StockMovement.objects.filter(stock_id__in=stock_to_key).select_related("stock")
+    for movement in movements:
+        group = groups[stock_to_key[movement.stock_id]]
+        ref = (movement.reference_type, movement.reference_id)
+        if movement.reason in (StockMovement.Reason.RESERVATION, StockMovement.Reason.RELEASE):
+            group["committed"] -= movement.quantity
+            if movement.reference_id:
+                group["committed_refs"][ref] -= movement.quantity
+        elif movement.reason == StockMovement.Reason.CONSUMPTION:
+            group["finalized"] -= movement.quantity
+            if movement.reference_id:
+                group["finalized_refs"][ref] -= movement.quantity
+
+    from orders.models import OrderItem
+    from tables.models import TableAccountItem
+    order_item_ids = {ref_id for group in groups.values() for ref_type, ref_id in (*group["committed_refs"], *group["finalized_refs"]) if ref_type == "order_item"}
+    table_item_ids = {ref_id for group in groups.values() for ref_type, ref_id in (*group["committed_refs"], *group["finalized_refs"]) if ref_type == "table_item"}
+    order_items = {item.pk: item for item in OrderItem.objects.filter(pk__in=order_item_ids).select_related("order")}
+    table_items = {item.pk: item for item in TableAccountItem.objects.filter(pk__in=table_item_ids).select_related("account", "account__table")}
+
+    def detail(ref, quantity):
+        ref_type, ref_id = ref
+        if ref_type == "order_item" and ref_id in order_items:
+            order = order_items[ref_id].order
+            return {"quantity": quantity, "kind": "Pedido", "title": order.formatted_number,
+                    "customer": order.customer_name or "Mostrador", "status": order.get_status_display(),
+                    "url": reverse("orders:internal_order_edit", args=(order.pk,))}
+        if ref_type == "table_item" and ref_id in table_items:
+            account = table_items[ref_id].account
+            return {"quantity": quantity, "kind": "Mesa", "title": str(account.table),
+                    "customer": account.customer_name or "Sin nombre", "status": account.get_status_display(),
+                    "url": reverse("tables:table_detail", args=(account.pk,))}
+        return None
+
+    rows = []
+    search = request.GET.get("q", "").strip().casefold()
+    status_filter = request.GET.get("status", "").strip()
+    for group in groups.values():
+        group["committed"] = max(0, group["committed"])
+        group["finalized"] = max(0, group["finalized"])
+        group["prepared"] = group["free"] + group["committed"] + group["finalized"]
+        group["status"] = "deficit" if group["free"] < 0 else "empty" if group["free"] == 0 else "low" if group["free"] <= group["threshold"] else "ok"
+        group["committed_details"] = [item for ref, qty in group["committed_refs"].items() if qty > 0 and (item := detail(ref, qty))]
+        group["finalized_details"] = [item for ref, qty in group["finalized_refs"].items() if qty > 0 and (item := detail(ref, qty))]
+        if search and search not in group["name"].casefold():
+            continue
+        if status_filter and group["status"] != status_filter:
+            continue
+        rows.append(group)
+    rows.sort(key=lambda row: row["name"].casefold())
+    return render(request, "menu/inventory_tracking.html", {
+        "selected_date": selected_date, "rows": rows, "search": request.GET.get("q", ""),
+        "status_filter": status_filter, "total_committed": sum(row["committed"] for row in rows),
+        "total_finalized": sum(row["finalized"] for row in rows),
+        "deficit_count": sum(row["status"] == "deficit" for row in rows),
+        "can_edit": can_edit,
     })
 
 

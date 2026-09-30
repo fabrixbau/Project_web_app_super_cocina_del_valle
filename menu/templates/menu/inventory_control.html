@@ -3,7 +3,7 @@
 {% block content %}
   <div class="page-heading inventory-heading">
     <div><a class="menu-back-link" href="{% url 'menu:configuration' %}">Administrar menú</a><span>Existencias</span><h1>Control de inventario</h1><p>Edita directamente cuánto queda disponible. El sistema conservará cada cambio en la bitácora.</p></div>
-    <div class="inventory-heading-actions"><a class="secondary-action" href="{% url 'menu:inventory_history' %}">Ver historial</a><form method="get" class="inventory-date-filter"><label>Menú del día<input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}"></label><button type="submit">Consultar</button></form></div>
+    <div class="inventory-heading-actions"><a class="primary-action" href="{% url 'menu:inventory_tracking' %}">Seguimiento</a><a class="secondary-action" href="{% url 'menu:inventory_history' %}">Ver historial</a><form method="get" class="inventory-date-filter"><label>Menú del día<input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}"></label><button type="submit">Consultar</button></form></div>
   </div>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
   <section class="card inventory-current-card">

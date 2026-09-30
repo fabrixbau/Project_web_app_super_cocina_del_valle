@@ -630,6 +630,7 @@
   }
 
   function renderTicket(ticket) {
+    renderStockWarnings(ticket.stock_warnings || []);
     ticketItems.replaceChildren();
     ticket.items.forEach((item) => {
       const article = document.createElement("article");
@@ -718,6 +719,22 @@
     renderCandidateQuantities(ticket.candidate_quantities || {});
     updateCreditNotice(ticket.customer_credit);
     updateDebtNotice(ticket.customer_debt);
+  }
+
+  function renderStockWarnings(warnings) {
+    let panel = capture.querySelector("[data-stock-warnings]");
+    if (!panel) {
+      panel = document.createElement("aside");
+      panel.dataset.stockWarnings = "";
+      panel.className = "ticket-stock-warnings";
+      ticketItems.before(panel);
+    }
+    panel.replaceChildren(...warnings.map((warning) => {
+      const message = document.createElement("strong");
+      message.textContent = `⚠ ${warning.message}`;
+      return message;
+    }));
+    panel.hidden = warnings.length === 0;
   }
 
   async function send(url, body) {

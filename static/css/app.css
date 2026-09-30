@@ -11687,3 +11687,52 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
 @media (max-width: 600px) {
   .package-two-course-toggle { padding: .3rem .4rem; }
 }
+/* Seguimiento flexible de existencias: el déficit alerta sin bloquear ventas. */
+.stock-tracking-page { padding: 1rem; }
+.stock-tracking-heading, .stock-tracking-filters, .stock-tracking-totals, .stock-product-card { background: #fff; border: 1px solid #d8ddd7; border-radius: 16px; }
+.stock-tracking-heading { padding: 1rem 1.25rem; margin-bottom: 1rem; }
+.stock-tracking-heading h1 { margin: .3rem 0; }
+.stock-readonly-notice { display: inline-block; margin-top: .45rem; padding: .45rem .7rem; border-radius: 999px; background: #edf1ef; color: #53635b; }
+.stock-tracking-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(90px, auto); gap: .75rem; padding: 1rem; align-items: end; }
+.stock-tracking-filters label, .stock-prepared-form label { display: grid; gap: .3rem; font-weight: 700; }
+.stock-tracking-filters label, .stock-tracking-filters input, .stock-tracking-filters select, .stock-tracking-filters button { min-width: 0; width: 100%; }
+.stock-tracking-totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; padding: .8rem; margin: 1rem 0; }
+.stock-tracking-totals article { display: flex; justify-content: space-between; padding: .65rem; background: #eef5f1; border-radius: 10px; }
+.stock-tracking-totals .is-danger { background: #ffe8e4; color: #9c271d; }
+.stock-tracking-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 1rem; }
+.stock-product-card { padding: 1rem; border-left: 6px solid #27735a; }
+.stock-product-card.is-low { border-left-color: #e0a519; }
+.stock-product-card.is-empty { border-left-color: #e46f25; }
+.stock-product-card.is-deficit { border-left-color: #bd2922; background: #fff8f7; }
+.stock-product-card h2 { margin: 0 0 .75rem; }
+.stock-product-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .45rem; width: 100%; }
+.stock-product-metrics div { display: grid; min-width: 0; align-content: center; text-align: center; padding: .55rem .2rem; background: #f3f5f3; border-radius: 9px; overflow: hidden; }
+.stock-product-metrics span { min-width: 0; font-size: clamp(.68rem, 1.25vw, .92rem); line-height: 1.12; overflow-wrap: anywhere; }
+.stock-product-metrics strong { font-size: 1.25rem; }
+.stock-prepared-form { display: grid; grid-template-columns: minmax(82px, .7fr) minmax(120px, 1.4fr) minmax(90px, auto); gap: .5rem; align-items: end; margin: .8rem 0; }
+.stock-prepared-form label, .stock-prepared-form input, .stock-prepared-form button { min-width: 0; width: 100%; }
+.stock-detail-list { border-top: 1px solid #d8ddd7; padding-top: .6rem; margin-top: .55rem; }
+.stock-detail-list summary { cursor: pointer; font-weight: 800; color: #155842; }
+.stock-detail-list > div { display: grid; gap: .45rem; margin-top: .55rem; }
+.stock-reference-card { display: grid; gap: .12rem; padding: .7rem; border: 1px solid #cbd9d2; border-radius: 10px; color: inherit; text-decoration: none; background: #fff; }
+.stock-reference-card:hover, .stock-reference-card:focus-visible { border-color: #166248; box-shadow: 0 0 0 2px #16624822; transform: translateY(-1px); }
+.stock-reference-card span, .stock-reference-card small { color: #62716a; }
+.ticket-stock-warnings { display: grid; gap: .35rem; margin: .55rem 0; padding: .65rem; border: 2px solid #bd2922; border-radius: 10px; background: #fff0ed; color: #9c211b; }
+.ticket-stock-warnings[hidden] { display: none; }
+@media (max-width: 720px) {
+  .stock-tracking-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stock-tracking-totals, .stock-prepared-form { grid-template-columns: 1fr; }
+  .stock-product-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .stock-tracking-grid { grid-template-columns: 1fr; }
+}
+@media (min-width: 560px) and (max-width: 900px) {
+  .stock-tracking-filters { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(82px, auto); }
+}
+@media (max-width: 390px) {
+  .stock-tracking-page { padding: .55rem; }
+  .stock-tracking-filters { gap: .5rem; padding: .7rem; }
+  .stock-product-card { padding: .75rem; }
+  .stock-product-metrics { gap: .25rem; }
+  .stock-product-metrics div { padding-inline: .1rem; }
+  .stock-product-metrics span { font-size: .61rem; }
+}

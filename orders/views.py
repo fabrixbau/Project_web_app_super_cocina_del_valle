@@ -25,7 +25,7 @@ from django.views.decorators.http import require_GET, require_POST
 from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, WAITER, SECTION_ROLE_MATRIX, role_required, user_has_any_role
 from config.printing import order_print_context, printable_item, selected_printable_items
 from print_station.views import queue_ticket
-from menu.inventory import filter_products_by_stock
+from menu.inventory import filter_products_by_stock, stock_warning_payload
 from menu.egg import egg_products, selected_egg
 from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product
 from menu.packaging import parse_packaging_quantities
@@ -316,6 +316,7 @@ def internal_order_ticket(order):
         "candidate_quantities": candidate_quantities, "note": order.notes,
         "customer_credit": _customer_credit_projection(order),
         "customer_debt": _customer_debt_projection(order),
+        "stock_warnings": stock_warning_payload(selected_date=order.operating_date),
     }
 
 

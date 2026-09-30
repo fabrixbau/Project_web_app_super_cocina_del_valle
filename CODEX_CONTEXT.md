@@ -2076,3 +2076,23 @@ El desarrollador pidió explícitamente que, de aquí en adelante, él se encarg
 - Si el usuario desplaza la página mientras hay una lista abierta, ésta se cierra conservando la selección actual. Desplazarse dentro de la propia lista continúa permitido.
 - Los campos nuevos de **Raciones** ahora se muestran inicialmente en `0`; al editar un menú existente se conservan sus cantidades guardadas.
 - Se actualizó `custom-select.js` de v8 a v10 y se agregó una prueba de los atributos táctiles y valores iniciales.
+
+## 2026-09-30 — Existencias flexibles y seguimiento operativo
+
+- El inventario dejó de bloquear ventas: productos y componentes permanecen visibles y las reservas/ajustes pueden llevar la existencia a negativo. Publicar el menú tampoco exige cantidades positivas. `StockAlert.available_quantity` ahora admite negativos mediante `notifications/0003_stockalert_allow_negative_quantity.py`.
+- Pedidos y Mesas reciben en su JSON de ticket los faltantes combinados del día y muestran un aviso rojo persistente inmediatamente después de agregar el producto; el aviso pertenece sólo a la interfaz y no entra en tickets impresos.
+- Se agregó `/app/menu/inventario/seguimiento/`, con filtros, totales y tarjetas por producto/insumo que muestran preparado, finalizado, comprometido y libre (incluidos saldos negativos), además de permitir actualizar el total preparado.
+- “Ver comprometidas” y “Ver finalizadas” desglosan los pedidos y mesas asociados. Cada ficha completa es clicable y abre directamente el ticket correspondiente; no existe un botón separado “Ir al pedido”.
+- Al reiniciar el ciclo de un pedido finalizado, sus movimientos vuelven de consumo a reserva para reflejar nuevamente una pieza comprometida, sin crear ni duplicar movimientos.
+- Versiones de caché: `app.css` v298, `internal-order-form.js` v56 y `table-pos.js` v33. En producción se debe ejecutar `python manage.py migrate`.
+
+### Permisos del seguimiento
+
+- Administrador y Telefonista pueden consultar y modificar el total preparado en `/app/menu/inventario/seguimiento/`.
+- Mesero y Repartidor pueden abrir la misma pantalla y consultar métricas, filtros y fichas enlazadas, pero no reciben el formulario de ajuste. El backend rechaza con 403 cualquier POST fabricado por esos perfiles; la restricción no depende sólo de ocultar controles.
+- Se agregó “Existencias” a la navegación operativa de los cuatro perfiles. `app.css` subió a v299.
+
+### Ajuste responsivo del seguimiento
+
+- Las cuatro métricas grises de cada producto ahora usan columnas realmente reducibles (`minmax(0, 1fr)`), texto adaptable y límites internos; ya no desbordan las tarjetas en 853×405 ni 1280×800.
+- En celular, los filtros forman dos columnas: Fecha/Buscar en la primera fila y Estado/Aplicar en la segunda. Desde 560 px, incluida tablet vertical, los cuatro controles quedan en una sola fila. Los campos y el formulario de actualización también respetan el ancho disponible. `app.css` subió a v300.

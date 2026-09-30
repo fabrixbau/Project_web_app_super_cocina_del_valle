@@ -805,8 +805,8 @@ class OrderInventoryIntegrationTests(TestCase):
         self.assertEqual(self.pickup_stock.available_quantity, 1)
         change_internal_order_item(order=self.order, item=item, action="increase", actor=self.actor)
         self.assertEqual(self.pickup_stock.available_quantity, 0)
-        with self.assertRaisesMessage(ValidationError, "Disponibles: 0"):
-            change_internal_order_item(order=self.order, item=item, action="increase", actor=self.actor)
+        change_internal_order_item(order=self.order, item=item, action="increase", actor=self.actor)
+        self.assertEqual(self.pickup_stock.available_quantity, -1)
         change_internal_order_item(order=self.order, item=item, action="remove", actor=self.actor)
         self.assertEqual(self.pickup_stock.available_quantity, 2)
 

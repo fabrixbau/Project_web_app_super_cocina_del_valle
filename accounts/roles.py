@@ -24,6 +24,7 @@ SECTION_ROLE_MATRIX = {
     "cashier": (ADMIN,),
     "reports": (ADMIN,),
     "menu": (ADMIN,),
+    "inventory_tracking": OPERATIONAL_ROLES,
 }
 
 

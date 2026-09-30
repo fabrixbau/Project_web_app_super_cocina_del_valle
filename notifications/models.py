@@ -35,7 +35,7 @@ class StockAlert(models.Model):
     stock = models.ForeignKey(
         "menu.DailyProductStock", on_delete=models.CASCADE, related_name="alerts",
     )
-    available_quantity = models.PositiveIntegerField()
+    available_quantity = models.IntegerField()
     is_active = models.BooleanField(default=True, db_index=True)
     triggered_at = models.DateTimeField(auto_now_add=True)
     resolved_at = models.DateTimeField(null=True, blank=True)

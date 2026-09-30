@@ -1385,6 +1385,13 @@ def transition_order(*, order, action, actor=None):
             reference_id__in=order.items.values_list("pk", flat=True),
             reason=StockMovement.Reason.RESERVATION,
         ).update(reason=StockMovement.Reason.CONSUMPTION)
+    elif action == "restart_cycle":
+        # Al reabrir, lo consumido vuelve a estar comprometido sin duplicar movimientos.
+        StockMovement.objects.filter(
+            reference_type="order_item",
+            reference_id__in=order.items.values_list("pk", flat=True),
+            reason=StockMovement.Reason.CONSUMPTION,
+        ).update(reason=StockMovement.Reason.RESERVATION)
     OrderStatusHistory.objects.create(
         order=order, from_status=previous_status, to_status=target_status, changed_by=actor
     )

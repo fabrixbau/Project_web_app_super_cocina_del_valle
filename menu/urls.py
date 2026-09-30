@@ -7,6 +7,7 @@ app_name = "menu"
 urlpatterns = [
     path("", views.configuration, name="configuration"),
     path("inventario/", views.inventory_control, name="inventory_control"),
+    path("inventario/seguimiento/", views.inventory_tracking, name="inventory_tracking"),
     path("inventario/historial/", views.inventory_history, name="inventory_history"),
     path("categorias/nueva/", views.category_create, name="category_create"),
     path("categorias/orden/", views.category_ordering, name="category_ordering"),

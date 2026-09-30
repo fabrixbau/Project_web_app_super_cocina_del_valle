@@ -101,15 +101,15 @@ class TableInventoryIntegrationTests(TestCase):
             account=self.account, item=item, action="increase", changed_by=self.waiter,
         )
         self.assertEqual(self.stock.available_quantity, 0)
-        with self.assertRaisesMessage(ValidationError, "Disponibles: 0"):
-            change_item_in_ticket(
-                account=self.account, item=item, action="increase", changed_by=self.waiter,
-            )
+        change_item_in_ticket(
+            account=self.account, item=item, action="increase", changed_by=self.waiter,
+        )
+        self.assertEqual(self.stock.available_quantity, -1)
 
         change_item_in_ticket(
             account=self.account, item=item, action="decrease", changed_by=self.waiter,
         )
-        self.assertEqual(self.stock.available_quantity, 1)
+        self.assertEqual(self.stock.available_quantity, 0)
         change_item_in_ticket(
             account=self.account, item=item, action="remove", changed_by=self.waiter,
         )
