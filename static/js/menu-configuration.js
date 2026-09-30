@@ -41,6 +41,19 @@
     backdrop.hidden = false;
     window.requestAnimationFrame(() => searchInput?.focus());
   });
+  const submitSearch = (event) => {
+    if (event.type === "keydown" && (event.key !== "Enter" || event.isComposing)) return;
+    event.preventDefault();
+    const form = searchInput?.form;
+    if (!form) return;
+    closeSearch();
+    searchInput.blur();
+    form.requestSubmit();
+  };
+  searchInput?.addEventListener("keydown", submitSearch);
+  // Algunos teclados virtuales emiten `search` en vez de un keydown al pulsar
+  // Buscar/Ir. Ambos caminos aplican los mismos filtros del formulario.
+  searchInput?.addEventListener("search", submitSearch);
   backdrop.addEventListener("click", closeSearch);
   document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeSearch(); });
 })();

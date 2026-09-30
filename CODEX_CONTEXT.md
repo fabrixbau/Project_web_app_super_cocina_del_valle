@@ -2062,3 +2062,17 @@ El desarrollador pidió explícitamente que, de aquí en adelante, él se encarg
 - Cocina ya construía la impresión filtrando nombres vacíos; ahora el tiempo omitido se persiste vacío, por lo que la comanda imprime únicamente los dos tiempos elegidos y los extras. El resumen de Mesa tampoco presenta el tiempo intencionalmente omitido como pendiente.
 - Ajuste visual posterior: el encabezado conserva siempre el orden compacto `2 tiempos` → lupa → cerrar, sin el subtítulo de combinaciones y sin separar los tres controles. Versiones: `app.css` v297, `package-selection.js` v7, `internal-order-form.js` v55 y `table-pos.js` v32. En producción se debe ejecutar `python manage.py migrate`.
 - Verificación: `manage.py check`, `makemigrations --check --dry-run`, sintaxis de los tres JS y 26 pruebas enfocadas de paquetes/inventario/Mesas pasando.
+
+### Corrección: Enter ejecuta la búsqueda del catálogo en Menú (2026-09-30)
+
+- En `/app/menu/`, el campo de búsqueda ahora declara `type="search"` y `enterkeyhint="search"` para mostrar la acción correcta en teclados móviles.
+- `menu-configuration.js` captura tanto `Enter` como el evento móvil `search` y envía el mismo formulario que usa la lupa, conservando categoría y disponibilidad. También cierra la capa móvil y el teclado antes de navegar.
+- Se actualizó `menu-configuration.js` de v1 a v2.
+
+### Corrección táctil y raciones iniciales del nuevo Menú diario (2026-09-30)
+
+- Los nueve selectores de `/app/menu/diario/nuevo/` (agua, sopas, segundos tiempos, tres guisados y frijoles) usan un modo táctil de dos pasos en celulares y tablets: el primer toque abre las opciones sin teclado y el segundo toque sobre el campo habilita la escritura y abre el teclado para buscar coincidencias. Así se conserva la búsqueda anterior sin recuperar el falso abrir/cerrar.
+- Se eliminó `scrollIntoView` al abrir una opción seleccionada porque podía desplazar la página y descomponer el mismo gesto táctil. Ahora sólo se ajusta el `scrollTop` interno de la lista.
+- Si el usuario desplaza la página mientras hay una lista abierta, ésta se cierra conservando la selección actual. Desplazarse dentro de la propia lista continúa permitido.
+- Los campos nuevos de **Raciones** ahora se muestran inicialmente en `0`; al editar un menú existente se conservan sus cantidades guardadas.
+- Se actualizó `custom-select.js` de v8 a v10 y se agregó una prueba de los atributos táctiles y valores iniciales.

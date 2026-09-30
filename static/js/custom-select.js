@@ -4,9 +4,13 @@
   const touchTabletViewport = window.matchMedia("(max-width: 900px), (max-width: 1200px) and (pointer: coarse)");
 
   const isCompactViewport = () => compactViewport.matches;
+  const usesTouchInteraction = (wrapper) => (
+    isCompactViewport()
+    || (touchTabletViewport.matches && Boolean(wrapper?.querySelector("select[data-click-toggle-select]")))
+  );
   const resetCompactTrigger = (wrapper) => {
     const trigger = wrapper.querySelector(".app-select-search");
-    if (!trigger || !isCompactViewport()) return;
+    if (!trigger || !usesTouchInteraction(wrapper)) return;
     trigger.readOnly = true;
     trigger.inputMode = "none";
     wrapper.classList.remove("is-keyboard-ready");
@@ -70,8 +74,7 @@
     // Every simple select is searchable by default. Mesa y Huevo opcional son listas
     // cortas: funcionan como botón desplegable, de modo que tocar otra vez la misma
     // barra cierre las opciones sin convertirla en campo de texto ni abrir teclado.
-    const fixedClickOptions = select.dataset.clickToggleSelect !== undefined && touchTabletViewport.matches;
-    const searchable = select.name !== "table_id" && !select.closest(".package-egg-choice") && !fixedClickOptions;
+    const searchable = select.name !== "table_id" && !select.closest(".package-egg-choice");
     const trigger = document.createElement(searchable ? "input" : "button");
     trigger.type = searchable ? "text" : "button";
     trigger.className = "app-select-trigger";
@@ -160,14 +163,25 @@
       trigger.setAttribute("aria-expanded", String(opening));
       if (opening) {
         applyEscapedPosition(wrapper, trigger, menu);
-        menu.querySelector(".is-selected")?.scrollIntoView({ block: "nearest" });
+        // `scrollIntoView` también podía desplazar la página en pantallas táctiles;
+        // ese movimiento alteraba el mismo toque y hacía parecer que el panel se
+        // abría y cerraba. Ajustamos únicamente el scroll interno de la lista.
+        const selectedItem = menu.querySelector(".is-selected");
+        if (selectedItem) {
+          const itemTop = selectedItem.offsetTop;
+          const itemBottom = itemTop + selectedItem.offsetHeight;
+          if (itemTop < menu.scrollTop) menu.scrollTop = itemTop;
+          else if (itemBottom > menu.scrollTop + menu.clientHeight) {
+            menu.scrollTop = itemBottom - menu.clientHeight;
+          }
+        }
       } else {
         clearEscapedPosition(wrapper);
       }
     };
     let openedFromPointer = false;
     trigger.addEventListener("pointerdown", (event) => {
-      if (!searchable || !isCompactViewport()) return;
+      if (!searchable || !usesTouchInteraction(wrapper)) return;
       if (!wrapper.classList.contains("is-open")) {
         // En móviles el foco nativo ocurre antes de `click`; cancelarlo aquí evita
         // que el teclado alcance a aparecer durante el primer toque.
@@ -190,7 +204,7 @@
         openedFromPointer = false;
         return;
       }
-      if (searchable && isCompactViewport()) {
+      if (searchable && usesTouchInteraction(wrapper)) {
         if (!wrapper.classList.contains("is-open")) {
           toggleMenu();
           resetCompactTrigger(wrapper);
@@ -212,9 +226,9 @@
     });
     if (searchable) {
       trigger.addEventListener("focus", () => {
-        if (isCompactViewport() && trigger.readOnly) return;
+        if (usesTouchInteraction(wrapper) && trigger.readOnly) return;
         if (!wrapper.classList.contains("is-open")) toggleMenu();
-        if (!isCompactViewport() || !trigger.readOnly) trigger.select();
+        if (!usesTouchInteraction(wrapper) || !trigger.readOnly) trigger.select();
       });
       trigger.addEventListener("input", () => {
         if (!wrapper.classList.contains("is-open")) toggleMenu();
@@ -282,18 +296,28 @@
     if (!event.target.closest(".app-select")) closeAll();
   });
 
-  compactViewport.addEventListener?.("change", () => {
+  // Al desplazar la página, una lista táctil deja de estar relacionada visualmente
+  // con su campo. Se cierra conservando la opción ya seleccionada. El scroll propio
+  // de la lista no llega a `window`, por lo que aún se pueden recorrer sus opciones.
+  window.addEventListener("scroll", () => {
+    if (!touchTabletViewport.matches) return;
+    closeAll();
+  }, { passive: true });
+
+  const refreshViewportMode = () => {
     document.querySelectorAll(".app-select").forEach((wrapper) => {
       const trigger = wrapper.querySelector(".app-select-search");
       if (!trigger) return;
-      if (isCompactViewport()) resetCompactTrigger(wrapper);
+      if (usesTouchInteraction(wrapper)) resetCompactTrigger(wrapper);
       else {
         trigger.readOnly = false;
         trigger.removeAttribute("inputmode");
         wrapper.classList.remove("is-keyboard-ready");
       }
     });
-  });
+  };
+  compactViewport.addEventListener?.("change", refreshViewportMode);
+  touchTabletViewport.addEventListener?.("change", refreshViewportMode);
 
   const dismissFocusedSearch = () => {
     if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();

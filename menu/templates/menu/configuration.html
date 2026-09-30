@@ -19,7 +19,7 @@
   <section class="card menu-admin-filters">
     <div><span>Filtrar catálogo</span><h2>Encuentra productos rápidamente</h2></div>
     <form method="get" class="filters" data-menu-filters>
-      <div class="menu-catalog-search" data-menu-search><button type="button" aria-label="Buscar producto" data-menu-search-open><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 5 5"></path></svg></button><label>Buscar <input name="q" value="{{ search }}" placeholder="Nombre o descripción" autocomplete="off" data-menu-search-input></label></div>
+      <div class="menu-catalog-search" data-menu-search><button type="button" aria-label="Buscar producto" data-menu-search-open><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 5 5"></path></svg></button><label>Buscar <input type="search" name="q" value="{{ search }}" placeholder="Nombre o descripción" enterkeyhint="search" autocomplete="off" data-menu-search-input></label></div>
       <label>Categoría <select name="category"><option value="">Todas</option>{% for category in categories %}<option value="{{ category.id }}" {% if selected_category == category.id|stringformat:'s' %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></label>
       <label>Disponibilidad <select name="availability"><option value="">Todas</option><option value="available" {% if availability == 'available' %}selected{% endif %}>Disponible</option><option value="unavailable" {% if availability == 'unavailable' %}selected{% endif %}>No disponible</option></select></label>
       <button type="submit">Aplicar filtros</button>
@@ -54,4 +54,4 @@
     </div>
   </section>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/menu-configuration.js' %}?v=1"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/menu-configuration.js' %}?v=2"></script>{% endblock %}

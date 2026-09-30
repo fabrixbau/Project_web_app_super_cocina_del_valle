@@ -334,6 +334,7 @@ class DailyMenuForm(forms.ModelForm):
             ).order_by("name")
             self.fields[field_name].empty_label = "Sin seleccionar"
             self.fields[field_name].widget.attrs["data-searchable-select"] = ""
+            self.fields[field_name].widget.attrs["data-click-toggle-select"] = ""
             self.fields[field_name].widget.attrs["autocomplete"] = "off"
         self.fields["water_product"].queryset = Product.objects.filter(
             component_type=Product.ComponentType.DAILY_WATER,
@@ -349,6 +350,7 @@ class DailyMenuForm(forms.ModelForm):
         ).order_by("component_type", "name")
         self.fields["chicken_consomme"].empty_label = "Sin seleccionar"
         self.fields["chicken_consomme"].widget.attrs["data-searchable-select"] = ""
+        self.fields["chicken_consomme"].widget.attrs["data-click-toggle-select"] = ""
         self.fields["chicken_consomme"].widget.attrs["autocomplete"] = "off"
         if not self.is_bound and not self.instance.pk:
             default_soup = self.fields["chicken_consomme"].queryset.filter(
@@ -379,6 +381,7 @@ class DailyMenuForm(forms.ModelForm):
                     threshold_name = f"threshold_{field_name}{suffix}_{channel}"
                     self.fields[name] = forms.IntegerField(
                         label=channel_labels[channel], min_value=0, required=False,
+                        initial=0,
                         widget=forms.NumberInput(attrs={"inputmode": "numeric", "min": "0", "step": "1"}),
                     )
                     self.fields[threshold_name] = forms.IntegerField(

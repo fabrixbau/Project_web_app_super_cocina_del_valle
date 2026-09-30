@@ -6,8 +6,24 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from .catalog import limit_cold_drinks_to_daily_water
+from .forms import DailyMenuForm
 from .inventory import adjust_stock, release_stock, reserve_stock, transfer_stock
 from .models import Category, DailyProductStock, Product, StockMovement
+
+
+class DailyMenuFormDefaultsTests(TestCase):
+    def test_product_selectors_use_touch_toggle_and_portions_start_at_zero(self):
+        form = DailyMenuForm()
+
+        for field_name in DailyMenuForm.STOCK_FIELDS:
+            self.assertIn("data-click-toggle-select", form.fields[field_name].widget.attrs)
+
+        quantity_fields = [
+            field for name, field in form.fields.items()
+            if name.startswith("stock_")
+        ]
+        self.assertTrue(quantity_fields)
+        self.assertTrue(all(field.initial == 0 for field in quantity_fields))
 
 
 class DailyWaterCatalogTests(SimpleTestCase):
