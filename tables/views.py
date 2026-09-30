@@ -252,15 +252,21 @@ def wants_json(request):
 
 @role_required(*SECTION_ROLE_MATRIX["tables"])
 def table_map(request):
-    tables = DiningTable.objects.filter(is_active=True).prefetch_related(
+    tables = list(DiningTable.objects.filter(is_active=True).prefetch_related(
         Prefetch(
             "accounts",
             queryset=TableAccount.objects.filter(status=TableAccount.Status.OPEN).select_related(
                 "assigned_waiter", "opened_by",
-            ).annotate(current_total=Sum("items__subtotal")),
+            ),
             to_attr="open_accounts",
         )
-    )
+    ))
+    # La ficha y el ticket deben compartir una sola fuente de verdad. La anotación
+    # SQL anterior podía quedar desacoplada de la agrupación/cálculo que ve el
+    # usuario al abrir la cuenta, especialmente tras transferencias de ida y vuelta.
+    for table in tables:
+        for account in table.open_accounts:
+            account.current_total = ticket_summary(account)["total"]
     can_choose_waiter = user_has_any_role(request.user, (ADMIN, ORDER_TAKER))
     context = {
         "tables": tables,

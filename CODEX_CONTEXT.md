@@ -2144,3 +2144,8 @@ El desarrollador pidió explícitamente que, de aquí en adelante, él se encarg
 - En celular, “Ver auditoría” se posiciona como botón compacto en la esquina superior derecha del encabezado; ya no ocupa una fila ni todo el ancho. `app.css` subió a v310.
 
 - Corrección: se eliminó la reserva lateral que estrechaba todo el encabezado móvil. El botón continúa flotando arriba a la derecha, mientras título y descripción recuperan el ancho completo debajo. `app.css` subió a v311.
+
+## 2026-09-30 — Total de ficha de Mesa después de transferencias
+
+- El mapa de `/app/mesas/` calculaba `current_total` con una anotación SQL independiente, mientras el ticket abierto usa `ticket_summary()`. Esa duplicidad permitía que la ficha y el detalle divergiesen después de transferencias/ediciones.
+- La ficha ahora toma su total directamente de `ticket_summary(account)`, la misma fuente que dibuja el ticket. Se agregó una prueba que exige igualdad exacta entre ambos valores.

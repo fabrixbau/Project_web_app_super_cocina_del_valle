@@ -18,6 +18,7 @@ from .services import (
     add_daily_menu_product_to_table, add_product_to_table, change_item_in_ticket, close_table_account,
     split_and_close_table_account,
 )
+from .views import ticket_summary
 
 
 class TableCustomerAutosaveTests(TestCase):
@@ -447,6 +448,19 @@ class TableMapTransferMenuTests(TestCase):
         self.assertContains(response, "Pasar a pedido (Recoger)")
         self.assertContains(response, "Registrar mesa como no pagada")
         self.assertContains(response, reverse("tables:table_transfer_to_order", args=(self.account.pk,)))
+
+    def test_map_card_uses_the_same_total_as_the_open_ticket(self):
+        add_product_to_table(account=self.account, product=self.product, added_by=self.waiter)
+        self.client.force_login(self.waiter)
+
+        response = self.client.get(reverse("tables:table_map"))
+
+        account = next(
+            table.open_accounts[0]
+            for table in response.context["tables"] if table.open_accounts
+        )
+        self.assertEqual(account.current_total, ticket_summary(account)["total"])
+        self.assertContains(response, "$85.00")
 
     def test_waiter_registers_the_table_as_unpaid_and_releases_it(self):
         add_product_to_table(account=self.account, product=self.product, added_by=self.waiter)
