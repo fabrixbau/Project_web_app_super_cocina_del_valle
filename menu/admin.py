@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from .models import (
     Category, DailyMenu, DailyProductStock, MealPackage, Product, ProductOption,
-    ProductOptionGroup, ServicePeriod, StockMovement,
+    InventoryAuditLog, ProductOptionGroup, ServicePeriod, StockMovement,
 )
 
 
@@ -75,6 +75,23 @@ class StockMovementAdmin(admin.ModelAdmin):
         "stock", "quantity", "reason", "reference_type", "reference_id",
         "note", "actor", "created_at",
     )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(InventoryAuditLog)
+class InventoryAuditLogAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "stock", "prepared_before", "prepared_after", "threshold_before", "threshold_after", "actor")
+    list_filter = ("created_at", "stock__channel")
+    search_fields = ("stock__product__name", "actor__username", "note")
+    readonly_fields = tuple(field.name for field in InventoryAuditLog._meta.fields)
 
     def has_add_permission(self, request):
         return False

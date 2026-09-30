@@ -497,3 +497,19 @@ class StockMovement(models.Model):
     def __str__(self):
         sign = "+" if self.quantity > 0 else ""
         return f"{self.stock} · {sign}{self.quantity} · {self.get_reason_display()}"
+
+
+class InventoryAuditLog(models.Model):
+    stock = models.ForeignKey(DailyProductStock, on_delete=models.PROTECT, related_name="audit_logs")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    prepared_before = models.IntegerField()
+    prepared_after = models.IntegerField()
+    threshold_before = models.PositiveIntegerField()
+    threshold_after = models.PositiveIntegerField()
+    note = models.CharField(max_length=250, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ("-created_at", "-pk")
+        verbose_name = "auditoría de existencia"
+        verbose_name_plural = "auditoría de existencias"

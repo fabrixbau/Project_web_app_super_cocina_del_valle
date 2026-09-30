@@ -11,7 +11,7 @@ from accounts.roles import DELIVERY, ORDER_TAKER, WAITER
 from .catalog import limit_cold_drinks_to_daily_water
 from .forms import DailyMenuForm
 from .inventory import adjust_stock, release_stock, reserve_stock, transfer_stock
-from .models import Category, DailyProductStock, Product, StockMovement
+from .models import Category, DailyProductStock, InventoryAuditLog, Product, StockMovement
 
 
 class DailyMenuFormDefaultsTests(TestCase):
@@ -205,6 +205,37 @@ class InventoryControlViewTests(TestCase):
         self.assertContains(response, "Ver comprometidas (3)")
         self.assertContains(response, ">-1<", html=False)
 
+    def test_tracking_cards_follow_kitchen_course_order(self):
+        category = self.product.category
+        definitions = (
+            ("Sopa", Product.ComponentType.CHICKEN_CONSOMME),
+            ("Arroz", Product.ComponentType.SECOND_COURSE),
+            ("Guisado", Product.ComponentType.BEEF_STEW),
+            ("Frijoles", Product.ComponentType.COMPLEMENT),
+            ("Agua", Product.ComponentType.DAILY_WATER),
+        )
+        for name, component_type in definitions:
+            product = Product.objects.create(
+                category=category, name=name, price=10, component_type=component_type,
+            )
+            DailyProductStock.objects.create(
+                date=timezone.localdate(), product=product,
+                channel=DailyProductStock.Channel.ORDERS, initial_quantity=5,
+            )
+        for item_kind in (DailyProductStock.ItemKind.TORTILLAS, DailyProductStock.ItemKind.BREAD):
+            DailyProductStock.objects.create(
+                date=timezone.localdate(), item_kind=item_kind,
+                channel=DailyProductStock.Channel.ORDERS, initial_quantity=5,
+            )
+
+        response = self.client.get(reverse("menu:inventory_tracking"))
+
+        names = [row["name"] for row in response.context["rows"]]
+        self.assertEqual(names, [
+            "Sopa", "Arroz", "Guisado", "Porción de tortillas",
+            "Frijoles", "Agua", "Bolillo",
+        ])
+
     def test_waiter_and_delivery_can_read_but_cannot_edit_tracking(self):
         daily = self.make_daily_stock()
         for role in (WAITER, DELIVERY):
@@ -223,19 +254,53 @@ class InventoryControlViewTests(TestCase):
                 self.assertEqual(response.status_code, 403)
                 self.assertEqual(daily.available_quantity, 2)
 
+    def test_waiter_remains_read_only_if_telephone_group_was_also_assigned(self):
+        daily = self.make_daily_stock()
+        user = get_user_model().objects.create_user(username="waiter-with-extra-group")
+        user.groups.add(
+            Group.objects.get_or_create(name=WAITER)[0],
+            Group.objects.get_or_create(name=ORDER_TAKER)[0],
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("menu:inventory_tracking"))
+        self.assertContains(response, "Vista de consulta")
+        self.assertIn("no-cache", response.headers["Cache-Control"])
+        response = self.client.post(reverse("menu:inventory_tracking"), {
+            "action": "set_prepared", "date": timezone.localdate().isoformat(),
+            "stock_id": daily.pk, "prepared": "30", "alert_threshold": "9",
+        })
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(daily.available_quantity, 2)
+
     def test_order_taker_can_edit_tracking(self):
         daily = self.make_daily_stock()
+        table_stock = DailyProductStock.objects.create(
+            date=timezone.localdate(), product=self.product,
+            channel=DailyProductStock.Channel.TABLE, initial_quantity=3,
+        )
         user = get_user_model().objects.create_user(username="tracking-order-taker")
         user.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
         self.client.force_login(user)
 
         response = self.client.post(reverse("menu:inventory_tracking"), {
             "action": "set_prepared", "date": timezone.localdate().isoformat(),
-            "stock_id": daily.pk, "prepared": "7",
+            "stock_id": daily.pk, "prepared": "7", "alert_threshold": "4",
         })
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(daily.available_quantity, 7)
+        daily.refresh_from_db()
+        table_stock.refresh_from_db()
+        self.assertEqual(daily.available_quantity + table_stock.available_quantity, 7)
+        self.assertEqual(daily.low_stock_threshold, 4)
+        self.assertEqual(table_stock.low_stock_threshold, 4)
+        audit = InventoryAuditLog.objects.get()
+        self.assertEqual(audit.actor, user)
+        self.assertEqual((audit.prepared_before, audit.prepared_after), (5, 7))
+        self.assertEqual((audit.threshold_before, audit.threshold_after), (15, 4))
+        response = self.client.get(reverse("menu:inventory_audit"))
+        self.assertContains(response, "tracking-order-taker")
 
     def test_inventory_history_filters_and_summarizes_movements(self):
         adjust_stock(

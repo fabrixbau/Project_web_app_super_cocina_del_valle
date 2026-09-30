@@ -25,6 +25,7 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
 from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, WAITER, SECTION_ROLE_MATRIX, role_required, user_has_any_role
@@ -41,7 +42,7 @@ from .forms import (
     FixedStockForm, ProductOptionGroupCopyForm, ProductOptionGroupForm,
 )
 from .models import (
-    Category, DailyMenu, DailyProductStock, MealPackage, Product, ProductOption,
+    Category, DailyMenu, DailyProductStock, InventoryAuditLog, MealPackage, Product, ProductOption,
     ProductOptionGroup, ServicePeriod, StockMovement,
 )
 from .selection import serialize_product_selector
@@ -231,8 +232,18 @@ def inventory_control(request):
 
 
 @role_required(ADMIN, ORDER_TAKER, WAITER, DELIVERY)
+@never_cache
+@transaction.atomic
 def inventory_tracking(request):
-    can_edit = user_has_any_role(request.user, (ADMIN, ORDER_TAKER))
+    # Administrador prevalece; si una cuenta operativa acumuló por error los grupos
+    # Mesero/Repartidor y Telefonista, el perfil de campo conserva sólo lectura.
+    is_admin = user_has_any_role(request.user, (ADMIN,))
+    is_field_profile = user_has_any_role(request.user, (WAITER, DELIVERY))
+    can_edit = is_admin or (
+        user_has_any_role(request.user, (ORDER_TAKER,)) and not is_field_profile
+    )
+    if request.method == "POST" and not can_edit:
+        raise PermissionDenied
     raw_date = request.POST.get("date") or request.GET.get("date") or timezone.localdate().isoformat()
     try:
         selected_date = date.fromisoformat(raw_date)
@@ -243,22 +254,21 @@ def inventory_tracking(request):
         stock_type=DailyProductStock.StockType.DAILY,
         date=selected_date,
         is_tracked=True,
-    ).select_related("product", "product__category"))
+    ).select_related("product", "product__category", "daily_menu"))
 
     def identity(stock):
         return (stock.item_kind, stock.product_id, stock.chicken_piece)
 
     if request.method == "POST" and request.POST.get("action") == "set_prepared":
-        if not can_edit:
-            raise PermissionDenied
         stock = get_object_or_404(DailyProductStock, pk=request.POST.get("stock_id"), date=selected_date)
         siblings = [row for row in stocks if identity(row) == identity(stock)]
         try:
             desired = int(request.POST.get("prepared", ""))
-            if desired < 0:
+            alert_threshold = int(request.POST.get("alert_threshold", str(stock.low_stock_threshold)))
+            if desired < 0 or alert_threshold < 0:
                 raise ValueError
         except ValueError:
-            messages.error(request, "La cantidad preparada debe ser cero o mayor.")
+            messages.error(request, "La cantidad preparada y la alerta deben ser cero o mayores.")
         else:
             committed = finalized = free = 0
             for row in siblings:
@@ -270,14 +280,29 @@ def inventory_tracking(request):
                     reason=StockMovement.Reason.CONSUMPTION,
                 ).aggregate(total=Sum("quantity"))["total"] or 0
             current_prepared = free + committed + finalized
+            previous_threshold = max((row.low_stock_threshold for row in siblings), default=0)
             difference = desired - current_prepared
             if difference:
                 adjust_stock(
                     stock=stock, quantity=difference, actor=request.user,
                     note=request.POST.get("note", "").strip() or "Actualización del total preparado",
                 )
-            messages.success(request, f"Total preparado de {stock.item_name}: {desired}.")
+            from notifications.services import sync_stock_alert
+            for sibling in siblings:
+                if sibling.low_stock_threshold != alert_threshold:
+                    sibling.low_stock_threshold = alert_threshold
+                    sibling.save(update_fields=("low_stock_threshold", "updated_at"))
+                sync_stock_alert(sibling)
+            InventoryAuditLog.objects.create(
+                stock=stock, actor=request.user,
+                prepared_before=current_prepared, prepared_after=desired,
+                threshold_before=previous_threshold, threshold_after=alert_threshold,
+                note=request.POST.get("note", "").strip(),
+            )
+            messages.success(request, f"Existencias y alerta de {stock.item_name} actualizadas.")
         return redirect(f"{reverse('menu:inventory_tracking')}?date={selected_date.isoformat()}")
+    if request.method == "POST":
+        raise PermissionDenied
 
     groups = {}
     stock_to_key = {}
@@ -290,7 +315,7 @@ def inventory_tracking(request):
             "committed_refs": defaultdict(int), "finalized_refs": defaultdict(int),
         })
         group["free"] += stock.available_quantity
-        group["threshold"] += stock.low_stock_threshold
+        group["threshold"] = max(group["threshold"], stock.low_stock_threshold)
 
     movements = StockMovement.objects.filter(stock_id__in=stock_to_key).select_related("stock")
     for movement in movements:
@@ -309,20 +334,36 @@ def inventory_tracking(request):
     from tables.models import TableAccountItem
     order_item_ids = {ref_id for group in groups.values() for ref_type, ref_id in (*group["committed_refs"], *group["finalized_refs"]) if ref_type == "order_item"}
     table_item_ids = {ref_id for group in groups.values() for ref_type, ref_id in (*group["committed_refs"], *group["finalized_refs"]) if ref_type == "table_item"}
-    order_items = {item.pk: item for item in OrderItem.objects.filter(pk__in=order_item_ids).select_related("order")}
-    table_items = {item.pk: item for item in TableAccountItem.objects.filter(pk__in=table_item_ids).select_related("account", "account__table")}
+    order_items = {item.pk: item for item in OrderItem.objects.filter(pk__in=order_item_ids).select_related(
+        "order", "order__delivery_person",
+    )}
+    table_items = {item.pk: item for item in TableAccountItem.objects.filter(pk__in=table_item_ids).select_related(
+        "account", "account__table", "account__assigned_waiter", "account__closed_by",
+    )}
 
-    def detail(ref, quantity):
+    def user_name(user):
+        return (user.get_full_name().strip() or user.username) if user else ""
+
+    def detail(ref, quantity, *, finalized=False):
         ref_type, ref_id = ref
         if ref_type == "order_item" and ref_id in order_items:
             order = order_items[ref_id].order
+            responsible = ""
+            responsible_label = ""
+            if finalized and order.order_type == order.OrderType.DELIVERY and order.delivery_person_id:
+                responsible = user_name(order.delivery_person)
+                responsible_label = "Repartidor"
             return {"quantity": quantity, "kind": "Pedido", "title": order.formatted_number,
                     "customer": order.customer_name or "Mostrador", "status": order.get_status_display(),
+                    "responsible": responsible, "responsible_label": responsible_label,
                     "url": reverse("orders:internal_order_edit", args=(order.pk,))}
         if ref_type == "table_item" and ref_id in table_items:
             account = table_items[ref_id].account
+            responsible_user = account.closed_by if finalized else account.assigned_waiter
             return {"quantity": quantity, "kind": "Mesa", "title": str(account.table),
                     "customer": account.customer_name or "Sin nombre", "status": account.get_status_display(),
+                    "responsible": user_name(responsible_user),
+                    "responsible_label": "Finalizó" if finalized else "Mesero",
                     "url": reverse("tables:table_detail", args=(account.pk,))}
         return None
 
@@ -335,13 +376,50 @@ def inventory_tracking(request):
         group["prepared"] = group["free"] + group["committed"] + group["finalized"]
         group["status"] = "deficit" if group["free"] < 0 else "empty" if group["free"] == 0 else "low" if group["free"] <= group["threshold"] else "ok"
         group["committed_details"] = [item for ref, qty in group["committed_refs"].items() if qty > 0 and (item := detail(ref, qty))]
-        group["finalized_details"] = [item for ref, qty in group["finalized_refs"].items() if qty > 0 and (item := detail(ref, qty))]
+        group["finalized_details"] = [item for ref, qty in group["finalized_refs"].items() if qty > 0 and (item := detail(ref, qty, finalized=True))]
         if search and search not in group["name"].casefold():
             continue
         if status_filter and group["status"] != status_filter:
             continue
         rows.append(group)
-    rows.sort(key=lambda row: row["name"].casefold())
+    first_course_types = {
+        Product.ComponentType.CHICKEN_CONSOMME,
+        Product.ComponentType.VARIABLE_FIRST_COURSE,
+    }
+    third_course_types = {
+        Product.ComponentType.CHICKEN_STEW,
+        Product.ComponentType.BEEF_STEW,
+        Product.ComponentType.VARIED_STEW,
+        Product.ComponentType.GRILL,
+    }
+
+    def tracking_order(row):
+        stock = row["stock"]
+        product = stock.product
+        component = product.component_type if product else ""
+        normalized_name = row["name"].casefold()
+        if component in first_course_types:
+            section = 10
+        elif component == Product.ComponentType.SECOND_COURSE:
+            section = 20
+        elif component in third_course_types:
+            section = 30
+        elif stock.item_kind == DailyProductStock.ItemKind.TORTILLAS:
+            section = 40
+        elif product and (
+            (stock.daily_menu_id and stock.daily_menu.beans_order_id == product.pk)
+            or (component == Product.ComponentType.COMPLEMENT and "frijol" in normalized_name)
+        ):
+            section = 50
+        elif component == Product.ComponentType.DAILY_WATER:
+            section = 60
+        elif stock.item_kind == DailyProductStock.ItemKind.BREAD:
+            section = 70
+        else:
+            section = 80
+        return (section, product.sort_order if product else 0, normalized_name)
+
+    rows.sort(key=tracking_order)
     return render(request, "menu/inventory_tracking.html", {
         "selected_date": selected_date, "rows": rows, "search": request.GET.get("q", ""),
         "status_filter": status_filter, "total_committed": sum(row["committed"] for row in rows),
@@ -349,6 +427,23 @@ def inventory_tracking(request):
         "deficit_count": sum(row["status"] == "deficit" for row in rows),
         "can_edit": can_edit,
     })
+
+
+@role_required(ADMIN, ORDER_TAKER)
+@never_cache
+def inventory_audit(request):
+    logs = InventoryAuditLog.objects.select_related("stock", "stock__product", "actor")
+    search = request.GET.get("q", "").strip()
+    if search:
+        logs = logs.filter(
+            Q(stock__product__name__icontains=search)
+            | Q(note__icontains=search)
+            | Q(actor__username__icontains=search)
+            | Q(actor__first_name__icontains=search)
+            | Q(actor__last_name__icontains=search)
+        )
+    page = Paginator(logs, 40).get_page(request.GET.get("page"))
+    return render(request, "menu/inventory_audit.html", {"page": page, "search": search})
 
 
 @role_required(*SECTION_ROLE_MATRIX["menu"])

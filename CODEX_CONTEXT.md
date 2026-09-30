@@ -2096,3 +2096,51 @@ El desarrollador pidió explícitamente que, de aquí en adelante, él se encarg
 
 - Las cuatro métricas grises de cada producto ahora usan columnas realmente reducibles (`minmax(0, 1fr)`), texto adaptable y límites internos; ya no desbordan las tarjetas en 853×405 ni 1280×800.
 - En celular, los filtros forman dos columnas: Fecha/Buscar en la primera fila y Estado/Aplicar en la segunda. Desde 560 px, incluida tablet vertical, los cuatro controles quedan en una sola fila. Los campos y el formulario de actualización también respetan el ancho disponible. `app.css` subió a v300.
+
+### Responsables en fichas de existencias
+
+- En “Ver comprometidas”, las fichas de Mesa muestran el Mesero asignado. Los pedidos comprometidos no agregan responsable.
+- En “Ver finalizadas”, los pedidos a domicilio muestran el Repartidor asignado y las mesas muestran quién finalizó/cerró la cuenta (`closed_by`). El dato sólo se dibuja cuando existe.
+- La ficha completa sigue siendo el enlace al ticket. El responsable se presenta como una línea secundaria dentro de ella. `app.css` subió a v301.
+
+### Configuración de alertas desde seguimiento
+
+- Administrador y Telefonista pueden editar en cada ficha el campo “Alertar por canal cuando queden”, junto con el total preparado. El valor se replica en las existencias de Mesas y Pedidos de ese producto/insumo para mantener ambos avisos sincronizados.
+- Mesero y Repartidor no reciben ese control y cualquier POST manual continúa bloqueado con 403. La actualización de cantidad, umbral y alertas se ejecuta dentro de una transacción.
+- `app.css` subió a v302.
+
+### Endurecimiento de sólo lectura para Mesero/Repartidor
+
+- La autorización del seguimiento ahora rechaza **todo** POST antes de interpretar la acción cuando el usuario no puede editar; no sólo el POST conocido del formulario.
+- Si una cuenta tiene accidentalmente Telefonista junto con Mesero o Repartidor, prevalece el perfil de campo y permanece en sólo lectura. Administrador sí conserva edición aun si acumula otros grupos.
+- La vista usa `never_cache` para que una tablet compartida no reutilice el HTML editable de un Administrador/Telefonista después de cambiar rápidamente a un Mesero.
+
+### Formulario de existencias en ordenador
+
+- La etiqueta se acortó de “Alertar por canal cuando queden” a “Alertar cuando queden”.
+- Los cuatro controles editables ya no usan mínimos rígidos que sumaban más que el ancho interior de una ficha cuando el tablero mostraba tres columnas. Ahora comparten el ancho real con columnas reducibles y el botón “Actualizar” permanece contenido. `app.css` subió a v303.
+
+### Orden operativo del seguimiento
+
+- Las fichas de `/app/menu/inventario/seguimiento/` dejaron de ordenarse alfabéticamente. El orden es: primer tiempo, segundo tiempo, tercer tiempo, tortillas, frijoles, agua y bolillo; cualquier insumo no clasificado aparece después.
+- Cuando hay varias opciones dentro del mismo tiempo se respeta primero el `sort_order` del producto y después su nombre.
+
+### Auditoría y búsqueda en comprometidas/finalizadas
+
+- Se agregó `InventoryAuditLog` (migración `menu/0023`) para registrar cada guardado del seguimiento: producto/insumo, usuario, preparado anterior/nuevo, umbral anterior/nuevo, nota y fecha. Administrador y Telefonista acceden desde “Ver auditoría”; el modelo también es de sólo lectura en Django Admin.
+- Cada bloque “Ver comprometidas” y “Ver finalizadas” incorpora búsqueda por nombre de cliente, folio o responsable. En ordenador filtra por coincidencia mientras se escribe. Con puntero táctil, el primer toque arma/muestra el control sin teclado y el segundo habilita escritura; al perder foco vuelve al estado inicial.
+- Se agregó `inventory-tracking.js?v=1`; `app.css` subió a v304. En producción se debe ejecutar `python manage.py migrate`.
+
+- Ajuste visual posterior: “Ver auditoría” ahora es un botón verde compacto, con icono, estados hover/foco y ancho completo en celular. `app.css` subió a v305.
+
+- Se retiró “Nota opcional” del formulario de seguimiento. Quedan Total preparado, Alertar cuando queden y Actualizar; la auditoría conserva su campo interno vacío para mantener compatibilidad histórica. `app.css` subió a v306.
+
+- Para tablet horizontal entre 780–900 px de ancho y hasta 500 px de alto (incluye 835×405 y 853×405), el seguimiento usa cuatro fichas por fila. Las métricas pasan a 2×2, los campos a dos columnas y Actualizar ocupa la fila inferior; los demás tamaños no cambian. `app.css` subió a v307.
+
+- En celular, Total preparado, Alertar cuando queden y Actualizar permanecen en una sola fila dentro de cada ficha; las columnas, tipografía y separaciones se compactan adicionalmente hasta 390 px. `app.css` subió a v308.
+
+- En celular, las tarjetas resumen Comprometidas, Finalizadas y Productos rebasados también permanecen en una sola fila, con tamaños adaptados hasta 390 px. `app.css` subió a v309.
+
+- En celular, “Ver auditoría” se posiciona como botón compacto en la esquina superior derecha del encabezado; ya no ocupa una fila ni todo el ancho. `app.css` subió a v310.
+
+- Corrección: se eliminó la reserva lateral que estrechaba todo el encabezado móvil. El botón continúa flotando arriba a la derecha, mientras título y descripción recuperan el ancho completo debajo. `app.css` subió a v311.
