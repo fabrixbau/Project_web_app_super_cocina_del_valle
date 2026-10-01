@@ -18,7 +18,6 @@
     ".compact-search-backdrop:not([hidden])",
     ".menu-search-backdrop:not([hidden])",
     ".delivery-search-backdrop:not([hidden])",
-    ".customer-field-backdrop:not([hidden])",
   ].join(",");
 
   const isSearchInput = (element) => element instanceof HTMLInputElement && element.matches(searchInputSelector);
@@ -37,10 +36,8 @@
     document.querySelectorAll(".menu-catalog-search.is-searching, .delivery-search-filter.is-searching")
       .forEach((element) => element.classList.remove("is-searching"));
     document.body.classList.remove("compact-field-open", "delivery-search-is-open");
-    document.querySelectorAll(".compact-search-backdrop, .menu-search-backdrop, .delivery-search-backdrop, .customer-field-backdrop")
+    document.querySelectorAll(".compact-search-backdrop, .menu-search-backdrop, .delivery-search-backdrop")
       .forEach((backdrop) => { backdrop.hidden = true; });
-    document.body.classList.remove("customer-field-focus-open");
-    document.querySelectorAll(".is-customer-field-focused").forEach((element) => element.classList.remove("is-customer-field-focused"));
   };
 
   const finishAfterCurrentSearch = (input) => {

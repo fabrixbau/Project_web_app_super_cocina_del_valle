@@ -6597,10 +6597,8 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   .cashier-page-header .cashier-unpaid-quick > small { top: calc(100% + 11.2rem); }
 }
 
-/* Customer editor: two-column overview and one focused field at a time. */
-.customer-field-backdrop[hidden] { display: none !important; }
+/* Customer editor: two-column overview. */
 @media (max-width: 900px) {
-  body.customer-field-focus-open { overflow: hidden; }
   .customer-data-panel .internal-form-grid,
   .customer-data-panel .delivery-data-panel .internal-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -6615,48 +6613,6 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
     border-radius: .6rem;
     background: #fff;
     font-size: .66rem;
-  }
-  .customer-field-backdrop:not([hidden]) {
-    position: fixed;
-    z-index: 78;
-    inset: 0;
-    display: block;
-    width: 100%;
-    height: 100%;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: rgb(8 18 14 / 62%);
-    backdrop-filter: blur(4px);
-  }
-  .customer-data-panel label.is-customer-field-focused {
-    position: fixed;
-    z-index: 80;
-    top: 18dvh;
-    right: .75rem;
-    left: .75rem;
-    display: grid;
-    width: auto;
-    min-height: 0;
-    gap: .5rem;
-    padding: .9rem;
-    border: 1px solid rgb(255 255 255 / 45%);
-    border-radius: .9rem;
-    color: #fff;
-    background: #174735;
-    box-shadow: 0 22px 50px rgb(0 0 0 / 38%);
-    font-size: .75rem;
-  }
-  .customer-data-panel label.is-customer-field-focused input,
-  .customer-data-panel label.is-customer-field-focused textarea {
-    width: 100%;
-    min-height: 3.4rem;
-    padding: .75rem .9rem;
-    border: 2px solid #f4c95d;
-    border-radius: .7rem;
-    color: #17231e;
-    background: #fff;
-    font-size: 1rem;
   }
 }
 

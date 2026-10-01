@@ -418,7 +418,7 @@
   const dismissFocusedSearch = () => {
     if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
     document.querySelectorAll(
-      ".compact-search-backdrop:not([hidden]), .menu-search-backdrop:not([hidden]), .delivery-search-backdrop:not([hidden]), .customer-field-backdrop:not([hidden])"
+      ".compact-search-backdrop:not([hidden]), .menu-search-backdrop:not([hidden]), .delivery-search-backdrop:not([hidden])"
     ).forEach((backdrop) => backdrop.click());
   };
   document.addEventListener("keydown", (event) => {

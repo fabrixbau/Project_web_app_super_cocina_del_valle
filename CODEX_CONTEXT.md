@@ -2283,3 +2283,10 @@ El desarrollador pidió explícitamente que, de aquí en adelante, él se encarg
 - Títulos de categoría ("Comida corrida", etc.): margen `.2rem 0 .3rem` en lugar del margen por defecto del h2 (~20 px arriba y abajo); la barra de complementos sube 40 px.
 - `app.css` v353.
 
+## 2026-10-01 — Datos del cliente en Pedidos sin "modo enfoque" en celular y tabletas (verificado con Playwright)
+
+- Antes, con pantallas de hasta 900 px, al tocar un campo de Datos del cliente (`/app/pedidos/<id>/editar/`) `internal-order-form.js` lo sacaba al centro (`.is-customer-field-focused`, `position: fixed`), mostraba un fondo oscuro desenfocado (`.customer-field-backdrop`) y bloqueaba el scroll (`body.customer-field-focus-open`).
+- Ahora se comporta como en ordenador: el campo recibe el foco en su lugar y sólo se abre el teclado. Se eliminaron el JS del modo enfoque, su CSS y sus referencias en `search-dismiss.js` y `custom-select.js`. Al elegir un cliente de la agenda se sigue quitando el foco (cierra el teclado). Se conserva la cuadrícula de dos columnas del panel en ≤900 px.
+- Verificado en celular (390×844), tableta 853×405 y TABA+9: sin fondo, sin bloqueo de scroll, el campo no se mueve, sin errores de JS.
+- `app.css` v354, `internal-order-form.js` v58, `custom-select.js` v12, `search-dismiss.js` v5 (interno), v3 (login) y v2 (menú público).
+

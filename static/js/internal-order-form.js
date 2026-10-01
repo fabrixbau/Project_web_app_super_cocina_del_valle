@@ -158,34 +158,6 @@
     event.preventDefault();
   });
 
-  const compactCustomerView = window.matchMedia("(max-width: 900px)");
-  const customerFieldBackdrop = document.createElement("button");
-  customerFieldBackdrop.type = "button";
-  customerFieldBackdrop.className = "customer-field-backdrop";
-  customerFieldBackdrop.setAttribute("aria-label", "Cerrar campo del cliente");
-  customerFieldBackdrop.hidden = true;
-  document.body.append(customerFieldBackdrop);
-  let focusedCustomerLabel = null;
-  const closeCustomerField = () => {
-    focusedCustomerLabel?.classList.remove("is-customer-field-focused");
-    focusedCustomerLabel = null;
-    customerFieldBackdrop.hidden = true;
-    document.body.classList.remove("customer-field-focus-open");
-    document.activeElement?.blur?.();
-  };
-  customerPanel.querySelectorAll(".internal-form-grid label, .customer-notes-field").forEach((label) => {
-    label.addEventListener("focusin", () => {
-      if (!compactCustomerView.matches) return;
-      focusedCustomerLabel?.classList.remove("is-customer-field-focused");
-      focusedCustomerLabel = label;
-      label.classList.add("is-customer-field-focused");
-      customerFieldBackdrop.hidden = false;
-      document.body.classList.add("customer-field-focus-open");
-    });
-  });
-  customerFieldBackdrop.addEventListener("click", closeCustomerField);
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeCustomerField(); });
-  compactCustomerView.addEventListener?.("change", (event) => { if (!event.matches) closeCustomerField(); });
 
   // NOTA TEMPORAL PARA APRENDIZAJE: `select()` mantiene Mostrador como valor útil,
   // pero permite que el primer carácter escrito lo reemplace completo. Borra esta nota.
@@ -340,7 +312,8 @@
     }
     agendaResults.hidden = true;
     customerPanel.hidden = true;
-    closeCustomerField();
+    // Cierra el teclado del campo que se estaba llenando.
+    document.activeElement?.blur?.();
     if (duplicatePhoneWarning) duplicatePhoneWarning.hidden = true;
     const creditBalance = Number(customer.credit_balance || 0);
     const currentTotal = Number(form.dataset.orderTotal || 0);
