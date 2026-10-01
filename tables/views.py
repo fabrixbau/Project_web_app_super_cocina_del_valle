@@ -20,6 +20,7 @@
 # Corrida, Ejecutiva y Por orden son nombres reservados: se excluyen del catálogo normal
 # en ambos modos y solo se construyen con el menú diario dentro de Modo comida. Borra esta nota.
 
+import copy
 import json
 from datetime import time, timedelta
 from decimal import Decimal, InvalidOperation
@@ -44,7 +45,10 @@ from menu.inventory import filter_products_by_stock, stock_warning_payload
 from menu.egg import egg_products, selected_egg
 from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product
 from menu.packaging import parse_packaging_quantities
-from menu.selection import resolve_product_selection, serialize_product_selector
+from menu.selection import (
+    apply_package_component_customizations, expanded_customizations, requested_packages,
+    resolve_product_selection, serialize_product_selector, ticket_item_name, ticket_modifications,
+)
 
 from .forms import TableAccountCloseForm, TablePackageForm
 from .models import DiningTable, TableAccount, TableAccountItem, TableActivity
@@ -187,16 +191,14 @@ def ticket_summary(account):
                     )
                 if item.is_package_candidate:
                     description_parts.append("Esperando completar paquete")
-                if item.is_customized:
-                    description_parts.extend(item.configuration_snapshot.get("differences", []))
+            is_package = item.item_type == TableAccountItem.ItemType.PACKAGE
             grouped[key] = {
                 "item_id": item.pk,
                 "product_id": item.product_id,
-                "name": (
-                    f"{item.product_name_snapshot} ({item.customization_comment})"
-                    if item.customization_comment else item.product_name_snapshot
-                ),
+                "name": ticket_item_name(item.product_name_snapshot, item, is_package=is_package),
                 "description": " · ".join(description_parts),
+                # Cómo quedó modificado: ingredientes del producto o tiempos del paquete.
+                "modifications": ticket_modifications(item, is_package=is_package),
                 "quantity": 0,
                 "subtotal": Decimal("0"),
                 "is_package": item.item_type == TableAccountItem.ItemType.PACKAGE,
@@ -595,6 +597,10 @@ def table_detail(request, account_id):
     selector_products.update({product.pk: product for product in running_meal_products})
     selector_products.update({product.pk: product for product in executive_meal_products})
     selector_products.update({product.pk: product for product in daily_order_loose_products})
+    # Los tiempos del diálogo de paquete también se personalizan con la ficha.
+    for option in package_options:
+        for key in ("first_products", "second_products", "main_products"):
+            selector_products.update({product.pk: product for product in option[key]})
     selector_product_records = Product.objects.filter(
         pk__in=selector_products,
     ).prefetch_related("option_groups__options")
@@ -646,18 +652,13 @@ def table_item_add(request, account_id, product_id):
     account = get_object_or_404(TableAccount, pk=account_id)
     product = get_object_or_404(Product.objects.prefetch_related("service_periods"), pk=product_id)
     try:
-        raw_option_ids = (
-            request.POST.getlist("option_ids")
-            if request.POST.get("customization_selected") == "1" else None
-        )
-        add_product_to_table(
-            account=account, product=product, added_by=request.user,
-            raw_option_ids=raw_option_ids,
-            customization_comment=(
-                request.POST.get("customization_comment", "")
-                if request.POST.get("customization_selected") == "1" else ""
-            ),
-        )
+        # Una pieza por vuelta; si alguna falla, ninguna queda registrada.
+        with transaction.atomic():
+            for raw_option_ids, comment in expanded_customizations(request.POST):
+                add_product_to_table(
+                    account=account, product=product, added_by=request.user,
+                    raw_option_ids=raw_option_ids, customization_comment=comment,
+                )
     except ValidationError as error:
         if wants_json(request):
             return JsonResponse({"ok": False, "error": error.message}, status=400)
@@ -677,18 +678,13 @@ def table_daily_order_add(request, account_id, product_id):
         DailyMenu, date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED,
     )
     try:
-        add_daily_menu_product_to_table(
-            account=account, product=product, daily_menu=daily_menu, added_by=request.user,
-            chicken_piece=request.POST.get("chicken_piece", ""),
-            raw_option_ids=(
-                request.POST.getlist("option_ids")
-                if request.POST.get("customization_selected") == "1" else None
-            ),
-            customization_comment=(
-                request.POST.get("customization_comment", "")
-                if request.POST.get("customization_selected") == "1" else ""
-            ),
-        )
+        with transaction.atomic():
+            for raw_option_ids, comment in expanded_customizations(request.POST):
+                add_daily_menu_product_to_table(
+                    account=account, product=product, daily_menu=daily_menu, added_by=request.user,
+                    chicken_piece=request.POST.get("chicken_piece", ""),
+                    raw_option_ids=raw_option_ids, customization_comment=comment,
+                )
     except ValidationError as error:
         if wants_json(request):
             return JsonResponse({"ok": False, "error": error.message}, status=400)
@@ -714,25 +710,33 @@ def table_auto_meal_add(request, account_id, product_id):
             "error": "Este producto no puede formar un paquete del menú de hoy.",
         }, status=400)
     requested_chicken_piece = request.POST.get("chicken_piece", "")
+    egg_product = selected_egg(request.POST.get("egg_product"))
+    previous_builders = copy.deepcopy(request.session.get(AUTO_MEAL_SESSION_KEY, {}))
+    package_created = False
     try:
-        all_builders, builders, completed = planned_auto_meal_selection(
-            request, account.pk, slot, product.pk, requested_chicken_piece,
-        )
-        package_item = add_auto_meal_component(
-            account=account, product=product, daily_menu=daily_menu,
-            completed_selection=completed, added_by=request.user,
-            chicken_piece=(completed or {}).get("chicken_piece", requested_chicken_piece),
-            raw_option_ids=(request.POST.getlist("option_ids") if request.POST.get("customization_selected") == "1" else None),
-            customization_comment=(request.POST.get("customization_comment", "") if request.POST.get("customization_selected") == "1" else ""),
-            egg_product=selected_egg(request.POST.get("egg_product")),
-        )
+        with transaction.atomic():
+            for raw_option_ids, comment in expanded_customizations(request.POST):
+                all_builders, builders, completed = planned_auto_meal_selection(
+                    request, account.pk, slot, product.pk, requested_chicken_piece,
+                )
+                package_item = add_auto_meal_component(
+                    account=account, product=product, daily_menu=daily_menu,
+                    completed_selection=completed, added_by=request.user,
+                    chicken_piece=(completed or {}).get("chicken_piece", requested_chicken_piece),
+                    raw_option_ids=raw_option_ids, customization_comment=comment,
+                    # El huevo elegido acompaña sólo al primer paquete que se complete.
+                    egg_product=None if package_created else egg_product,
+                )
+                save_auto_meal_builders(request, account.pk, all_builders, builders)
+                package_created = package_created or package_item is not None
     except ValidationError as error:
+        request.session[AUTO_MEAL_SESSION_KEY] = previous_builders
+        request.session.modified = True
         return JsonResponse({"ok": False, "error": error.message}, status=400)
-    save_auto_meal_builders(request, account.pk, all_builders, builders)
     return JsonResponse({
         "ok": True,
         "ticket": ticket_summary(account),
-        "auto_package_created": package_item is not None,
+        "auto_package_created": package_created,
     })
 
 
@@ -802,26 +806,28 @@ def table_package_add(request, account_id, package_id):
     daily_menu = get_object_or_404(
         DailyMenu, date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED,
     )
-    form = TablePackageForm(
-        request.POST, package=package, daily_menu=daily_menu, prefix=f"package-{package.pk}",
-    )
-    if not form.is_valid():
-        error_messages = [
-            error["message"]
-            for field_errors in form.errors.get_json_data().values()
-            for error in field_errors
-        ]
-        return JsonResponse({
-            "ok": False,
-            "error": " ".join(error_messages) or "Revisa todas las opciones del paquete.",
-        }, status=400)
     try:
-        form.cleaned_data["is_complete"] = form.is_complete()
-        add_package_to_table(
-            account=account, package=package, daily_menu=daily_menu,
-            cleaned_data=form.cleaned_data, added_by=request.user,
-            packaging_quantities=parse_packaging_quantities(request.POST),
-        )
+        # Con el contador del diálogo llegan varios paquetes; si uno falla, ninguno queda.
+        with transaction.atomic():
+            for data, quantity in requested_packages(request.POST):
+                form = TablePackageForm(
+                    data, package=package, daily_menu=daily_menu, prefix=f"package-{package.pk}",
+                )
+                if not form.is_valid():
+                    error_messages = [
+                        error["message"]
+                        for field_errors in form.errors.get_json_data().values()
+                        for error in field_errors
+                    ]
+                    raise ValidationError(" ".join(error_messages) or "Revisa todas las opciones del paquete.")
+                form.cleaned_data["is_complete"] = form.is_complete()
+                apply_package_component_customizations(data, form.cleaned_data)
+                for _ in range(quantity):
+                    add_package_to_table(
+                        account=account, package=package, daily_menu=daily_menu,
+                        cleaned_data=dict(form.cleaned_data), added_by=request.user,
+                        packaging_quantities=parse_packaging_quantities(data),
+                    )
     except ValidationError as error:
         return JsonResponse({"ok": False, "error": error.message}, status=400)
     return JsonResponse({"ok": True, "ticket": ticket_summary(account)})

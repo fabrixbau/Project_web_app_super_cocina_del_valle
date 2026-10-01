@@ -5,7 +5,12 @@ pertenece a esta partida y aparecerá entre paréntesis junto al nombre. Borra e
 <dialog class="product-selector-dialog" data-product-selector-dialog>
   <div class="product-selector-actionbar">
     <button type="button" class="product-selector-close" data-selector-close aria-label="Cerrar personalización">×</button>
-    <div class="product-selector-title"><span>Personalizar producto</span><strong data-selector-product-name></strong><em data-selector-modified hidden>Modificado</em></div>
+    <div class="product-selector-title"><span>Personalizar</span><strong data-selector-product-name></strong><em data-selector-modified hidden>Modificado</em></div>
+    <div class="product-selector-counter" role="group" aria-label="Piezas personalizadas">
+      <button type="button" data-selector-decrease aria-label="Quitar la pieza en curso y editar la anterior">−</button>
+      <strong data-selector-count aria-live="polite">1</strong>
+      <button type="button" data-selector-increase aria-label="Guardar esta pieza y personalizar otra">+</button>
+    </div>
     <button type="button" class="product-selector-confirm" data-selector-confirm><span>Agregar producto</span><strong data-selector-price></strong></button>
   </div>
   <div data-selector-error class="message error" hidden></div>

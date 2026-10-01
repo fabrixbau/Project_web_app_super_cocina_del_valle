@@ -9,6 +9,7 @@
 # eligen y cada opción define si es estándar, disponible y si cobra extra. Borra esta nota.
 
 from django import forms
+from django.db.models import Case, IntegerField, Value, When
 
 from .models import (
     Category, DailyMenu, DailyProductStock, MealPackage, Product, ProductOption,
@@ -570,9 +571,16 @@ class PackageSelectionForm(forms.Form):
             )
             self.fields["main_course"].label = "Tercer tiempo · plancha"
         main_ids = [product.pk for product in main_products if product]
-        self.fields["main_course"].queryset = Product.objects.filter(
-            pk__in=main_ids, is_available=True
-        ).order_by("name")
+        main_queryset = Product.objects.filter(pk__in=main_ids, is_available=True)
+        if package.package_type == MealPackage.PackageType.RUNNING:
+            # Guisados en el orden del menú del día: pollo, res y guisado variado.
+            main_queryset = main_queryset.order_by(Case(
+                *(When(pk=product_id, then=Value(position)) for position, product_id in enumerate(main_ids)),
+                output_field=IntegerField(),
+            ))
+        else:
+            main_queryset = main_queryset.order_by("name")
+        self.fields["main_course"].queryset = main_queryset
 
     def clean(self):
         cleaned_data = super().clean()

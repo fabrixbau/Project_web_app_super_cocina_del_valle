@@ -1,10 +1,14 @@
+from decimal import Decimal
+from io import BytesIO
 from types import SimpleNamespace
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.test import SimpleTestCase, TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from PIL import Image
 
 from accounts.roles import DELIVERY, ORDER_TAKER, WAITER
 
@@ -12,6 +16,66 @@ from .catalog import limit_cold_drinks_to_daily_water
 from .forms import DailyMenuForm
 from .inventory import adjust_stock, release_stock, reserve_stock, transfer_stock
 from .models import Category, DailyProductStock, InventoryAuditLog, Product, StockMovement
+
+
+@override_settings(STORAGES={
+    "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+})
+class ProductImageFramingTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser(
+            username="image_framing_admin", password="test-password",
+        )
+        self.client.force_login(self.admin)
+        self.category = Category.objects.create(name="Productos con imagen")
+        image_bytes = BytesIO()
+        Image.new("RGB", (800, 600), "#d08343").save(image_bytes, format="JPEG")
+        self.product = Product.objects.create(
+            category=self.category,
+            name="Producto encuadrable",
+            price=Decimal("75.00"),
+            image=SimpleUploadedFile(
+                "producto.jpg", image_bytes.getvalue(), content_type="image/jpeg",
+            ),
+        )
+
+    def test_product_edit_persists_image_framing_without_replacing_image(self):
+        original_image_name = self.product.image.name
+        response = self.client.post(
+            reverse("menu:product_edit", args=(self.product.pk,)),
+            {
+                "category": self.category.pk,
+                "name": self.product.name,
+                "price": "75.00",
+                "description": "",
+                "image_position_x": "18",
+                "image_position_y": "82",
+                "image_zoom": "2.25",
+                "is_available": "on",
+                "component_type": Product.ComponentType.GENERAL,
+                "is_sold_individually": "on",
+                "packaging_kind": Product.PackagingKind.NONE,
+                "sort_order": "0",
+                "customization_data": "[]",
+            },
+        )
+
+        self.assertRedirects(response, reverse("menu:configuration"))
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.image_position_x, 18)
+        self.assertEqual(self.product.image_position_y, 82)
+        self.assertEqual(self.product.image_zoom, Decimal("2.25"))
+        self.assertEqual(self.product.image.name, original_image_name)
+
+    def test_generated_card_image_is_never_served_from_stale_browser_cache(self):
+        response = self.client.get(
+            reverse("menu:product_card_image", args=(self.product.pk,)),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Cache-Control"], "private, no-store, max-age=0")
+        self.assertEqual(response.headers["Pragma"], "no-cache")
 
 
 class DailyMenuFormDefaultsTests(TestCase):

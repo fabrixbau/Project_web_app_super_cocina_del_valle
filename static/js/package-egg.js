@@ -30,18 +30,22 @@
     const name = first.name.replace(/first_course$/, "egg_product");
     const itemId = form.closest("dialog")?.id.match(/^package-edit-(\d+)$/)?.[1];
     const choice = makeChoice(name, itemId ? initials[itemId] : "");
+    // Paquetes de Mesas (corrida y ejecutiva): el huevo ocupa el lugar que dejó "Lleva bolillo".
+    const slot = form.querySelector("[data-egg-slot]");
+    if (slot) {
+      slot.replaceWith(choice);
+      return;
+    }
     const target = form.querySelector(".package-quick-extras") || form.querySelector(".table-package-visual-extras") || form.querySelector(".package-secondary-fields") || form;
     const tableComment = target.querySelector(":scope > .package-comment-field");
     if (tableComment) target.insertBefore(choice, tableComment);
     else target.append(choice);
   });
 
-  document.querySelectorAll("[data-auto-package-options], #auto-running-meal, #auto-executive-meal").forEach((container) => {
-    if (container.matches("[data-auto-package-options]") && container.closest("#internal-running, #internal-executive")) {
-      container.append(makeChoice("egg_product"));
-    } else if (container.matches("#auto-running-meal, #auto-executive-meal")) {
-      container.prepend(makeChoice("egg_product"));
-    }
+  // Pedidos: huevo en las opciones de la comida armada tiempo por tiempo. En Mesas ya no
+  // se muestra ahí; el huevo se elige en el diálogo de Comida corrida / ejecutiva.
+  document.querySelectorAll("#internal-running [data-auto-package-options], #internal-executive [data-auto-package-options]").forEach((container) => {
+    container.append(makeChoice("egg_product"));
   });
 
   const extrasForm = document.querySelector("[data-package-extras-form]");

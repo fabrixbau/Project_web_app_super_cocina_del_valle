@@ -2149,3 +2149,91 @@ El desarrollador pidió explícitamente que, de aquí en adelante, él se encarg
 
 - El mapa de `/app/mesas/` calculaba `current_total` con una anotación SQL independiente, mientras el ticket abierto usa `ticket_summary()`. Esa duplicidad permitía que la ficha y el detalle divergiesen después de transferencias/ediciones.
 - La ficha ahora toma su total directamente de `ticket_summary(account)`, la misma fuente que dibuja el ticket. Se agregó una prueba que exige igualdad exacta entre ambos valores.
+
+## 2026-09-30 — Paneles de opciones anclados según el espacio visible
+
+- Pedido: las barras de opciones (`custom-select.js`, p. ej. primer/segundo/tercer tiempo en `/app/menu/diario/<id>/editar/`) deben abrir su panel hacia donde haya más espacio en celular, tableta y ordenador, y cerrarse al hacer scroll si la lista ya no cabe.
+- Todos los paneles se anclan al campo con `position: fixed` (clases `.is-anchored` / `.opens-up`, variables `--menu-top/left/width/max-height`). Abre hacia abajo si la lista completa cabe; si no, hacia el lado con más espacio. El espacio se mide con `visualViewport` (descuenta el teclado en pantalla). Si un ancestro tiene `transform`/`filter`/`contain`, se compensa su origen.
+- Esto generaliza lo que antes sólo hacía el huevo opcional (`.is-escaped`); se retiraron esa regla, el reposicionamiento del menú del huevo y la hoja inferior fija de celular (`@media max-width:900px`).
+- Scroll (página o cualquier contenedor, excepto la propia lista): el panel sigue al campo; si el espacio del lado elegido ya no alcanza (132px o la altura de la lista) o el campo queda oculto a más de la mitad, se cierra y se restaura la opción fijada, descartando el texto buscado. Mientras se escribe en táctil, sólo se cierra si el campo desaparece (el teclado también desplaza la página).
+- `app.css` subió a v312 y `custom-select.js` a v11.
+
+## 2026-09-30 — Ficha Personalizar: ingredientes en columnas y contador de piezas
+
+- Las opciones de ingredientes se agrupan en `.selector-options` (cuadrícula): 3 columnas en ordenador, tabletas (incl. 853×405 y 800×1280 en ambas orientaciones) y celular horizontal; 2 columnas en celular vertical (`max-width: 600px`).
+- Encabezado: "Personalizar <producto>" (sin la palabra "producto") y contador `− # +` entre el título y Agregar; siempre inicia en 1. Aplica en Mesas, Pedidos internos y menú público (mismo `product-selector.js`).
+- "+" guarda la pieza en pantalla (ingredientes y comentario) y restablece la plantilla a las opciones estándar con comentario vacío. "−" descarta la pieza en curso y vuelve a cargar la anterior para editarla (no baja de 1). Agregar envía todas; el botón muestra el total y "Agregar N productos".
+- Con 1 pieza se usa el flujo anterior (`option_ids` + `customization_comment`). Con varias se envía un solo `customization_batch` JSON `[{option_ids, comment, quantity}]`, con las piezas idénticas agrupadas. `menu/selection.py` lo valida (`requested_customizations` / `expanded_customizations`, máx. 99 piezas).
+- Mesas (`table_item_add`, `table_daily_order_add`, `table_auto_meal_add`) y Pedidos (`internal_order_product_add`, `internal_order_daily_product_add`, `internal_order_auto_meal_add`) registran una pieza por vuelta dentro de `transaction.atomic()`: si una falla no queda ninguna, y en comidas automáticas también se restaura el armado guardado en sesión. Las piezas con la misma firma se unen en una línea con cantidad. En comidas automáticas los extras (agua, frijoles, huevo, comentario del paquete) acompañan sólo al primer paquete completado del lote. La pieza de pollo se elige una vez (ventanita de pierna o muslo) y aplica a todas las piezas del lote.
+- El carrito público valida todas las configuraciones antes de agregarlas, cada una con su cantidad.
+- Limpieza: se quitaron `.product-selector-dialog .dialog-heading*` y `.product-selector-footer*`, que ya no se usaban.
+- Pruebas: `tables.tests.TableCustomizationBatchTests` (agrupado, rollback y lotes mal formados).
+- `app.css` v313 (interno) y v194 (menú público); `product-selector.js` v6.
+
+## 2026-10-01 — Diálogo de paquete: Personalizar por tiempo y contador de paquetes
+
+- Se revirtió la "pieza de pollo dentro de la ficha" (opción A del 2026-09-30): la ventanita de pierna o muslo vuelve a preguntarse una vez por lote.
+- Bug corregido: en los diálogos de paquete (botones "Desde $XX" de Comida corrida/ejecutiva, Mesas y Pedidos) el botón Personalizar de cada tiempo sólo escribía "producto: " en el comentario del paquete y lo enfocaba con `preventScroll`, fuera de la vista; parecía no hacer nada y no permitía quitar/agregar ingredientes.
+- Ahora Personalizar abre la misma ficha de ingredientes (`window.ProductSelector.open`, modo externo sin contador, botón "Aplicar") encima del diálogo. Lo elegido se guarda por tiempo en el campo oculto `component_customizations` (JSON `{first_course|second_course|main_course: {product_id, option_ids, comment}}`); la tarjeta muestra "Personalizado ✓". Si el tiempo es el guisado de pollo, la ficha se abre después de elegir pierna o muslo. Las vistas incluyen ahora los productos de los paquetes en el JSON de la ficha.
+- Servidor (`menu/selection.py::apply_package_component_customizations`): sólo toma la personalización del producto que quedó elegido en cada tiempo; describe cada tiempo como "Producto: diferencias · comentario" antes del comentario general del paquete (máx. 150 caracteres), suma como recargo los ingredientes con costo y separa por firma los paquetes distintos. Pedidos ahora admite `customization_surcharge` en `add_internal_order_package` y lo conserva en `configuration_snapshot["surcharge"]` para que editar extras no lo pierda. (En Mesas, editar un paquete con el diálogo de edición recalcula el precio sin recargo, como ya ocurría con las comidas armadas desde la categoría.)
+- Contador `− # +` en la barra del diálogo, a la izquierda de "2 tiempos" (no en el diálogo de edición de Mesas). "+" guarda todos los campos del paquete y limpia la plantilla completa (tiempos, personalización, pieza, agua, bolillo, refill, huevo, envases, comentario; 2 tiempos apagado). "−" descarta el paquete en curso y recarga el anterior. Agregar envía `package_batch` (JSON `[{fields: [[nombre, valor]...], quantity}]`, idénticos agrupados); `table_package_add` e `internal_order_package_add` validan y registran cada paquete dentro de `transaction.atomic()` (si uno falla no queda ninguno). El contador vuelve a 1 al agregar, al reabrir o al cerrar el diálogo.
+- Pruebas: `tables.tests.TablePackageDialogBatchTests` y `orders.test_egg_extras.EggExtraTests.test_course_customization_surcharge_survives_extras_edit`.
+- `app.css` v314 (interno) y v195 (menú público); `product-selector.js` v7; `package-selection.js` v8.
+
+## 2026-10-01 — Ticket: cómo quedó modificado cada producto (Pedidos y Mesas)
+
+- Pedido: en `/app/pedidos/<id>/editar/` y `/app/mesas/cuentas/<id>/` el ticket debe mostrar cómo quedó modificado un producto, no sólo la etiqueta "Modificado".
+- Antes: en Pedidos los productos nunca mostraban sus cambios de ingredientes; en ambos canales, las comidas armadas desde la categoría Comida corrida/ejecutiva sólo heredaban el *comentario* de cada tiempo y perdían los cambios de ingredientes (además, dos paquetes que sólo diferían en ingredientes podían unirse en la misma línea).
+- `internal_order_ticket` y `ticket_summary` envían `modifications` (lista de renglones) generada por `menu.selection.ticket_modifications`: productos → sus diferencias ("Sin Cebolla · Agregar Queso", el comentario sigue entre paréntesis junto al nombre); paquetes → un renglón por tiempo modificado desde `configuration_snapshot["components"]`. `ticket_item_name` deja entre paréntesis sólo el comentario general del paquete cuando los tiempos se listan aparte.
+- Comidas armadas desde la categoría (Mesas y Pedidos): cada tiempo se describe con `describe_component` ("Producto: diferencias · comentario"), se guarda en `components` y el comentario compuesto se recorta a 150 caracteres (`fit_ticket_comment`). En Pedidos ahora cuentan los candidatos `is_customized`, no sólo los que tienen comentario. Editar extras en Pedidos conserva los renglones mientras no cambie el comentario.
+- Se dibuja como `<small class="ticket-item-modification">` (borde ámbar) en `table-pos.js`, `table_detail.html` e `internal-order-form.js`; Mesas deja de repetir las diferencias en `description`.
+- Pruebas: `tables.tests.TicketModificationLinesTests`.
+- `app.css` v315, `table-pos.js` v34, `internal-order-form.js` v57.
+
+## 2026-10-01 — Tableta 853×405: tarjetas en 5 columnas y ticket de 6 renglones
+
+- Sólo para tableta horizontal entre 780–900 px de ancho y hasta 500 px de alto (853×405), en `/app/pedidos/<id>/editar/` y `/app/mesas/cuentas/<id>/`; los demás tamaños no cambian.
+- Las tarjetas de producto (`.table-product-grid`) pasan de 3 a 5 columnas.
+- Ticket: `ticket-expand.js` observa `.table-ticket-items` (dentro de `[data-table-pos]` / `[data-internal-capture]`). Con más de 6 partidas fija `max-height` hasta el borde inferior del 6.º renglón real (las partidas pueden ocupar varias líneas) y agrega `.is-row-limited` (scroll interno, `overscroll-behavior: auto` para no atrapar el gesto). Se recalcula al agregar/quitar productos, al cambiar el tamaño y al entrar o salir de esa medida.
+- `app.css` v316; `ticket-expand.js` v4 (Mesas, Pedidos y menú público).
+
+## 2026-10-01 — Total del ticket también en el encabezado
+
+- Todos los tickets con encabezado "Ticket · N artículos" (Mesas `table_detail.html`, Pedidos `internal_order_form.html`, menú público `public_menu.html`) muestran el total a la derecha del encabezado; el total de abajo se conserva.
+- `ticket-expand.js` crea `.ticket-heading-total` dentro de `.current-ticket-heading` y copia el texto de `.table-ticket-total strong` con un `MutationObserver`, así cada pantalla sigue actualizando sólo su total de abajo.
+- `app.css` v317 (interno) y v196 (menú público); `ticket-expand.js` v5.
+
+## 2026-10-01 — Corrección: scroll del ticket en tableta 853×405 (verificado con Playwright)
+
+- Causa: a 853×405 el ticket queda debajo del catálogo pero conservaba un tope de 389 px con `overflow: hidden`; tras Cobrar e Imprimir, a la lista le quedaban ~94 px (un renglón con scroll diminuto). En ese rango el ticket ya no tiene tope (`height/max-height` libres, `overflow: visible`) y la lista muestra su altura natural; con más de 6 partidas `ticket-expand.js` fija la altura del 6.º renglón con `setProperty(..., "important")` (otras reglas fijan `max-height` con !important) y la lista se desplaza por dentro.
+- El límite se recalcula también en `load`, `document.fonts.ready` y con `ResizeObserver` sobre el ticket: al abrir la página los renglones aún cambian de alto y la primera medición quedaba larga (se veían 5).
+- Verificado con Playwright (853×405, táctil) en Mesas (cuenta con 6 partidas) y Pedidos (7 partidas), más 9 renglones simulados en el DOM: 6 renglones completos visibles, la rueda desplaza la lista hasta el final y al volver a 6 desaparece el límite. Tarjetas: 5 columnas en ambas pantallas.
+- Limpieza CSS: el encabezado de todos los tickets se declara una sola vez con `:where(.table-ticket) > .current-ticket-heading` (flex, baseline, gap); las reglas de Pedidos y Mesas sólo conservan su margen y los ajustes angostos de Pedidos siguen ganando.
+- `app.css` v320 (interno) y v197 (menú público); `ticket-expand.js` v7.
+
+## 2026-10-01 — Imágenes de las tarjetas en los diálogos de paquete (verificado con Playwright)
+
+- Problema: en los diálogos de paquete (botones "Comida corrida/ejecutiva", Mesas y Pedidos) la primera fila de cada tarjeta tenía alto fijo (32–70 px según la pantalla), así que la imagen quedaba como franja recortada: 105×32 px a 853×405 en Pedidos, 176×44 en Mesas y 160×62 en TABA+9 (1280×800) y escritorio.
+- Regla final en `app.css`: la tarjeta usa filas `auto` y `.package-choice-image` conserva `aspect-ratio: 4 / 3` según el ancho de la tarjeta (`object-fit: cover`). En pantallas horizontales de hasta 500 px de alto la imagen no pasa de 6rem.
+- Se corrigió en su origen el bloque `@media (min-width: 800px) and (max-width: 900px) and (max-height: 430px)` de Pedidos: se quitaron el alto fijo de la tarjeta (`height: 5.65rem`), las filas fijas (`grid-auto-rows`) y el alto fijo de la imagen (`2rem`); la cuadrícula conserva su scroll interno (`max-height: 11.55rem`) para la plancha de la Ejecutiva.
+- Medido: 853×405 Pedidos 105×79, Mesas 176×96; TABA+9 y escritorio ~160×120; celular ~60×45. `app.css` v324.
+
+## 2026-10-01 — Diálogos de paquete: acomodo 853×405, huevo en la fila de extras y Mesas sin "Lleva bolillo" (verificado con Playwright)
+
+- Pedidos, todos los tamaños con la fila de extras (TABA+9 1280×800, escritorio, iPad Air, 853×405): Agua del día, Acompañamiento, Frijoles y Huevo opcional en una sola fila (`.package-quick-extras` pasa a 4 columnas en su regla base).
+- Pedidos en 853×405 (bloque final `@media (min-width: 780px) and (max-width: 900px) and (max-height: 500px) and (orientation: landscape)`): la Ejecutiva se acomoda como en TABA+9 (primer tiempo arriba y segundo debajo a la izquierda; plancha a la derecha ocupando ambas filas en 4 columnas). Se anulan ahí los anchos en % y el alto fijo `13.2rem` del bloque de hasta 430 px de alto, y Envases baja a la fila 3 (estaba forzado a la fila 2 y se encimaba). Extras en una fila compacta con título arriba y opciones lado a lado.
+- Mesas, diálogo de Comida corrida: se quitó la tarjeta "Lleva bolillo"; la plantilla deja `<div data-egg-slot>` y `package-egg.js` coloca ahí el Huevo opcional (debajo de "Refill extra"). La Comida ejecutiva conserva "Lleva bolillo". Sin el campo, `bread` llega en falso.
+- Celular (≤600 px): la barra del diálogo de paquete se partía (en Mesas el contador se encimaba con el título; en Pedidos buscar/cerrar quedaban fuera de pantalla). Ahora el título ocupa su línea y contador, 2 tiempos, buscar y cerrar van en la de abajo; ≤400 px compacta 2 tiempos y los botones.
+- `app.css` v333, `package-egg.js` v3.
+
+## 2026-10-01 — Mesas, Comida corrida: comentario para cocina bajo el tercer tiempo
+
+- En TABA+9 (1280×800) y escritorio (`@media (min-width: 1201px)`), el tercer tiempo del diálogo de Comida corrida de Mesas ocupaba las filas 1 y 2 de la cuadrícula y dejaba un hueco vacío; el comentario iba en una tercera fila a todo lo ancho.
+- Ahora el tercer tiempo sólo ocupa la fila 1 y `.package-comment-field` va en la fila 2, columna 3 (junto a Agua del día y Refill/Huevo); la caja de texto llena el recuadro. Comida ejecutiva y los demás tamaños (iPad Air, 853×405, celular) no cambian. Verificado con Playwright.
+- `app.css` v335.
+
+## 2026-10-01 — Mesas: contador del diálogo de paquete junto a "2 tiempos"
+
+- En Mesas el contador `− # +` quedaba centrado en la barra del diálogo: la regla `.table-package-dialog-heading > div { margin-right: auto; }` (pensada para el título) también alcanzaba al contador, que es un `<div>`. Se limitó a `> div:first-child`; ahora va pegado antes del switch "2 tiempos", igual que en Pedidos (verificado en TABA+9, 853×405 y celular, corrida y ejecutiva).
+- `app.css` v336.
+

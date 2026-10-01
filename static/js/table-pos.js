@@ -418,6 +418,13 @@ function renderTicket(ticket) {
       description.textContent = item.description;
       information.append(description);
     }
+    // Cómo quedó modificado: ingredientes del producto o cada tiempo del paquete.
+    (item.modifications || []).forEach((text) => {
+      const modification = document.createElement("small");
+      modification.className = "ticket-item-modification";
+      modification.textContent = text;
+      information.append(modification);
+    });
     const subtotal = document.createElement("strong");
     subtotal.textContent = currency.format(Number(item.subtotal_display));
     const controls = document.createElement("div");
@@ -664,13 +671,7 @@ document.addEventListener("submit", (event) => {
   event.preventDefault();
   enqueueRequest({
     url: form.action,
-    body: (() => {
-      const body = new FormData(form);
-      if (form.closest("[data-auto-meal-card]")) {
-        body.set("egg_product", form.closest("#auto-running-meal, #auto-executive-meal")?.querySelector("select[name='egg_product']")?.value || "");
-      }
-      return body;
-    })(),
+    body: new FormData(form),
     source: form,
     onSuccess: form.matches("[data-package-add]") ? () => {
       form.querySelector("[data-package-error]").replaceChildren();
@@ -678,11 +679,6 @@ document.addEventListener("submit", (event) => {
       form.reset();
       form.action = form.dataset.addUrl;
       form.querySelector("[data-package-submit]").textContent = form.hasAttribute("data-historical-edit-form") ? "Guardar cambios" : "Agregar al ticket";
-    } : form.closest("[data-auto-meal-card]") ? (data) => {
-      if (data.auto_package_created) {
-        const eggChoice = form.closest("#auto-running-meal, #auto-executive-meal")?.querySelector("select[name='egg_product']");
-        if (eggChoice) eggChoice.value = "";
-      }
     } : null,
   });
 });

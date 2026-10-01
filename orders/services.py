@@ -19,7 +19,7 @@ from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, WAITER, user_has_any_ro
 from menu.inventory import release_stock, reserve_stock
 from menu.models import DailyMenu, DailyProductStock, MealPackage, Product, StockMovement
 from menu.packaging import selected_packaging_products
-from menu.selection import resolve_product_selection
+from menu.selection import describe_component, fit_ticket_comment, resolve_product_selection
 from notifications.models import InternalNotification
 
 from .models import (
@@ -873,13 +873,18 @@ def add_internal_auto_meal_component(
     component_comments = []
     for selected_product in (first, second, main):
         candidate = OrderItem.objects.filter(
-            order=order, product=selected_product, is_package_candidate=True,
-        ).exclude(customization_comment="").order_by("-id").first()
+            order=order, product=selected_product, is_package_candidate=True, is_customized=True,
+        ).order_by("-id").first()
         if candidate:
-            component_comments.append(f"{candidate.product_name_snapshot}: {candidate.customization_comment}")
-    if package_comment:
-        component_comments.append(package_comment)
-    final_comment = " · ".join(component_comments)
+            # Cada tiempo hereda sus cambios de ingredientes y su comentario.
+            description = describe_component(
+                candidate.product_name_snapshot,
+                (candidate.configuration_snapshot or {}).get("differences", []),
+                candidate.customization_comment,
+            )
+            if description:
+                component_comments.append(description)
+    final_comment = fit_ticket_comment(" · ".join(filter(None, (*component_comments, package_comment))))
     for product_id in (first.pk, second.pk, main.pk):
         _consume_internal_candidate(
             order=order, product_id=product_id,
@@ -891,6 +896,9 @@ def add_internal_auto_meal_component(
         "chicken_piece": final_piece, "with_water": with_water,
         "tortillas": "yes" if tortillas else "no", "bread": bread, "beans": "yes" if beans else "no",
         "quantity": 1, "customization_comment": final_comment,
+        "configuration_snapshot": {
+            "comment": final_comment, "components": component_comments, "package_comment": package_comment,
+        },
         "egg_product": egg_product,
     }
     return add_internal_order_package(
@@ -937,11 +945,15 @@ def add_internal_order_package(
     is_two_course = bool(cleaned_data.get("two_course"))
     comment = cleaned_data.get("customization_comment", "")
     egg = cleaned_data.get("egg_product")
-    unit_price = (package.price_with_water if cleaned_data["with_water"] else package.price_without_water) + (egg.price if egg else Decimal("0"))
+    # Recargo de ingredientes con costo elegidos con la ficha en el diálogo de paquete.
+    surcharge = cleaned_data.get("customization_surcharge", Decimal("0"))
+    unit_price = (package.price_with_water if cleaned_data["with_water"] else package.price_without_water) + (egg.price if egg else Decimal("0")) + surcharge
     signature = "|".join(map(str, (
         first.pk if first else "", second.pk if second else "", main.pk, int(is_two_course), cleaned_data["chicken_piece"],
         int(cleaned_data["with_water"]), cleaned_data["tortillas"], int(cleaned_data.get("bread", False)), cleaned_data["beans"], egg.pk if egg else "", comment.casefold(),
     )))
+    if surcharge:
+        signature += f"|extra:{surcharge}"
     item = None
     if merge_identical:
         item = OrderItem.objects.select_for_update().filter(
@@ -970,7 +982,8 @@ def add_internal_order_package(
             egg_product=egg, egg_name_snapshot=egg.name if egg else "", egg_price_snapshot=egg.price if egg else Decimal("0"),
             unit_price=unit_price, quantity=quantity, subtotal=unit_price * quantity,
             configuration_signature=signature, customization_comment=comment,
-            configuration_snapshot={"comment": comment}, is_customized=bool(comment),
+            configuration_snapshot=cleaned_data.get("configuration_snapshot") or {"comment": comment},
+            is_customized=bool(comment),
         )
     _change_order_item_stock(item=item, quantity=quantity, actor=actor, reserve=True)
     recalculate_order_total(order)
@@ -1032,15 +1045,25 @@ def update_internal_package_extras(*, order, item, cleaned_data, actor=None):
     item.egg_product = egg
     item.egg_name_snapshot = egg.name if egg else ""
     item.egg_price_snapshot = (item.egg_price_snapshot if egg and egg.pk == old_egg_id else egg.price) if egg else Decimal("0")
+    # El recargo por ingredientes elegidos con la ficha no depende de los extras.
+    previous_snapshot = item.configuration_snapshot or {}
+    surcharge = Decimal(str(previous_snapshot.get("surcharge") or "0"))
+    comment_unchanged = cleaned_data["customization_comment"] == item.customization_comment
     item.customization_comment = cleaned_data["customization_comment"]
     item.is_customized = bool(item.customization_comment)
     item.configuration_snapshot = {"comment": item.customization_comment}
+    if surcharge:
+        item.configuration_snapshot["surcharge"] = str(surcharge)
+    # Mientras el comentario no cambie, el ticket sigue listando cada tiempo modificado.
+    if comment_unchanged and previous_snapshot.get("components"):
+        item.configuration_snapshot["components"] = previous_snapshot["components"]
+        item.configuration_snapshot["package_comment"] = previous_snapshot.get("package_comment", "")
     item.configuration_signature = "|".join(map(str, (
         item.first_course_id, item.second_course_id, item.main_course_id,
         item.chicken_piece, int(item.with_water), int(item.tortillas), int(item.bread), int(item.beans),
         item.customization_comment.casefold(), item.pk,
     )))
-    item.unit_price = (package.price_with_water if item.with_water else package.price_without_water) + item.egg_price_snapshot
+    item.unit_price = (package.price_with_water if item.with_water else package.price_without_water) + item.egg_price_snapshot + surcharge
     item.subtotal = item.unit_price * item.quantity
     item.save(update_fields=(
         "with_water", "water_name_snapshot", "water_product", "tortillas", "bread", "beans", "beans_product",

@@ -53,6 +53,30 @@ class EggExtraTests(TestCase):
         self.assertEqual(item.unit_price, Decimal("70.00"))
         self.assertEqual(self.stock.available_quantity, 2)
 
+    def test_course_customization_surcharge_survives_extras_edit(self):
+        order = Order.objects.create(
+            daily_number=996, operating_date=self.menu.date, order_type=Order.OrderType.PICKUP,
+            source=Order.Source.INTERNAL, status=Order.Status.DRAFT,
+            customer_name="Mostrador", phone="", total=0, created_by=self.actor,
+        )
+        item = add_internal_order_package(
+            order=order, package=self.package, daily_menu=self.menu, actor=self.actor,
+            cleaned_data={"first_course": self.egg, "second_course": self.egg, "main_course": self.egg,
+                          "chicken_piece": "", "with_water": False, "tortillas": "no", "bread": False,
+                          "beans": "no", "quantity": 1, "egg_product": None,
+                          "customization_comment": "Huevo revuelto: Agregar Queso",
+                          "customization_surcharge": Decimal("10.00"),
+                          "configuration_snapshot": {"comment": "Huevo revuelto: Agregar Queso", "surcharge": "10.00"}},
+        )
+        self.assertEqual(item.unit_price, Decimal("80.00"))
+        update_internal_package_extras(
+            order=order, item=item, actor=self.actor,
+            cleaned_data={"with_water": True, "tortillas": False, "bread": False, "beans": False,
+                          "customization_comment": "Huevo revuelto: Agregar Queso", "egg_product": None},
+        )
+        item.refresh_from_db()
+        self.assertEqual(item.unit_price, Decimal("90.00"))
+
     def test_two_course_order_keeps_price_and_prints_only_selected_courses(self):
         order = Order.objects.create(
             daily_number=995, operating_date=self.menu.date, order_type=Order.OrderType.PICKUP,

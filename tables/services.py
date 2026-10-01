@@ -24,7 +24,7 @@ from accounts.roles import WAITER
 from menu.inventory import release_stock, reserve_stock
 from menu.models import DailyMenu, DailyProductStock, MealPackage, Product, StockMovement
 from menu.packaging import selected_packaging_products
-from menu.selection import resolve_product_selection
+from menu.selection import describe_component, fit_ticket_comment, resolve_product_selection
 
 from .models import DiningTable, TableAccount, TableAccountItem, TableActivity
 
@@ -353,11 +353,15 @@ def add_auto_meal_component(
         ).order_by("-id").first()
         if candidate:
             customization_surcharge += max(candidate.unit_price - selected_product.price, Decimal("0"))
-            if candidate.customization_comment:
-                component_comments.append(
-                    f"{candidate.product_name_snapshot}: {candidate.customization_comment}"
-                )
-    package_comment = " · ".join(component_comments)
+            # Cada tiempo hereda sus cambios de ingredientes y su comentario.
+            description = describe_component(
+                candidate.product_name_snapshot,
+                (candidate.configuration_snapshot or {}).get("differences", []),
+                candidate.customization_comment,
+            )
+            if description:
+                component_comments.append(description)
+    package_comment = fit_ticket_comment(" · ".join(component_comments))
     consume_product_units(
         account=account,
         product_ids=(first.pk, second.pk, main.pk),
@@ -380,6 +384,8 @@ def add_auto_meal_component(
         ),
         "configuration_snapshot": {
             "differences": component_comments,
+            "components": component_comments,
+            "package_comment": "",
             "comment": package_comment,
             "price_delta": str(customization_surcharge),
         },

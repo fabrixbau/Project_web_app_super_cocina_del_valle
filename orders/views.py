@@ -5,6 +5,7 @@
 # Corrida y ejecutiva permiten pedidos anticipados antes de la 1 p. m. con un aviso.
 # Productos generales también respetan la visibilidad pública de su categoría según horario.
 
+import copy
 import csv
 import re
 from datetime import date, time, timedelta
@@ -29,7 +30,7 @@ from menu.inventory import filter_products_by_stock, stock_warning_payload
 from menu.egg import egg_products, selected_egg
 from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product
 from menu.packaging import parse_packaging_quantities
-from menu.selection import resolve_product_selection, serialize_product_selector
+from menu.selection import apply_package_component_customizations, expanded_customizations, requested_customizations, requested_packages, resolve_product_selection, serialize_product_selector, ticket_item_name, ticket_modifications
 from tables.models import DiningTable, TableAccount
 
 from .cart import add_package, add_product, cart_control_summary, clear, decrease_product, get_order_mode, product_is_orderable, remove_item, resolve_cart, set_cart_note, set_item_note, set_order_mode, update_item, update_product_selection
@@ -292,9 +293,12 @@ def internal_order_ticket(order):
                 description_parts.append("Con frijoles")
             if item.egg_name_snapshot:
                 description_parts.append(f"Con {item.egg_name_snapshot}")
+        is_package = item.item_type == OrderItem.ItemType.PACKAGE
         items.append({
             "id": item.pk,
-            "name": f"{base_name} ({item.customization_comment})" if item.customization_comment else base_name,
+            "name": ticket_item_name(base_name, item, is_package=is_package),
+            # Cómo quedó modificado: ingredientes del producto o tiempos del paquete.
+            "modifications": ticket_modifications(item, is_package=is_package),
             "quantity": item.quantity, "subtotal": f"{item.subtotal:.2f}",
             "is_customized": item.is_customized,
             "is_package_candidate": item.is_package_candidate,
@@ -387,22 +391,18 @@ def public_product_add(request, product_id):
         error_message = "Ese producto no está disponible para pedir ahora."
     elif form.is_valid():
         try:
-            raw_option_ids = (
-                request.POST.getlist("option_ids")
-                if request.POST.get("customization_selected") == "1" else None
-            )
-            raw_comment = (
-                request.POST.get("customization_comment", "")
-                if request.POST.get("customization_selected") == "1" else ""
-            )
-            selection = resolve_product_selection(product, raw_option_ids, raw_comment)
+            # Se validan todas las configuraciones antes de tocar el carrito.
+            batch = request.POST.get("customization_batch")
+            selections = [
+                (resolve_product_selection(product, raw_option_ids, raw_comment),
+                 quantity if batch else form.cleaned_data["quantity"])
+                for raw_option_ids, raw_comment, quantity in requested_customizations(request.POST)
+            ]
         except ValidationError as error:
             error_message = error.message
         else:
-            add_product(
-                request.session, product=product, quantity=form.cleaned_data["quantity"],
-                selection=selection,
-            )
+            for selection, quantity in selections:
+                add_product(request.session, product=product, quantity=quantity, selection=selection)
             if wants_json:
                 return JsonResponse({"ok": True, "cart": cart_control_summary(request.session)})
             messages.success(request, f"{product.name} fue agregado al carrito.")
@@ -1088,8 +1088,6 @@ def internal_order_edit(request, order_id):
     products.update({product.pk: product for product in packaging_products})
     for product in running_meal_products + executive_meal_products + daily_order_products + daily_order_loose_products:
         products[product.pk] = product
-    selector_records = Product.objects.filter(pk__in=products).prefetch_related("option_groups__options")
-    selector_data = {str(product.pk): serialize_product_selector(product) for product in selector_records}
     package_options = []
     if mode == "lunch" and daily_menu:
         # NOTA TEMPORAL PARA APRENDIZAJE: antes la plantilla sólo recibía radios y
@@ -1107,6 +1105,12 @@ def internal_order_edit(request, order_id):
                 "second_products": filter_products_by_stock(list(package_form.fields["second_course"].queryset), daily_menu=daily_menu, channel=DailyProductStock.Channel.ORDERS),
                 "main_products": filter_products_by_stock(list(package_form.fields["main_course"].queryset), daily_menu=daily_menu, channel=DailyProductStock.Channel.ORDERS),
             })
+    # Los tiempos del diálogo de paquete también se personalizan con la ficha.
+    for option in package_options:
+        for key in ("first_products", "second_products", "main_products"):
+            products.update({product.pk: product for product in option[key]})
+    selector_records = Product.objects.filter(pk__in=products).prefetch_related("option_groups__options")
+    selector_data = {str(product.pk): serialize_product_selector(product) for product in selector_records}
     current_customer_debts = []
     if order.agenda_customer_id:
         current_customer_debts = list(order.agenda_customer.debts.select_related("order").filter(
@@ -1297,11 +1301,13 @@ def internal_order_product_add(request, order_id, product_id):
             "message": f"{upgraded_package.package_name_snapshot} ahora incluye agua.",
         })
     try:
-        add_internal_order_product(
-            order=order, product=product, actor=request.user,
-            raw_option_ids=(request.POST.getlist("option_ids") if request.POST.get("customization_selected") == "1" else None),
-            comment=(request.POST.get("customization_comment", "") if request.POST.get("customization_selected") == "1" else ""),
-        )
+        # Una pieza por vuelta; si alguna falla, ninguna queda registrada.
+        with transaction.atomic():
+            for raw_option_ids, comment in expanded_customizations(request.POST):
+                add_internal_order_product(
+                    order=order, product=product, actor=request.user,
+                    raw_option_ids=raw_option_ids, comment=comment,
+                )
     except ValidationError as error:
         return JsonResponse({"ok": False, "error": error.message}, status=400)
     order.refresh_from_db()
@@ -1329,12 +1335,13 @@ def internal_order_daily_product_add(request, order_id, product_id):
     if product.pk not in allowed_ids:
         return JsonResponse({"ok": False, "error": "Este producto no pertenece al menú publicado de hoy."}, status=400)
     try:
-        add_internal_order_product(
-            order=order, product=product, actor=request.user, require_individual=False,
-            daily_menu=daily_menu, chicken_piece=request.POST.get("chicken_piece", ""),
-            raw_option_ids=(request.POST.getlist("option_ids") if request.POST.get("customization_selected") == "1" else None),
-            comment=(request.POST.get("customization_comment", "") if request.POST.get("customization_selected") == "1" else ""),
-        )
+        with transaction.atomic():
+            for raw_option_ids, comment in expanded_customizations(request.POST):
+                add_internal_order_product(
+                    order=order, product=product, actor=request.user, require_individual=False,
+                    daily_menu=daily_menu, chicken_piece=request.POST.get("chicken_piece", ""),
+                    raw_option_ids=raw_option_ids, comment=comment,
+                )
     except ValidationError as error:
         return JsonResponse({"ok": False, "error": error.message}, status=400)
     order.refresh_from_db()
@@ -1429,30 +1436,44 @@ def internal_order_auto_meal_add(request, order_id, product_id):
     if not slot:
         return JsonResponse({"ok": False, "error": "Este producto no puede formar un paquete."}, status=400)
     chicken_piece = request.POST.get("chicken_piece", "")
+    package_extras = {
+        "with_water": request.POST.get("with_water") == "1",
+        "tortillas": request.POST.get("tortillas") == "1",
+        "bread": request.POST.get("bread") == "1",
+        "beans": request.POST.get("beans") == "1",
+        "package_comment": " ".join(request.POST.get("package_comment", "").split()),
+        "egg_product": selected_egg(request.POST.get("egg_product")),
+    }
+    previous_builders = copy.deepcopy(request.session.get(INTERNAL_AUTO_MEAL_SESSION_KEY, {}))
+    package_created = False
     try:
-        all_builders, builders, completed = plan_internal_auto_meal(
-            request, order.pk, slot, product.pk, chicken_piece,
-        )
-        package_item = add_internal_auto_meal_component(
-            order=order, product=product, daily_menu=daily_menu,
-            completed_selection=completed, actor=request.user,
-            chicken_piece=(completed or {}).get("chicken_piece", chicken_piece),
-            raw_option_ids=(request.POST.getlist("option_ids") if request.POST.get("customization_selected") == "1" else None),
-            comment=(request.POST.get("customization_comment", "") if request.POST.get("customization_selected") == "1" else ""),
-            with_water=request.POST.get("with_water") == "1",
-            tortillas=request.POST.get("tortillas") == "1",
-            bread=request.POST.get("bread") == "1",
-            beans=request.POST.get("beans") == "1",
-            package_comment=" ".join(request.POST.get("package_comment", "").split()),
-            egg_product=selected_egg(request.POST.get("egg_product")),
-        )
+        with transaction.atomic():
+            for raw_option_ids, comment in expanded_customizations(request.POST):
+                all_builders, builders, completed = plan_internal_auto_meal(
+                    request, order.pk, slot, product.pk, chicken_piece,
+                )
+                # Los extras capturados (agua, frijoles, huevo...) acompañan sólo al
+                # primer paquete que se complete, igual que al agregar de uno en uno.
+                extras = package_extras if not package_created else {
+                    "with_water": False, "tortillas": False, "bread": False,
+                    "beans": False, "package_comment": "", "egg_product": None,
+                }
+                package_item = add_internal_auto_meal_component(
+                    order=order, product=product, daily_menu=daily_menu,
+                    completed_selection=completed, actor=request.user,
+                    chicken_piece=(completed or {}).get("chicken_piece", chicken_piece),
+                    raw_option_ids=raw_option_ids, comment=comment, **extras,
+                )
+                save_internal_auto_meals(request, order.pk, all_builders, builders)
+                package_created = package_created or package_item is not None
     except ValidationError as error:
+        request.session[INTERNAL_AUTO_MEAL_SESSION_KEY] = previous_builders
+        request.session.modified = True
         return JsonResponse({"ok": False, "error": error.message}, status=400)
-    save_internal_auto_meals(request, order.pk, all_builders, builders)
     order.refresh_from_db()
     return JsonResponse({
         "ok": True, "ticket": internal_order_ticket(order),
-        "auto_package_created": package_item is not None,
+        "auto_package_created": package_created,
     })
 
 
@@ -1508,17 +1529,22 @@ def internal_order_package_add(request, order_id, package_id):
         return _locked_order_response(request, order)
     package = get_object_or_404(MealPackage, pk=package_id, is_active=True)
     daily_menu = get_object_or_404(DailyMenu, date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED)
-    form = InternalPackageForm(request.POST, package=package, daily_menu=daily_menu, prefix=f"internal-package-{package.pk}")
-    if not form.is_valid():
-        errors = [error["message"] for values in form.errors.get_json_data().values() for error in values]
-        return JsonResponse({"ok": False, "error": " ".join(errors)}, status=400)
     try:
-        add_internal_order_package(
-            order=order, package=package, daily_menu=daily_menu,
-            cleaned_data=form.cleaned_data,
-            packaging_quantities=parse_packaging_quantities(request.POST),
-            actor=request.user,
-        )
+        # Con el contador del diálogo llegan varios paquetes; si uno falla, ninguno queda.
+        with transaction.atomic():
+            for data, quantity in requested_packages(request.POST):
+                form = InternalPackageForm(data, package=package, daily_menu=daily_menu, prefix=f"internal-package-{package.pk}")
+                if not form.is_valid():
+                    errors = [error["message"] for values in form.errors.get_json_data().values() for error in values]
+                    raise ValidationError(" ".join(errors) or "Revisa todas las opciones del paquete.")
+                apply_package_component_customizations(data, form.cleaned_data)
+                for _ in range(quantity):
+                    add_internal_order_package(
+                        order=order, package=package, daily_menu=daily_menu,
+                        cleaned_data=dict(form.cleaned_data),
+                        packaging_quantities=parse_packaging_quantities(data),
+                        actor=request.user,
+                    )
     except ValidationError as error:
         return JsonResponse({"ok": False, "error": error.message}, status=400)
     order.refresh_from_db()

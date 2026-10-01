@@ -833,9 +833,6 @@ a { color: #285943; }
 .shared-product-options span { display: grid; }
 .product-selector-dialog { width: min(680px, calc(100% - 1.5rem)); max-height: 88vh; padding: 0; border: 0; border-radius: .8rem; box-shadow: 0 18px 55px rgb(0 0 0 / 28%); }
 .product-selector-dialog::backdrop { background: rgb(15 29 23 / 62%); }
-.product-selector-dialog .dialog-heading { padding: 1rem; color: #fff; background: #285943; }
-.product-selector-dialog .dialog-heading h2 { margin: .2rem 0 0; }
-.product-selector-dialog .dialog-heading button { color: #214f3d; background: #fff; }
 .product-selector-dialog > .message { margin: 1rem 1rem 0; }
 .product-selector-groups { display: grid; gap: .8rem; max-height: 58vh; padding: 1rem; overflow-y: auto; }
 .product-selector-comment { display: grid; gap: .35rem; margin: 0 1rem 1rem; }
@@ -843,14 +840,14 @@ a { color: #285943; }
 .selector-group { margin: 0; padding: .8rem; border: 1px solid #cfc8b8; border-radius: .65rem; background: #fbfaf6; }
 .selector-group legend { padding-inline: .35rem; color: #214f3d; font-weight: 850; }
 .selector-group > small { display: block; margin-bottom: .55rem; color: #52685e; }
-.selector-option { display: grid; grid-template-columns: auto 1fr; gap: .65rem; align-items: center; margin-top: .45rem; padding: .65rem; border: 2px solid #ddd7ca; border-radius: .55rem; background: #fff; cursor: pointer; }
+.selector-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .45rem; }
+.selector-option { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .5rem; align-items: start; min-width: 0; padding: .6rem; border: 2px solid #ddd7ca; border-radius: .55rem; background: #fff; cursor: pointer; }
+.selector-option > span { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .selector-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .selector-option:has(input:checked) { border-color: #285943; background: #e8f1eb; }
 .selector-option input { width: 1.2rem; height: 1.2rem; accent-color: #285943; }
 .selector-option strong, .selector-option small { display: block; }
 .selector-option small { margin-top: .15rem; color: #52685e; }
-.product-selector-footer { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding: .9rem 1rem; border-top: 1px solid #d8d2c4; background: #f4f2eb; }
-.product-selector-footer > div { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-.product-selector-footer strong { font-size: 1.2rem; color: #214f3d; }
 .customized-warning { display: inline-block; margin-left: .35rem; padding: .15rem .4rem; border-radius: 999px; color: #4c3104; background: #f4c95d; font-size: .7rem; font-weight: 900; text-transform: uppercase; vertical-align: middle; }
 .customization-differences { color: #7b4528; font-weight: 750; }
 .category-order-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; align-items: start; }
@@ -3213,8 +3210,9 @@ html[data-theme="dark"] .ticket-note-cancel { color: #e4ede8; border-color: #5b7
 }
 .visual-package-dialog form[data-internal-package] .package-packaging-options > header small { display: none; }
 .visual-package-dialog form[data-internal-package] .package-packaging-options > div { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* Agua, Acompañamiento, Frijoles y Huevo opcional en una sola fila. */
 .visual-package-dialog form[data-internal-package] .package-quick-extras {
-  grid-template-columns: 1fr 1.45fr 1.25fr;
+  grid-template-columns: 1fr 1.45fr 1.25fr 1fr;
   gap: .65rem;
   margin: 0;
 }
@@ -4009,15 +4007,10 @@ input[type="reset"],
   background: #28644e;
 }
 
-/* Selectores táctiles: primer toque abre opciones; el segundo habilita escritura. */
+/* Selectores táctiles: primer toque abre opciones; el segundo habilita escritura.
+   La posición del panel la calcula custom-select.js (ver .is-anchored). */
 @media (max-width: 900px) {
   .app-select.is-open .app-select-menu {
-    position: fixed;
-    z-index: 1400;
-    inset: auto .65rem .65rem;
-    display: grid;
-    width: auto;
-    max-height: min(52dvh, 24rem);
     padding: .55rem;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -6285,13 +6278,7 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 }
 
 /* Compact identity line at the top of the live Orders ticket. */
-.internal-live-ticket > .current-ticket-heading {
-  display: flex;
-  justify-content: flex-start;
-  align-items: baseline;
-  gap: .5rem;
-  margin: 0 0 .45rem;
-}
+.internal-live-ticket > .current-ticket-heading { margin: 0 0 .45rem; }
 .internal-live-ticket > .current-ticket-heading > div {
   display: flex;
   align-items: baseline;
@@ -6329,13 +6316,7 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
    ese margen por defecto; en pantallas angostas el texto es más pequeño y el hueco pasa
    menos desapercibido. Se replica aquí el mismo criterio: flex en una línea, sin márgenes
    de navegador. Borra esta nota al leerla. */
-.table-pos-layout .table-ticket > .current-ticket-heading {
-  display: flex;
-  justify-content: flex-start;
-  align-items: baseline;
-  gap: .5rem;
-  margin: 0 0 .45rem;
-}
+.table-pos-layout .table-ticket > .current-ticket-heading { margin: 0 0 .45rem; }
 .table-pos-layout .table-ticket > .current-ticket-heading h2 {
   margin: 0;
   font-size: 1.15rem;
@@ -7858,7 +7839,7 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   z-index: 12;
   top: 0;
   display: grid;
-  grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: 3rem minmax(0, 1fr) auto minmax(0, 1fr);
   gap: .55rem;
   align-items: stretch;
   padding: .65rem;
@@ -7913,6 +7894,32 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   font-weight: 900;
   text-transform: uppercase;
 }
+.product-selector-counter {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .25rem;
+  border: 1px solid #cbd8d1;
+  border-radius: .65rem;
+  background: #f4f9f6;
+}
+.product-selector-counter button {
+  display: grid;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #28644e;
+  border-radius: .5rem;
+  color: #174c3a;
+  background: #fff;
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.product-selector-counter button:hover:not(:disabled) { color: #fff; background: #28644e; }
+.product-selector-counter button:disabled { opacity: .4; cursor: not-allowed; }
+.product-selector-counter strong { min-width: 1.6rem; color: #172f27; font-size: 1.05rem; font-weight: 900; text-align: center; }
 .product-selector-confirm {
   display: flex;
   min-width: 0;
@@ -7935,10 +7942,13 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 
 @media (max-width: 600px) {
   .product-selector-actionbar {
-    grid-template-columns: 2.45rem minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: 2.45rem minmax(0, 1fr) auto minmax(0, 1fr);
     gap: .35rem;
     padding: .45rem;
   }
+  .product-selector-counter { gap: .15rem; padding: .15rem; }
+  .product-selector-counter button { width: 2rem; height: 2rem; font-size: 1.05rem; }
+  .product-selector-counter strong { min-width: 1.2rem; font-size: .9rem; }
   .product-selector-close {
     width: 2.45rem;
     min-width: 2.45rem;
@@ -8519,7 +8529,7 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 
 /* Constructor compacto de comidas para Mesas (teléfono y tablet). */
 .table-package-dialog-heading { align-items: center !important; }
-.table-package-dialog-heading > div { min-width: 0; margin-right: auto; }
+.table-package-dialog-heading > div:first-child { min-width: 0; margin-right: auto; }
 .table-package-dialog-heading .package-candidate-search-launcher {
   display: grid;
   margin-left: auto;
@@ -9293,7 +9303,7 @@ siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un ta
     grid-row: 3 !important;
   }
   .table-visual-package-dialog form[data-package-form] .product-rule-card:nth-of-type(3),
-  .table-visual-package-dialog form[data-package-form] .table-package-stacked-rules > .product-rule-card:last-child {
+  .table-visual-package-dialog form[data-package-form] .table-package-stacked-rules > .package-egg-choice {
     grid-column: 4 / 7 !important;
     grid-row: 3 !important;
   }
@@ -9339,16 +9349,6 @@ siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un ta
   overflow: visible !important;
 }
 .package-egg-choice .app-select.is-open { z-index: 360 !important; }
-.package-egg-choice .app-select-menu {
-  top: auto;
-  right: 0;
-  bottom: calc(100% + .38rem);
-  left: auto;
-  width: max(100%, min(18rem, calc(100vw - 1rem)));
-  max-width: calc(100vw - 1rem);
-  max-height: min(17rem, 45dvh);
-  z-index: 361 !important;
-}
 .internal-menu-workspace .auto-package-options,
 .internal-menu-workspace > .internal-category,
 .visual-package-dialog .package-quick-extras,
@@ -9683,7 +9683,7 @@ siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un ta
     grid-row: 2 !important;
   }
   .table-visual-package-dialog .table-package-visual-extras > label.product-rule-card:nth-of-type(3),
-  .table-visual-package-dialog .table-package-stacked-rules > .product-rule-card:last-child {
+  .table-visual-package-dialog .table-package-stacked-rules > .package-egg-choice {
     grid-column: 11 / 16 !important;
     grid-row: 2 !important;
   }
@@ -10051,34 +10051,6 @@ siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un ta
   overflow: visible !important;
 }
 .package-egg-choice .app-select.is-open { z-index: 360 !important; }
-.package-egg-choice .app-select.is-open .app-select-menu {
-  top: auto !important;
-  right: 0 !important;
-  bottom: calc(100% + .38rem) !important;
-  left: auto !important;
-  display: grid;
-  width: max(100%, min(18rem, calc(100vw - 1rem)));
-  max-width: calc(100vw - 1rem);
-  max-height: min(17rem, 45dvh);
-  z-index: 361 !important;
-}
-/* NOTA TEMPORAL PARA APRENDIZAJE: en celular, el formulario del paquete recibe
-   overflow-y:auto (regla de arriba, @media max-width:900px) para poder desplazar
-   su contenido dentro del diálogo. Ese overflow recorta el menú del huevo aunque
-   sus contenedores internos ya tengan overflow:visible, porque el recorte ocurre
-   en el propio formulario, no en ellos. En vez de tocar el overflow del formulario
-   (saltaría el scroll ya aplicado), custom-select.js posiciona este menú como
-   position:fixed usando las coordenadas reales del disparador, así escapa de
-   cualquier contenedor con scroll sin alterar su posición. Borra esta nota.*/
-.package-egg-choice .app-select.is-open.is-escaped .app-select-menu {
-  position: fixed !important;
-  top: var(--escaped-menu-top) !important;
-  left: var(--escaped-menu-left) !important;
-  right: auto !important;
-  bottom: auto !important;
-  width: var(--escaped-menu-width) !important;
-  max-height: var(--escaped-menu-max-height, 280px) !important;
-}
 
 @media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
   .visual-package-dialog form[data-internal-package] > .package-quick-extras {
@@ -10142,7 +10114,7 @@ siendo alcanzables con scroll en vez de quedar recortados o empujar todo a un ta
     grid-row: 3 !important;
   }
   .table-visual-package-dialog form[data-package-form] .table-package-visual-extras > .product-rule-card:nth-of-type(3),
-  .table-visual-package-dialog form[data-package-form] .table-package-stacked-rules > .product-rule-card:last-child {
+  .table-visual-package-dialog form[data-package-form] .table-package-stacked-rules > .package-egg-choice {
     grid-column: 4 / 7 !important;
     grid-row: 3 !important;
   }
@@ -10494,11 +10466,7 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     grid-column: 2 !important;
     grid-row: 1 !important;
   }
-  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-egg-choice {
-    grid-column: 3 !important;
-    grid-row: 1 !important;
-  }
-  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules > .product-rule-card:last-child {
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules > .package-egg-choice {
     grid-column: 1 !important;
     grid-row: 2 !important;
   }
@@ -10598,17 +10566,13 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     grid-row: 1 !important;
     margin-right: .4rem !important;
   }
-  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules > .product-rule-card:last-child {
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-stacked-rules > .package-egg-choice {
     grid-column: 78 / 111 !important;
     grid-row: 1 !important;
   }
-  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-egg-choice {
-    grid-column: 1 / 36 !important;
-    grid-row: 2 !important;
-    margin-right: .4rem !important;
-  }
+  /* Sin bolillo: el huevo ocupa su lugar y el comentario toma toda la segunda fila. */
   .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > .package-comment-field {
-    grid-column: 36 / 111 !important;
+    grid-column: 1 / 111 !important;
     grid-row: 2 !important;
   }
   .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras > *,
@@ -11563,7 +11527,6 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
   .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-field:nth-child(3) .package-choice-grid {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    grid-auto-rows: 5.65rem !important;
     gap: .18rem !important;
     max-height: 11.55rem !important;
     padding-right: .08rem;
@@ -11576,21 +11539,16 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
   }
   .visual-package-dialog form[data-internal-package] .package-choice-card,
   .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-field:nth-child(3) .package-choice-card {
-    grid-template-rows: 2rem minmax(1rem, auto) 2.1rem !important;
+    grid-template-rows: auto minmax(1rem, auto) 2.1rem !important;
     gap: .08rem !important;
     min-height: 0 !important;
-    height: 5.65rem !important;
     padding: .12rem !important;
     border-width: 1px !important;
     border-radius: .38rem !important;
     font-size: .53rem !important;
     line-height: 1.05 !important;
   }
-  .visual-package-dialog form[data-internal-package] .package-choice-image {
-    height: 2rem !important;
-    min-height: 2rem !important;
-    border-radius: .25rem;
-  }
+  .visual-package-dialog form[data-internal-package] .package-choice-image { border-radius: .25rem; }
   .visual-package-dialog form[data-internal-package] .package-choice-card strong {
     align-self: center;
     overflow: hidden;
@@ -11777,3 +11735,312 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
   .stock-tracking-totals strong { font-size: .8rem; }
   .stock-audit-button { right: .55rem; padding-inline: .5rem; font-size: .66rem; }
 }
+
+/* Paneles de opciones (celular, tableta y ordenador): custom-select.js los ancla
+   al campo con position:fixed y decide si abren hacia arriba o hacia abajo según
+   el espacio visible. Va al final para prevalecer sobre ajustes por pantalla. */
+.app-select.is-open.is-anchored .app-select-menu {
+  position: fixed !important;
+  z-index: 1400 !important;
+  top: var(--menu-top) !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: var(--menu-left) !important;
+  width: var(--menu-width) !important;
+  max-width: none !important;
+  max-height: var(--menu-max-height) !important;
+  overscroll-behavior: contain;
+}
+.app-select.is-open.opens-up .app-select-menu { animation-name: app-select-enter-up; }
+@keyframes app-select-enter-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Ficha de ingredientes abierta desde un tiempo del diálogo de paquete: sin contador. */
+.product-selector-dialog.is-external .product-selector-counter { display: none; }
+.product-selector-dialog.is-external .product-selector-actionbar { grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 600px) {
+  .product-selector-dialog.is-external .product-selector-actionbar { grid-template-columns: 2.45rem minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+/* Tiempo del paquete personalizado con la ficha. */
+.package-choice-card.is-customized [data-package-choice-customize] {
+  color: #3d2a00 !important;
+  border-color: #c98a12 !important;
+  background: #f8bd3f !important;
+}
+
+/* Contador de paquetes en la barra oscura del diálogo, junto a "2 tiempos". */
+.table-package-dialog form > .dialog-heading .package-dialog-counter {
+  flex: 0 0 auto;
+  gap: .25rem;
+  padding: .2rem;
+  border-color: rgb(255 255 255 / 55%);
+  background: rgb(255 255 255 / 12%);
+}
+.table-package-dialog form > .dialog-heading .package-dialog-counter button {
+  width: 2.1rem !important;
+  min-width: 2.1rem !important;
+  height: 2.1rem !important;
+  min-height: 2.1rem !important;
+  padding: 0 !important;
+  border: 1px solid #fff !important;
+  color: #173f32 !important;
+  background: #fff !important;
+  font-size: 1.1rem;
+}
+.table-package-dialog form > .dialog-heading .package-dialog-counter button:disabled { opacity: .4; }
+.table-package-dialog form > .dialog-heading .package-dialog-counter strong { min-width: 1.4rem; color: #fff; }
+@media (max-width: 600px) {
+  .table-package-dialog form > .dialog-heading .package-dialog-counter { gap: .1rem; padding: .1rem; }
+  .table-package-dialog form > .dialog-heading .package-dialog-counter button {
+    width: 1.75rem !important;
+    min-width: 1.75rem !important;
+    height: 1.75rem !important;
+    min-height: 1.75rem !important;
+    font-size: .95rem;
+  }
+  .table-package-dialog form > .dialog-heading .package-dialog-counter strong { min-width: 1rem; font-size: .85rem; }
+}
+
+/* Ticket (Mesas y Pedidos): cómo quedó modificado cada producto o tiempo del paquete. */
+.table-ticket-item .ticket-item-modification {
+  display: block;
+  margin-top: .15rem;
+  padding-left: .55rem;
+  border-left: 3px solid #e5ae31;
+  color: #7a4d00;
+  font-weight: 750;
+  line-height: 1.25;
+}
+html[data-theme="dark"] .table-ticket-item .ticket-item-modification { color: #f4c766; }
+
+/* Tableta horizontal 853×405 (Pedidos y Mesas): tarjetas de producto en 5 columnas y
+   ticket que crece hasta 6 renglones; desde el 7.º la lista se desplaza por dentro
+   (ticket-expand.js calcula la altura del 6.º renglón y agrega .is-row-limited). */
+@media (min-width: 780px) and (max-width: 900px) and (max-height: 500px) and (orientation: landscape) {
+  .table-pos-layout .table-product-grid,
+  .internal-pos-workspace .table-product-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: .35rem !important;
+  }
+  .table-pos-layout .catalog-product-card,
+  .internal-pos-workspace .catalog-product-card { min-width: 0 !important; }
+  /* El ticket queda debajo del catálogo: sin tope de altura de pantalla. Antes medía
+     389 px con overflow oculto y, tras Cobrar e Imprimir, a la lista le quedaban ~94 px
+     (un solo renglón con un scroll diminuto). */
+  .table-pos-layout .table-ticket:not(.is-closed-summary),
+  .internal-pos-workspace .internal-live-ticket {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .table-pos-layout .table-ticket-items,
+  .internal-pos-workspace .table-ticket-items {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none;
+    overflow-y: visible !important;
+  }
+  .table-pos-layout .table-ticket-items.is-row-limited,
+  .internal-pos-workspace .table-ticket-items.is-row-limited {
+    overflow-y: auto !important;
+    overscroll-behavior: auto;
+  }
+}
+
+/* Encabezado de todos los tickets en una línea: "Ticket · N artículos" y, a la derecha,
+   el total (también se conserva abajo). ticket-expand.js agrega .ticket-heading-total y
+   lo mantiene al día. Pedidos y Mesas sólo añaden su margen inferior. `:where()` deja
+   esta regla con baja especificidad para que los ajustes propios de cada ticket ganen. */
+:where(.table-ticket) > .current-ticket-heading {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+}
+.table-ticket > .current-ticket-heading > .ticket-heading-total {
+  margin-left: auto;
+  color: #173f31;
+  font-size: 1.2rem;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+html[data-theme="dark"] .table-ticket > .current-ticket-heading > .ticket-heading-total { color: #f4c766; }
+@media (max-width: 900px) {
+  .table-ticket > .current-ticket-heading > .ticket-heading-total { font-size: 1rem; }
+}
+
+/* Diálogos de paquete (Mesas y Pedidos, todos los tamaños): la imagen de cada tarjeta
+   conserva proporción 4:3 según el ancho de la tarjeta. Antes la primera fila tenía alto
+   fijo (32–70 px según la pantalla) y la imagen quedaba en una franja recortada. */
+.visual-package-dialog form .package-visual-field .package-choice-grid > .package-choice-card {
+  /* Imagen | nombre | controles. La fila del nombre absorbe la diferencia entre nombres
+     de uno o dos renglones, así los controles quedan al fondo y alineados en toda la fila
+     de tarjetas, como en el resto de la app. */
+  grid-template-rows: auto 1fr auto !important;
+  align-content: stretch !important;
+  align-self: stretch !important;
+  height: auto !important;
+}
+.visual-package-dialog form .package-visual-field .package-choice-grid > .package-choice-card strong {
+  align-self: start !important;
+}
+.visual-package-dialog form .package-visual-field .package-choice-grid > .package-choice-card .package-choice-image {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  aspect-ratio: 4 / 3;
+}
+.visual-package-dialog form .package-visual-field .package-choice-grid > .package-choice-card .package-choice-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+/* Mesas, Ejecutiva en iPad Air horizontal: las filas de tarjetas miden 11.5rem fijos;
+   la imagen se queda en 3.6rem para que nombre de dos renglones y botones quepan. */
+@media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-field .package-choice-grid > .package-choice-card .package-choice-image {
+    height: 3.6rem !important;
+    aspect-ratio: auto;
+  }
+}
+/* Pantallas horizontales bajas (p. ej. 853×405): la imagen no pasa de 6rem de alto para
+   que los tres tiempos quepan sin tanto desplazamiento. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .visual-package-dialog form .package-visual-field .package-choice-grid > .package-choice-card .package-choice-image {
+    max-height: 6rem !important;
+  }
+}
+
+/* Pedidos en tableta 853×405: los diálogos de paquete se acomodan como en TABA+9.
+   Ejecutiva: primer tiempo arriba y segundo debajo a la izquierda; tercer tiempo (plancha)
+   a la derecha en 4 columnas. Extras abajo: Agua, Acompañamiento, Frijoles y Huevo en
+   una sola fila. */
+@media (min-width: 780px) and (max-width: 900px) and (max-height: 500px) and (orientation: landscape) {
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-groups {
+    display: grid !important;
+    grid-template-columns: minmax(0, .92fr) minmax(0, 1.48fr) !important;
+    grid-template-rows: auto auto !important;
+    gap: .3rem !important;
+  }
+  /* El bloque de hasta 430 px de alto fija ancho (%) y alto (13.2rem) para tres tiempos
+     en fila, y pone Envases en la fila 2; aquí Envases baja a la fila 3. */
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-groups > .package-visual-field {
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    flex: none !important;
+  }
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-groups > .package-packaging-options {
+    grid-row: 3 !important;
+  }
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(1) { grid-area: 1 / 1 !important; }
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(2) { grid-area: 2 / 1 !important; }
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) { grid-area: 1 / 2 / span 2 !important; }
+  .visual-package-dialog form[data-internal-package][data-package-kind="executive"] .package-visual-groups > .package-visual-field:nth-child(3) .package-choice-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras {
+    grid-template-columns: 1fr 1.45fr 1.25fr 1fr !important;
+    grid-template-rows: auto !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-water-toggle { grid-area: 1 / 1 !important; }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-toggle-field:nth-child(2) { grid-area: 1 / 2 !important; }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-toggle-field:nth-child(3) { grid-area: 1 / 3 !important; }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-egg-choice { grid-area: 1 / 4 !important; }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-egg-choice {
+    grid-template-columns: 1fr !important;
+    align-content: start;
+  }
+  /* Como en TABA+9: título arriba y opciones lado a lado, para una fila compacta. */
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-toggle-field {
+    grid-template-columns: 1fr !important;
+    align-content: start !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras .package-yes-no {
+    display: grid !important;
+    grid-auto-flow: column !important;
+    grid-auto-columns: minmax(0, 1fr) !important;
+    grid-template-columns: none !important;
+  }
+  .visual-package-dialog form[data-internal-package] > .package-quick-extras > .package-toggle-field:nth-child(2) .package-yes-no.package-accompaniment-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-rows: auto !important;
+    grid-auto-flow: row !important;
+    height: auto !important;
+  }
+}
+
+/* Celular: la barra del diálogo de paquete no cabe en una línea (título, contador,
+   2 tiempos, buscar y cerrar). El título va arriba y los controles en la línea de abajo. */
+@media (max-width: 600px) {
+  [data-package-form] > .dialog-heading,
+  [data-internal-package] > .dialog-heading {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: space-between !important;
+    gap: .35rem .4rem !important;
+  }
+  [data-package-form] > .dialog-heading > div:first-child,
+  [data-internal-package] > .dialog-heading > div:first-child {
+    flex: 1 0 100% !important;
+    width: 100% !important;
+    margin-right: 0 !important;
+  }
+}
+@media (max-width: 400px) {
+  [data-package-form] > .dialog-heading .package-two-course-toggle,
+  [data-internal-package] > .dialog-heading .package-two-course-toggle {
+    gap: .3rem !important;
+    padding: .25rem .35rem !important;
+    font-size: .8rem !important;
+  }
+  [data-package-form] > .dialog-heading > button,
+  [data-internal-package] > .dialog-heading > button {
+    width: 2.25rem !important;
+    min-width: 2.25rem !important;
+    height: 2.25rem !important;
+    min-height: 2.25rem !important;
+  }
+}
+
+/* Mesas en TABA+9 y escritorio. Corrida: el tercer tiempo sólo ocupa la primera fila y
+   el comentario para cocina sube al hueco que quedaba debajo de él (columna 3, junto a
+   Agua del día y Refill/Huevo). Ejecutiva: el comentario va junto a Refill/Huevo. */
+@media (min-width: 1201px) {
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .package-visual-groups > .package-visual-field:nth-child(3) {
+    grid-area: 1 / 3 !important;
+  }
+  /* Ejecutiva: el comentario ocupa la celda junto a Refill/Huevo (antes, la del huevo). */
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-comment-field {
+    grid-area: 4 / 2 !important;
+    display: flex !important;
+    flex-direction: column;
+    margin: 0 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-comment-field textarea {
+    flex: 1 1 auto !important;
+    height: auto !important;
+    min-height: 4rem !important;
+    max-height: none !important;
+    resize: none;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .package-comment-field {
+    grid-area: 2 / 3 !important;
+    display: flex !important;
+    flex-direction: column;
+    margin: 0 !important;
+  }
+  .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .package-comment-field textarea {
+    flex: 1 1 auto !important;
+    height: auto !important;
+    min-height: 4rem !important;
+    max-height: none !important;
+    resize: none;
+  }
+}
+

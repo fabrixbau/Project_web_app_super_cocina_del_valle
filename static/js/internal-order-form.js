@@ -654,6 +654,13 @@
         details.textContent = item.description;
         description.append(details);
       }
+      // Cómo quedó modificado: ingredientes del producto o cada tiempo del paquete.
+      (item.modifications || []).forEach((text) => {
+        const modification = document.createElement("small");
+        modification.className = "ticket-item-modification";
+        modification.textContent = text;
+        description.append(modification);
+      });
       const subtotal = document.createElement("strong");
       subtotal.textContent = currency.format(Number(item.subtotal));
       const controls = document.createElement("div");

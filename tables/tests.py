@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.roles import ORDER_TAKER, WAITER
-from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product, StockMovement
+from menu.models import Category, DailyMenu, DailyProductStock, MealPackage, Product, ProductOption, ProductOptionGroup, StockMovement
 from orders.models import Customer, CustomerDebt
 
 from .models import DiningTable, TableAccount, TableAccountItem, TableActivity
@@ -506,3 +506,210 @@ class TableMapTransferMenuTests(TestCase):
         response = self.client.get(reverse("tables:table_map"))
         self.assertNotContains(response, "table-tile-more-actions")
         self.assertNotContains(response, "Pasar a pedido (Recoger)")
+
+
+class TableCustomizationBatchTests(TestCase):
+    """Contador de la ficha Personalizar: varias piezas en un solo envío."""
+
+    def setUp(self):
+        self.waiter = get_user_model().objects.create_user(username="mesero_lote")
+        self.waiter.groups.add(Group.objects.get_or_create(name=WAITER)[0])
+        category = Category.objects.create(name="Antojitos lote")
+        self.product = Product.objects.create(
+            category=category, name="Hot dog", price=30,
+            is_available=True, is_sold_individually=True,
+        )
+        group = ProductOptionGroup.objects.create(
+            product=self.product, name="Ingredientes",
+            selection_type=ProductOptionGroup.SelectionType.MULTIPLE,
+        )
+        self.onion = ProductOption.objects.create(group=group, name="Cebolla", is_default=True)
+        self.cheese = ProductOption.objects.create(
+            group=group, name="Queso", price_adjustment=Decimal("10.00"), sort_order=1,
+        )
+        table = DiningTable.objects.create(name="Mesa lote", display_order=140)
+        self.account = TableAccount.objects.create(
+            table=table, assigned_waiter=self.waiter, opened_by=self.waiter,
+        )
+        self.client.force_login(self.waiter)
+        self.url = reverse("tables:table_item_add", args=(self.account.pk, self.product.pk))
+
+    def post_batch(self, batch):
+        return self.client.post(
+            self.url,
+            {"customization_selected": "1", "customization_batch": json.dumps(batch)},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+    def test_identical_pieces_share_a_line_and_different_ones_split(self):
+        response = self.post_batch([
+            {"option_ids": [], "comment": "", "quantity": 2},
+            {"option_ids": [self.onion.pk, self.cheese.pk], "comment": "", "quantity": 1},
+            {"option_ids": [], "comment": "Bien dorado", "quantity": 1},
+        ])
+
+        self.assertEqual(response.status_code, 200)
+        items = list(self.account.items.order_by("id"))
+        self.assertEqual([item.quantity for item in items], [2, 1, 1])
+        self.assertEqual(items[0].subtotal, Decimal("60.00"))
+        self.assertEqual(items[1].unit_price, Decimal("40.00"))
+        self.assertEqual(items[2].customization_comment, "Bien dorado")
+
+    def test_invalid_piece_rolls_back_the_whole_batch(self):
+        response = self.post_batch([
+            {"option_ids": [self.onion.pk], "comment": "", "quantity": 2},
+            {"option_ids": [999999], "comment": "", "quantity": 1},
+        ])
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(self.account.items.exists())
+
+    def test_malformed_batch_is_rejected(self):
+        for batch in ([], [{"option_ids": [], "quantity": 0}], [{"option_ids": "1", "quantity": 1}]):
+            with self.subTest(batch=batch):
+                self.assertEqual(self.post_batch(batch).status_code, 400)
+        self.assertFalse(self.account.items.exists())
+
+
+class TablePackageDialogBatchTests(TestCase):
+    """Diálogo de paquete: contador de paquetes y personalización por tiempo."""
+
+    def setUp(self):
+        AutoMealOutOfOrderTests.setUp(self)
+        group = ProductOptionGroup.objects.create(
+            product=self.first_product, name="Ingredientes",
+            selection_type=ProductOptionGroup.SelectionType.MULTIPLE,
+        )
+        self.onion = ProductOption.objects.create(group=group, name="Cebolla", is_default=True)
+        self.cheese = ProductOption.objects.create(
+            group=group, name="Queso", price_adjustment=Decimal("10.00"), sort_order=1,
+        )
+        self.package = MealPackage.objects.get(package_type=MealPackage.PackageType.RUNNING)
+        self.prefix = f"package-{self.package.pk}"
+        self.url = reverse("tables:table_package_add", args=(self.account.pk, self.package.pk))
+
+    def fields(self, *, first=None, customization=None):
+        fields = [
+            [f"{self.prefix}-first_course", str((first or self.first_product).pk)],
+            [f"{self.prefix}-second_course", str(self.second_product.pk)],
+            [f"{self.prefix}-main_course", str(self.main_product.pk)],
+        ]
+        if customization is not None:
+            fields.append(["component_customizations", json.dumps(customization)])
+        return fields
+
+    def post_batch(self, batch):
+        return self.client.post(
+            self.url, {"package_batch": json.dumps(batch)}, HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+    def test_batch_groups_identical_packages_and_charges_course_customization(self):
+        with_cheese = {"first_course": {
+            "product_id": str(self.first_product.pk),
+            "option_ids": [self.onion.pk, self.cheese.pk], "comment": "",
+        }}
+        response = self.post_batch([
+            {"fields": self.fields(customization=with_cheese), "quantity": 2},
+            {"fields": self.fields(), "quantity": 1},
+        ])
+
+        self.assertEqual(response.status_code, 200, response.content)
+        packages = list(self.account.items.filter(
+            item_type=TableAccountItem.ItemType.PACKAGE,
+        ).order_by("id"))
+        self.assertEqual([item.quantity for item in packages], [2, 1])
+        self.assertEqual(packages[0].unit_price, Decimal("80.00"))
+        self.assertEqual(packages[0].customization_comment, "Primer tiempo mesa: Agregar Queso")
+        self.assertEqual(packages[1].unit_price, Decimal("70.00"))
+        self.assertEqual(packages[1].customization_comment, "")
+
+    def test_customization_of_a_product_no_longer_chosen_is_ignored(self):
+        stale = {"second_course": {
+            "product_id": "999999", "option_ids": [], "comment": "Sin sal",
+        }}
+        response = self.post_batch([{"fields": self.fields(customization=stale), "quantity": 1}])
+
+        self.assertEqual(response.status_code, 200, response.content)
+        package = self.account.items.get(item_type=TableAccountItem.ItemType.PACKAGE)
+        self.assertEqual(package.customization_comment, "")
+
+    def test_invalid_package_rolls_back_the_whole_batch(self):
+        invalid = self.fields()
+        invalid[0][1] = "999999"
+        response = self.post_batch([
+            {"fields": self.fields(), "quantity": 2},
+            {"fields": invalid, "quantity": 1},
+        ])
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(self.account.items.exists())
+
+
+class TicketModificationLinesTests(TestCase):
+    """El ticket muestra cómo quedó modificado cada producto o tiempo del paquete."""
+
+    fields = TablePackageDialogBatchTests.fields
+    post_batch = TablePackageDialogBatchTests.post_batch
+
+    def setUp(self):
+        TablePackageDialogBatchTests.setUp(self)
+        self.first_product.is_sold_individually = True
+        self.first_product.save(update_fields=("is_sold_individually",))
+        DailyProductStock.objects.create(
+            date=self.menu.date, daily_menu=self.menu, product=self.first_product,
+            channel=DailyProductStock.Channel.ORDERS, initial_quantity=10,
+        )
+
+    def test_table_product_lists_its_ingredient_changes(self):
+        add_product_to_table(
+            account=self.account, product=self.first_product, added_by=self.waiter,
+            raw_option_ids=[str(self.cheese.pk)], customization_comment="Bien caliente",
+        )
+
+        line = ticket_summary(self.account)["items"][0]
+        self.assertEqual(line["name"], "Primer tiempo mesa (Bien caliente)")
+        self.assertEqual(line["modifications"], ["Sin Cebolla · Agregar Queso"])
+
+    def test_order_product_lists_its_ingredient_changes(self):
+        from orders.models import Order
+        from orders.services import add_internal_order_product
+        from orders.views import internal_order_ticket
+
+        order = Order.objects.create(
+            daily_number=997, operating_date=timezone.localdate(), order_type=Order.OrderType.PICKUP,
+            source=Order.Source.INTERNAL, status=Order.Status.DRAFT,
+            customer_name="Mostrador", phone="", total=0, created_by=self.waiter,
+        )
+        add_internal_order_product(
+            order=order, product=self.first_product, actor=self.waiter, raw_option_ids=[],
+        )
+
+        line = internal_order_ticket(order)["items"][0]
+        self.assertEqual(line["name"], "Primer tiempo mesa")
+        self.assertEqual(line["modifications"], ["Sin Cebolla"])
+
+    def test_dialog_package_lists_each_modified_course(self):
+        with_cheese = {"first_course": {
+            "product_id": str(self.first_product.pk),
+            "option_ids": [self.onion.pk, self.cheese.pk], "comment": "",
+        }}
+        fields = self.fields(customization=with_cheese) + [[f"{self.prefix}-customization_comment", "Para llevar"]]
+        self.post_batch([{"fields": fields, "quantity": 1}])
+
+        line = ticket_summary(self.account)["items"][0]
+        self.assertEqual(line["name"], "Comida corrida prueba mesas (Para llevar)")
+        self.assertEqual(line["modifications"], ["Primer tiempo mesa: Agregar Queso"])
+
+    def test_category_meal_package_keeps_course_ingredient_changes(self):
+        self.client.post(
+            reverse("tables:table_auto_meal_add", args=(self.account.pk, self.first_product.pk)),
+            {"customization_selected": "1", "customization_comment": ""},
+        )
+        for product in (self.second_product, self.main_product):
+            self.client.post(reverse("tables:table_auto_meal_add", args=(self.account.pk, product.pk)))
+
+        package = self.account.items.get(item_type=TableAccountItem.ItemType.PACKAGE)
+        self.assertEqual(package.customization_comment, "Primer tiempo mesa: Sin Cebolla")
+        line = ticket_summary(self.account)["items"][0]
+        self.assertEqual(line["name"], "Comida corrida prueba mesas")
+        self.assertEqual(line["modifications"], ["Primer tiempo mesa: Sin Cebolla"])

@@ -393,17 +393,35 @@ def inventory_tracking(request):
         Product.ComponentType.GRILL,
     }
 
+    # Dentro del tercer tiempo: pollo, res, guisado variado y al final plancha. Manda el
+    # lugar que ocupa el producto en el menú del día; si no lo hay, su tipo de componente.
+    stew_rank_by_component = {
+        Product.ComponentType.CHICKEN_STEW: 0,
+        Product.ComponentType.BEEF_STEW: 1,
+        Product.ComponentType.VARIED_STEW: 2,
+    }
+
+    def stew_rank(stock, product, component):
+        menu = stock.daily_menu
+        if menu and product:
+            for rank, stew_id in enumerate((menu.chicken_stew_id, menu.beef_stew_id, menu.varied_stew_id)):
+                if stew_id == product.pk:
+                    return rank
+        return stew_rank_by_component.get(component, 3)
+
     def tracking_order(row):
         stock = row["stock"]
         product = stock.product
         component = product.component_type if product else ""
         normalized_name = row["name"].casefold()
+        rank = 0
         if component in first_course_types:
             section = 10
         elif component == Product.ComponentType.SECOND_COURSE:
             section = 20
         elif component in third_course_types:
             section = 30
+            rank = stew_rank(stock, product, component)
         elif stock.item_kind == DailyProductStock.ItemKind.TORTILLAS:
             section = 40
         elif product and (
@@ -417,7 +435,7 @@ def inventory_tracking(request):
             section = 70
         else:
             section = 80
-        return (section, product.sort_order if product else 0, normalized_name)
+        return (section, rank, product.sort_order if product else 0, normalized_name)
 
     rows.sort(key=tracking_order)
     return render(request, "menu/inventory_tracking.html", {
@@ -550,7 +568,11 @@ def product_card_image(request, product_id):
         output = BytesIO()
         image.save(output, format="WEBP", quality=88, method=4)
     response = HttpResponse(output.getvalue(), content_type="image/webp")
-    response["Cache-Control"] = "private, max-age=300"
+    # El encuadre puede cambiar sin reemplazar el archivo original. No permitimos
+    # que el navegador reutilice durante cinco minutos una miniatura anterior y
+    # haga parecer que X/Y/zoom no se guardaron.
+    response["Cache-Control"] = "private, no-store, max-age=0"
+    response["Pragma"] = "no-cache"
     return response
 
 

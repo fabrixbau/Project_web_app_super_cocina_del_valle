@@ -16,47 +16,118 @@
     wrapper.classList.remove("is-keyboard-ready");
   };
 
-  // NOTA TEMPORAL PARA APRENDIZAJE: el huevo opcional de Corrida/Ejecutiva vive
-  // dentro de un formulario con overflow-y:auto en celular (necesario para su
-  // propio scroll). Ese overflow recorta el menú aunque sus envoltorios internos
-  // digan overflow:visible, porque el recorte ocurre en el formulario, no en
-  // ellos. En vez de tocar ese overflow (saltaría el scroll ya aplicado), este
-  // menú se saca a position:fixed con coordenadas reales del disparador, así
-  // escapa de cualquier contenedor con scroll sin moverlo. Borra esta nota.
-  const clearEscapedPosition = (wrapper) => {
-    wrapper.classList.remove("is-escaped");
-    wrapper.style.removeProperty("--escaped-menu-top");
-    wrapper.style.removeProperty("--escaped-menu-left");
-    wrapper.style.removeProperty("--escaped-menu-width");
-    wrapper.style.removeProperty("--escaped-menu-max-height");
+  // NOTA TEMPORAL PARA APRENDIZAJE: en celular, tableta y ordenador el panel se
+  // ancla al campo con position:fixed usando sus coordenadas reales. Así escapa de
+  // contenedores con overflow (p. ej. el huevo dentro del formulario del paquete)
+  // y puede abrirse hacia arriba o hacia abajo, según dónde quede más espacio
+  // visible. visualViewport descuenta el teclado en pantalla. Borra esta nota.
+  const MENU_GAP = 6;
+  const VIEWPORT_EDGE = 8;
+  const MIN_MENU_HEIGHT = 132;
+  const restoreSelection = new WeakMap();
+
+  const visibleBounds = () => {
+    const viewport = window.visualViewport;
+    const top = viewport ? viewport.offsetTop : 0;
+    const left = viewport ? viewport.offsetLeft : 0;
+    const width = viewport ? viewport.width : window.innerWidth;
+    const height = viewport ? viewport.height : window.innerHeight;
+    return { top, left, width, height, right: left + width, bottom: top + height };
   };
 
-  const applyEscapedPosition = (wrapper, trigger, menu) => {
-    if (!wrapper.closest(".package-egg-choice")) return;
+  // Un campo cuenta como visible si al menos la mitad sigue a la vista, tanto en
+  // la pantalla como dentro de los contenedores con scroll que lo recortan.
+  const anchorIsVisible = (trigger, bounds) => {
     const rect = trigger.getBoundingClientRect();
-    const gap = 6;
-    const edge = 8;
-    const menuWidth = Math.min(Math.max(rect.width, 220), window.innerWidth - edge * 2);
-    const spaceBelow = window.innerHeight - rect.bottom - gap - edge;
-    const spaceAbove = rect.top - gap - edge;
-    const openUpward = spaceBelow < 140 && spaceAbove > spaceBelow;
-    const maxHeight = Math.max(120, Math.min(280, openUpward ? spaceAbove : spaceBelow));
-    const top = openUpward ? rect.top - gap - maxHeight : rect.bottom + gap;
-    const left = Math.min(Math.max(edge, rect.right - menuWidth), window.innerWidth - menuWidth - edge);
-    wrapper.style.setProperty("--escaped-menu-top", `${Math.max(edge, top)}px`);
-    wrapper.style.setProperty("--escaped-menu-left", `${left}px`);
-    wrapper.style.setProperty("--escaped-menu-width", `${menuWidth}px`);
-    wrapper.style.setProperty("--escaped-menu-max-height", `${maxHeight}px`);
-    wrapper.classList.add("is-escaped");
+    let top = bounds.top;
+    let bottom = bounds.bottom;
+    for (let node = trigger.parentElement; node && node !== document.body; node = node.parentElement) {
+      if (getComputedStyle(node).overflowY === "visible") continue;
+      const clip = node.getBoundingClientRect();
+      top = Math.max(top, clip.top);
+      bottom = Math.min(bottom, clip.bottom);
+    }
+    return Math.min(rect.bottom, bottom) - Math.max(rect.top, top) >= rect.height / 2;
+  };
+
+  // Si un ancestro tiene transform, filter o contain, `position: fixed` se mide
+  // desde ese ancestro y no desde la pantalla; se resta su esquina para compensar.
+  const fixedOrigin = (wrapper) => {
+    for (let node = wrapper.parentElement; node && node !== document.documentElement; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      if (
+        style.transform !== "none"
+        || style.perspective !== "none"
+        || style.filter !== "none"
+        || (style.backdropFilter && style.backdropFilter !== "none")
+        || /transform|perspective|filter/.test(style.willChange)
+        || /paint|layout|strict|content/.test(style.contain)
+      ) {
+        const rect = node.getBoundingClientRect();
+        return { top: rect.top + node.clientTop, left: rect.left + node.clientLeft };
+      }
+    }
+    return { top: 0, left: 0 };
+  };
+
+  const clearMenuPosition = (wrapper) => {
+    wrapper.classList.remove("is-anchored", "opens-up");
+    ["--menu-top", "--menu-left", "--menu-width", "--menu-max-height"].forEach((name) => {
+      wrapper.style.removeProperty(name);
+    });
+  };
+
+  // Abre hacia abajo si la lista completa cabe; si no, hacia el lado con más
+  // espacio. Con `keepDirection` conserva el lado elegido al abrir (scroll, filtro).
+  const positionMenu = (wrapper, { keepDirection = false } = {}) => {
+    const trigger = wrapper.querySelector(".app-select-trigger");
+    const menu = wrapper.querySelector(".app-select-menu");
+    const bounds = visibleBounds();
+    const rect = trigger.getBoundingClientRect();
+    const cap = isCompactViewport() ? Math.min(bounds.height * .52, 384) : 280;
+    const needed = Math.min(menu.scrollHeight + (menu.offsetHeight - menu.clientHeight), cap);
+    const spaceBelow = bounds.bottom - rect.bottom - MENU_GAP - VIEWPORT_EDGE;
+    const spaceAbove = rect.top - bounds.top - MENU_GAP - VIEWPORT_EDGE;
+    const openUpward = keepDirection && wrapper.classList.contains("is-anchored")
+      ? wrapper.classList.contains("opens-up")
+      : spaceBelow < needed && spaceAbove > spaceBelow;
+    const space = openUpward ? spaceAbove : spaceBelow;
+    const maxHeight = Math.min(cap, Math.max(space, 96));
+    const height = Math.min(needed, maxHeight);
+    const minWidth = wrapper.closest(".package-egg-choice") ? 220 : 0;
+    const width = Math.min(Math.max(rect.width, minWidth), bounds.width - VIEWPORT_EDGE * 2);
+    const preferredLeft = width > rect.width ? rect.right - width : rect.left;
+    const left = Math.min(
+      Math.max(bounds.left + VIEWPORT_EDGE, preferredLeft),
+      bounds.right - width - VIEWPORT_EDGE,
+    );
+    const top = openUpward ? rect.top - MENU_GAP - height : rect.bottom + MENU_GAP;
+    const origin = fixedOrigin(wrapper);
+
+    wrapper.classList.add("is-anchored");
+    wrapper.classList.toggle("opens-up", openUpward);
+    wrapper.style.setProperty("--menu-width", `${width}px`);
+    wrapper.style.setProperty("--menu-max-height", `${maxHeight}px`);
+    wrapper.style.setProperty("--menu-left", `${left - origin.left}px`);
+    wrapper.style.setProperty("--menu-top", `${top - origin.top}px`);
+    return {
+      fits: space >= Math.min(needed, MIN_MENU_HEIGHT),
+      anchorVisible: anchorIsVisible(trigger, bounds),
+    };
+  };
+
+  const closeMenu = (wrapper) => {
+    wrapper.classList.remove("is-open");
+    wrapper.querySelector(".app-select-trigger")?.setAttribute("aria-expanded", "false");
+    resetCompactTrigger(wrapper);
+    clearMenuPosition(wrapper);
+    // Descarta lo escrito en el buscador y vuelve a mostrar la opción fijada.
+    restoreSelection.get(wrapper)?.();
   };
 
   const closeAll = (except = null) => {
     document.querySelectorAll(".app-select.is-open").forEach((wrapper) => {
-      if (wrapper === except) return;
-      wrapper.classList.remove("is-open");
-      wrapper.querySelector(".app-select-trigger")?.setAttribute("aria-expanded", "false");
-      resetCompactTrigger(wrapper);
-      clearEscapedPosition(wrapper);
+      if (wrapper !== except) closeMenu(wrapper);
     });
   };
 
@@ -156,13 +227,14 @@
 
     rebuild();
     sync();
+    restoreSelection.set(wrapper, () => { filter(); sync(); });
     const toggleMenu = () => {
       const opening = !wrapper.classList.contains("is-open");
       closeAll(wrapper);
       wrapper.classList.toggle("is-open", opening);
       trigger.setAttribute("aria-expanded", String(opening));
       if (opening) {
-        applyEscapedPosition(wrapper, trigger, menu);
+        positionMenu(wrapper);
         // `scrollIntoView` también podía desplazar la página en pantallas táctiles;
         // ese movimiento alteraba el mismo toque y hacía parecer que el panel se
         // abría y cerraba. Ajustamos únicamente el scroll interno de la lista.
@@ -176,7 +248,7 @@
           }
         }
       } else {
-        clearEscapedPosition(wrapper);
+        clearMenuPosition(wrapper);
       }
     };
     let openedFromPointer = false;
@@ -233,6 +305,8 @@
       trigger.addEventListener("input", () => {
         if (!wrapper.classList.contains("is-open")) toggleMenu();
         filter(trigger.value);
+        // La lista cambia de alto al filtrar; se reajusta sin cambiar de lado.
+        positionMenu(wrapper, { keepDirection: true });
       });
       trigger.addEventListener("blur", () => {
         window.setTimeout(() => {
@@ -296,13 +370,35 @@
     if (!event.target.closest(".app-select")) closeAll();
   });
 
-  // Al desplazar la página, una lista táctil deja de estar relacionada visualmente
-  // con su campo. Se cierra conservando la opción ya seleccionada. El scroll propio
-  // de la lista no llega a `window`, por lo que aún se pueden recorrer sus opciones.
-  window.addEventListener("scroll", () => {
-    if (!touchTabletViewport.matches) return;
-    closeAll();
-  }, { passive: true });
+  // Al desplazar la página (o cualquier contenedor), el panel acompaña a su campo.
+  // Si el scroll deja la lista sin espacio visible o saca el campo de la vista, se
+  // cierra conservando la opción fijada. Mientras se escribe en táctil, el teclado
+  // también mueve la página: ahí el panel solo cambia de lado, salvo que el campo
+  // desaparezca. El scroll interno de la propia lista se ignora.
+  let refreshFrame = 0;
+  let closeOnOverflow = false;
+  const refreshOpenMenus = (fromScroll) => {
+    closeOnOverflow = closeOnOverflow || fromScroll;
+    if (refreshFrame) return;
+    refreshFrame = window.requestAnimationFrame(() => {
+      const shouldClose = closeOnOverflow;
+      refreshFrame = 0;
+      closeOnOverflow = false;
+      document.querySelectorAll(".app-select.is-open").forEach((wrapper) => {
+        const typing = wrapper.classList.contains("is-keyboard-ready");
+        const { fits, anchorVisible } = positionMenu(wrapper, { keepDirection: !typing });
+        if (!shouldClose || (anchorVisible && (fits || typing))) return;
+        if (wrapper.contains(document.activeElement)) document.activeElement.blur();
+        closeMenu(wrapper);
+      });
+    });
+  };
+  document.addEventListener("scroll", (event) => {
+    if (event.target instanceof Element && event.target.closest(".app-select-menu")) return;
+    refreshOpenMenus(true);
+  }, { capture: true, passive: true });
+  window.addEventListener("resize", () => refreshOpenMenus(false));
+  window.visualViewport?.addEventListener("resize", () => refreshOpenMenus(false));
 
   const refreshViewportMode = () => {
     document.querySelectorAll(".app-select").forEach((wrapper) => {
