@@ -150,6 +150,7 @@ def ticket_summary(account):
     grouped = {}
     standard_quantities = {}
     candidate_quantities = {}
+    meal_quantities = {}
     total = Decimal("0")
     for item in account.items.select_related("product", "main_course_product", "daily_menu").all():
         key = (
@@ -225,6 +226,13 @@ def ticket_summary(account):
         if item.product_id and item.is_package_candidate:
             product_key = str(item.product_id)
             candidate_quantities[product_key] = candidate_quantities.get(product_key, 0) + item.quantity
+            meal_quantities[product_key] = meal_quantities.get(product_key, 0) + item.quantity
+        if item.item_type == TableAccountItem.ItemType.PACKAGE:
+            # Las piezas que ya forman un paquete siguen contando en las tarjetas de
+            # Comida corrida/ejecutiva (antes el contador volvía a 0 al armarse).
+            for course_id in (item.first_course_product_id, item.second_course_product_id, item.main_course_product_id):
+                if course_id:
+                    meal_quantities[str(course_id)] = meal_quantities.get(str(course_id), 0) + item.quantity
     items = list(grouped.values())
     for item in items:
         item["subtotal_display"] = f"{item['subtotal']:.2f}"
@@ -244,6 +252,7 @@ def ticket_summary(account):
         "count": sum(item["quantity"] for item in items),
         "standard_quantities": standard_quantities,
         "candidate_quantities": candidate_quantities,
+        "meal_quantities": meal_quantities,
         "stock_warnings": stock_warning_payload(selected_date=timezone.localdate(account.opened_at)),
     }
 
@@ -1002,11 +1011,16 @@ def table_register_unpaid(request, account_id):
             order.customer_name = customer.name
             order.phone = customer.phone
             order.save(update_fields=("agenda_customer", "customer_name", "phone", "updated_at"))
-            create_customer_debt(order=order, actor=request.user, note=f"Cuenta no pagada de {account.table.name}.")
+            debt = create_customer_debt(order=order, actor=request.user, note=f"Cuenta no pagada de {account.table.name}.")
     except ValidationError as error:
         messages.error(request, " ".join(error.messages))
     else:
         messages.success(request, f"{account.table.name} quedó a cuenta de {customer.name} y fue liberada.")
+        customer.refresh_from_db()
+        if customer.credit_balance > 0:
+            # Tiene saldo a favor: se ofrece cubrir esta cuenta con él.
+            from orders.views import credit_apply_url
+            return redirect(credit_apply_url(customer.pk, reverse("tables:table_map"), debt.pk))
     return redirect("tables:table_map")
 
 

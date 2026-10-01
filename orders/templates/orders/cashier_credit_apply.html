@@ -1,0 +1,51 @@
+{% extends "base_internal.html" %}
+{% load l10n static %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: esta pantalla aparece sola después de registrar
+un depósito (si el cliente debe pedidos) o un "no pagó" (si el cliente tiene saldo
+a favor). Propone pagar del adeudo más antiguo al más reciente (el recién registrado
+va primero) y permite cambiar qué pedidos y cuánto. "Ahora no" regresa sin tocar
+nada. Borra esta nota después de leerla. -->
+{% block title %}Aplicar saldo a favor{% endblock %}
+{% block content %}
+<header class="cashier-page-header">
+  <div class="cashier-title-row">
+    <div><h1>Aplicar saldo a favor</h1><p>{{ customer.name }} tiene saldo a favor y pedidos pendientes de pago. Elige qué pedidos se pagan con ese saldo.</p></div>
+    <a class="cashier-back-link" href="{{ next_url }}"><span aria-hidden="true">←</span> Ahora no</a>
+  </div>
+</header>
+{% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+
+<form method="post" class="card credit-apply-card" data-credit-apply data-credit="{{ customer.credit_balance|unlocalize }}">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ next_url }}">
+  {% if focus_id %}<input type="hidden" name="debt" value="{{ focus_id }}">{% endif %}
+  <section class="debt-summary-grid credit-apply-summary">
+    <article class="card credit-balance-card"><small>Saldo a favor disponible</small><strong>${{ customer.credit_balance|floatformat:2 }}</strong></article>
+    <article class="card"><small>Total adeudado</small><strong>${{ debt_total|floatformat:2 }}</strong></article>
+    <article class="card"><small>Se aplicará</small><strong data-credit-apply-total>$0.00</strong></article>
+    <article class="card"><small>Saldo a favor restante</small><strong data-credit-apply-remaining>$0.00</strong></article>
+  </section>
+
+  <div class="credit-apply-list">
+    {% for row in rows %}
+      <label class="credit-apply-row{% if row.debt.id == focus_id %} is-new-debt{% endif %}" data-credit-apply-row data-balance="{{ row.debt.balance|unlocalize }}">
+        <input type="checkbox" name="apply_{{ row.debt.id }}" value="1" {% if row.amount > 0 %}checked{% endif %} data-credit-apply-check>
+        <span class="credit-apply-info">
+          <strong>{{ row.debt.order.formatted_number }}{% if row.debt.id == focus_id %} <em>Recién registrado</em>{% endif %}</strong>
+          <small>{{ row.debt.created_at|date:'d/m/Y' }} · {{ row.debt.get_status_display }}{% if row.debt.paid_amount %} · ya pagó ${{ row.debt.paid_amount|floatformat:2 }}{% endif %}</small>
+        </span>
+        <span class="credit-apply-due"><small>Debe</small><strong>${{ row.debt.balance|floatformat:2 }}</strong></span>
+        <span class="credit-apply-amount"><small>Pagar con saldo</small><input type="number" name="amount_{{ row.debt.id }}" value="{{ row.amount|unlocalize }}" min="0" max="{{ row.debt.balance|unlocalize }}" step="0.01" inputmode="decimal" data-credit-apply-amount></span>
+        <span class="credit-apply-result" data-credit-apply-result></span>
+      </label>
+    {% endfor %}
+  </div>
+
+  <p class="message error" data-credit-apply-error hidden>Lo que vas a aplicar supera el saldo a favor disponible.</p>
+  <div class="credit-apply-actions">
+    <a class="button-link secondary" href="{{ next_url }}">Ahora no</a>
+    <button type="submit" data-credit-apply-submit>Aplicar saldo a favor</button>
+  </div>
+</form>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/credit-apply.js' %}?v=1"></script>{% endblock %}

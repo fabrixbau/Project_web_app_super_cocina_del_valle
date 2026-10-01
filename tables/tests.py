@@ -713,3 +713,19 @@ class TicketModificationLinesTests(TestCase):
         line = ticket_summary(self.account)["items"][0]
         self.assertEqual(line["name"], "Comida corrida prueba mesas")
         self.assertEqual(line["modifications"], ["Primer tiempo mesa: Sin Cebolla"])
+
+    def test_meal_card_counter_keeps_pieces_after_the_package_is_formed(self):
+        self.client.post(reverse("tables:table_auto_meal_add", args=(self.account.pk, self.first_product.pk)))
+        self.client.post(reverse("tables:table_auto_meal_add", args=(self.account.pk, self.first_product.pk)))
+        summary = ticket_summary(self.account)
+        self.assertEqual(summary["meal_quantities"][str(self.first_product.pk)], 2)
+        for product in (self.second_product, self.main_product):
+            self.client.post(reverse("tables:table_auto_meal_add", args=(self.account.pk, product.pk)))
+
+        summary = ticket_summary(self.account)
+        # Una pieza ya está en el paquete y otra sigue suelta: el contador muestra 2.
+        self.assertEqual(summary["meal_quantities"][str(self.first_product.pk)], 2)
+        self.assertEqual(summary["candidate_quantities"][str(self.first_product.pk)], 1)
+        self.assertEqual(summary["meal_quantities"][str(self.main_product.pk)], 1)
+        self.assertNotIn(str(self.main_product.pk), summary["candidate_quantities"])
+

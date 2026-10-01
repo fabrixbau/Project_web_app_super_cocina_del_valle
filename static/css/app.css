@@ -10667,6 +10667,11 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
     inset: 0 !important;
     display: block !important;
   }
+  /* Cualquier lupa abierta (Mesas, Pedidos) queda encima de ese fondo, no sólo la de
+     Desayunos; antes el campo se veía borroso y no se podía tocar. */
+  body.compact-field-open .catalog-search-box.compact-field-ready.is-compact-field-open {
+    z-index: 1002 !important;
+  }
   body.compact-field-open .internal-menu-workspace .catalog-search-box.compact-field-ready.is-compact-field-open {
     position: fixed !important;
     z-index: 1002 !important;
@@ -12301,4 +12306,161 @@ html[data-theme="dark"] .table-ticket > .current-ticket-heading > .ticket-headin
     resize: none;
   }
 }
+
+/* Aplicar saldo a favor a pedidos adeudados (Caja › Saldos, Adeudos, Clientes, Mesas). */
+.credit-apply-card { display: grid; gap: .8rem; padding: 1rem; }
+.credit-apply-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; }
+.credit-apply-summary .card { display: grid; gap: .2rem; padding: .7rem .8rem; }
+.credit-apply-summary small { color: #52685e; font-size: .72rem; font-weight: 700; }
+.credit-apply-summary strong { color: #173f31; font-size: 1.15rem; }
+.credit-apply-list { display: grid; gap: .45rem; }
+.credit-apply-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1.4fr) auto minmax(8rem, .8fr) minmax(7rem, .7fr);
+  align-items: center;
+  gap: .7rem;
+  padding: .65rem .8rem;
+  border: 2px solid #ddd7ca;
+  border-radius: .7rem;
+  background: #fff;
+  cursor: pointer;
+}
+.credit-apply-row.is-selected { border-color: #285943; background: #f2f8f4; }
+.credit-apply-row.is-new-debt { box-shadow: inset 4px 0 0 #e5ae31; }
+.credit-apply-row > input[type="checkbox"] { width: 1.3rem; height: 1.3rem; accent-color: #285943; }
+.credit-apply-info, .credit-apply-due, .credit-apply-amount { display: grid; gap: .15rem; min-width: 0; }
+.credit-apply-info strong { color: #173f31; }
+.credit-apply-info em { padding: .05rem .35rem; border-radius: 999px; color: #664407; background: #f7d77f; font-size: .62rem; font-style: normal; font-weight: 900; }
+.credit-apply-row small { color: #52685e; font-size: .7rem; }
+.credit-apply-amount input { width: 100%; min-height: 2.4rem; padding: .35rem .5rem; }
+.credit-apply-result { color: #285943; font-size: .75rem; font-weight: 800; text-align: right; }
+.credit-apply-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .6rem; }
+.credit-apply-actions button { min-width: 14rem; }
+.credit-apply-link { margin-left: .5rem; padding: .35rem .7rem; font-size: .78rem; }
+@media (max-width: 760px) {
+  .credit-apply-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .credit-apply-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "check info due" "amount amount result";
+  }
+  .credit-apply-row > input[type="checkbox"] { grid-area: check; }
+  .credit-apply-info { grid-area: info; }
+  .credit-apply-due { grid-area: due; text-align: right; }
+  .credit-apply-amount { grid-area: amount; }
+  .credit-apply-result { grid-area: result; align-self: end; }
+  .credit-apply-actions > * { flex: 1 1 100%; min-width: 0; }
+  .credit-apply-link { display: inline-block; margin: .4rem 0 0; }
+}
+html[data-theme="dark"] .credit-apply-row { border-color: #4d6559; background: #1b2922; }
+html[data-theme="dark"] .credit-apply-row.is-selected { border-color: #7fc4a0; background: #20352b; }
+html[data-theme="dark"] .credit-apply-info strong, html[data-theme="dark"] .credit-apply-summary strong { color: #edf4f0; }
+
+/* Caja › Herramientas: texto de los botones más grande para que se lea con claridad
+   (antes 10.9 px en todos los tamaños). Conservan su forma; si el texto no cabe en una
+   línea se acomoda en dos dentro del botón. */
+.cashier-tools > a,
+.cashier-tools > .cashier-unpaid-quick > summary {
+  min-height: 3.2rem !important;
+  padding: .45rem .6rem !important;
+  font-size: .95rem !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+  text-align: center;
+}
+/* Mismo alto para todos los botones de una fila, aunque unos ocupen más líneas. */
+.cashier-tools > a { align-self: stretch !important; }
+@media (min-width: 761px) {
+  /* El texto más largo usa dos columnas para no quedar en 3–4 líneas. */
+  .cashier-page-header .cashier-tools > a[href$="#registrar-no-pagado"],
+  .cashier-page-header .cashier-tools > .cashier-unpaid-quick { grid-column: span 2 !important; }
+}
+@media (max-width: 760px) {
+  .cashier-tools > a,
+  .cashier-tools > .cashier-unpaid-quick > summary { font-size: 1.05rem !important; }
+}
+
+/* Páginas de Caja (Caja, Adeudos, Saldos, Terminales, Cambios, Propinas, Bebidas,
+   Corte) en ordenador y tabletas horizontales: el bloque del título usaba ~770 px y
+   Herramientas saltaban a una segunda fila (y "terminales" se cortaba). Ahora el
+   título es una columna angosta y Herramientas van en una sola fila. */
+@media (min-width: 1000px) {
+  .cashier-page-header--wide-tools {
+    grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr) !important;
+    column-gap: .8rem !important;
+  }
+  .cashier-page-header--wide-tools > .cashier-title-row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    align-content: center !important;
+    gap: .35rem .6rem !important;
+    min-width: 0;
+  }
+  .cashier-page-header--wide-tools > .cashier-title-row > div { display: contents; }
+  .cashier-page-header--wide-tools > .cashier-title-row h1 { margin: 0 !important; font-size: 1.55rem !important; line-height: 1.05 !important; }
+  .cashier-page-header--wide-tools > .cashier-title-row p { order: 3; flex: 1 0 100%; margin: 0 !important; font-size: .82rem !important; }
+  .cashier-page-header--wide-tools > .cashier-title-row .cashier-back-link { order: 2; margin-left: auto; }
+  .cashier-page-header--wide-tools > .cashier-title-row .cashier-eyebrow { flex: 1 0 100%; }
+  /* Caja: "Registrar un pedido que no pagó" con el mismo alto que los demás botones. */
+  .cashier-page-header--wide-tools > .cashier-tools > .cashier-unpaid-quick { align-self: stretch !important; }
+  .cashier-page-header--wide-tools > .cashier-tools > .cashier-unpaid-quick > summary { height: 100% !important; }
+  .cashier-page-header--wide-tools > .cashier-tools {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    grid-template-columns: none !important;
+    grid-auto-flow: column !important;
+    grid-auto-columns: minmax(0, 1fr) !important;
+    gap: .4rem !important;
+    padding: .5rem !important;
+  }
+  .cashier-page-header--wide-tools > .cashier-tools > a {
+    min-width: 0 !important;
+    padding: .4rem .35rem !important;
+    overflow-wrap: normal;
+  }
+}
+
+/* Lupa con sugerencias (live-search.js): Mesas, Pedidos, Menú, Repartos, Adeudos y
+   Clientes. La lista flota debajo (o arriba, si no hay espacio) del buscador. */
+.live-search-list {
+  position: fixed;
+  z-index: 1500;
+  display: grid;
+  gap: .15rem;
+  padding: .35rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #c7d2cb;
+  border-radius: .75rem;
+  background: #fff;
+  box-shadow: 0 14px 34px rgb(24 55 43 / 22%);
+}
+.live-search-list[hidden] { display: none; }
+.live-search-option {
+  display: grid;
+  gap: .1rem;
+  width: 100%;
+  min-height: 2.6rem;
+  padding: .5rem .65rem;
+  border: 0;
+  border-radius: .55rem;
+  color: #17231e;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.live-search-option strong { font-size: .92rem; font-weight: 800; line-height: 1.2; }
+.live-search-option small { color: #5b6b63; font-size: .74rem; line-height: 1.2; }
+.live-search-option:hover,
+.live-search-option.is-active { background: #edf4f0; }
+.live-search-more,
+.live-search-empty { margin: .2rem .4rem; color: #5b6b63; font-size: .76rem; font-weight: 700; text-align: center; }
+html[data-theme="dark"] .live-search-list { border-color: #4d6559; background: #1b2922; }
+html[data-theme="dark"] .live-search-option { color: #edf4f0; }
+html[data-theme="dark"] .live-search-option small,
+html[data-theme="dark"] .live-search-more,
+html[data-theme="dark"] .live-search-empty { color: #aab8b1; }
+html[data-theme="dark"] .live-search-option:hover,
+html[data-theme="dark"] .live-search-option.is-active { background: #20352b; }
 

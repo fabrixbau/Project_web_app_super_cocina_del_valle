@@ -586,6 +586,15 @@
     renderQuantities(JSON.parse(quantitiesNode?.textContent || "{}"));
   }
 
+  // Lupa con sugerencias (live-search.js): al elegir un producto sólo queda su tarjeta.
+  search?.addEventListener("live-search:select", (event) => {
+    const chosen = normalize(event.detail.item.label);
+    [...searchGrid.children].forEach((card) => {
+      card.hidden = normalize(card.dataset.productName || "") !== chosen;
+    });
+    searchEmpty.hidden = true;
+  });
+
   function renderQuantities(quantities) {
     capture.querySelectorAll("[data-internal-product]").forEach((card) => {
       const quantity = quantities[String(card.dataset.internalProduct)] || 0;
@@ -594,11 +603,17 @@
     });
   }
 
-  function renderCandidateQuantities(quantities) {
+  // El número cuenta todas las piezas del producto (sueltas y ya dentro de un paquete);
+  // "−" sólo quita piezas sueltas, así que se desactiva cuando todas están en paquete.
+  function renderCandidateQuantities(quantities, mealQuantities = quantities) {
     capture.querySelectorAll("[data-internal-auto-product]").forEach((card) => {
-      const quantity = quantities[String(card.dataset.internalAutoProduct)] || 0;
-      card.querySelector("[data-internal-auto-quantity]").textContent = quantity;
-      card.querySelector("[data-internal-auto-decrease]").disabled = quantity === 0;
+      const productKey = String(card.dataset.internalAutoProduct);
+      const loose = quantities[productKey] || 0;
+      const total = mealQuantities[productKey] || 0;
+      card.querySelector("[data-internal-auto-quantity]").textContent = total;
+      const decrease = card.querySelector("[data-internal-auto-decrease]");
+      decrease.disabled = loose === 0;
+      decrease.title = loose === 0 && total > 0 ? "Ya forma parte de un paquete; quítalo desde el ticket" : "";
     });
   }
 
@@ -696,7 +711,7 @@
     form.dataset.orderTotal = ticket.total;
     refresh();
     renderQuantities(ticket.quantities || {});
-    renderCandidateQuantities(ticket.candidate_quantities || {});
+    renderCandidateQuantities(ticket.candidate_quantities || {}, ticket.meal_quantities || {});
     updateCreditNotice(ticket.customer_credit);
     updateDebtNotice(ticket.customer_debt);
   }
@@ -1222,5 +1237,10 @@
   });
 
   renderQuantities(JSON.parse(quantitiesNode?.textContent || "{}"));
-  renderCandidateQuantities(JSON.parse(candidateQuantitiesNode?.textContent || "{}"));
+  {
+    const initialTicket = JSON.parse(ticketDataNode?.textContent || "{}");
+    renderCandidateQuantities(
+      JSON.parse(candidateQuantitiesNode?.textContent || "{}"), initialTicket.meal_quantities || {},
+    );
+  }
 })();

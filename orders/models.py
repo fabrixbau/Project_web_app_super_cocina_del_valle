@@ -512,6 +512,10 @@ class CustomerDebtMovement(models.Model):
     # registró un abono, condonó o reabrió la cuenta. Borra esta nota al leerla.
     class Action(models.TextChoices):
         PAYMENT = "payment", "Abono"
+        # Pagado con el saldo a favor del cliente: no es dinero nuevo (entró a caja
+        # al registrar el depósito), por eso no lleva método de pago ni cuenta en el
+        # corte; `credit_movement` liga el renglón del saldo que lo pagó.
+        CREDIT = "credit", "Pagado con saldo a favor"
         FORGIVE = "forgive", "Condonación"
         REOPEN = "reopen", "Reapertura"
 
@@ -519,6 +523,10 @@ class CustomerDebtMovement(models.Model):
     action = models.CharField(max_length=15, choices=Action.choices)
     amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
     payment_method = models.CharField(max_length=20, choices=Order.PaymentMethod.choices, blank=True)
+    credit_movement = models.OneToOneField(
+        "CustomerCreditMovement", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="debt_movement",
+    )
     note = models.CharField(max_length=250, blank=True)
     registered_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="customer_debt_movements",

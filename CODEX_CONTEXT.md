@@ -2290,3 +2290,48 @@ El desarrollador pidió explícitamente que, de aquí en adelante, él se encarg
 - Verificado en celular (390×844), tableta 853×405 y TABA+9: sin fondo, sin bloqueo de scroll, el campo no se mueve, sin errores de JS.
 - `app.css` v354, `internal-order-form.js` v58, `custom-select.js` v12, `search-dismiss.js` v5 (interno), v3 (login) y v2 (menú público).
 
+## 2026-10-01 — Saldo a favor vs. adeudos: pagar pedidos adeudados con el saldo del cliente
+
+- Objetivo (4 escenarios del desarrollador): (1) abono de $1000 con adeudos de $100 y $50 → se liquidan y quedan $850; (2) "no pagó" de $100 con $1000 a favor → se cubre y quedan $900; (3) "no pagó" de $150 con $100 a favor → pago parcial, saldo $0 y debe $50; (4) abono de $500 con adeudos de $400 y $200 → liquida el de $400, abona $100 al otro (debe $100), saldo $0. Siempre se pregunta antes.
+- Modelo (migración `orders/0034`): `CustomerDebtMovement.Action.CREDIT` ("Pagado con saldo a favor", sin método de pago) y `credit_movement` (OneToOne a `CustomerCreditMovement`).
+- Servicio `apply_credit_to_debts(customer, allocations={debt_id: importe}, actor)` (atómico): valida que la suma no supere el saldo ni cada importe el saldo del adeudo; por cada adeudo crea un `CustomerCreditMovement` REDEMPTION ligado al pedido y un `CustomerDebtMovement` CREDIT ligado a él, actualiza el adeudo (Pagado/Pago parcial) y descuenta el saldo. `suggested_credit_allocation` propone del más antiguo al más reciente (el recién registrado primero). `open_customer_debts` lista los pendientes.
+- Pantalla `cashier:credit_apply` (`/app/caja/saldos/<cliente>/aplicar/?next=&debt=`), con `credit-apply.js` (totales y "queda liquidado / queda debiendo" en vivo). Se abre sola: tras un depósito si el cliente debe pedidos (Caja › Saldos y ficha del cliente) y tras un "no pagó" si el cliente tiene saldo (Caja › Adeudos por folio, botón "No pagó" y Mesas › dejar cuenta a un cliente). "Ahora no" regresa sin cambios. Accesos manuales: cada adeudo en Adeudos, cada cliente con adeudos en Saldos y la ficha del cliente.
+- Permisos: Administrador y Telefonista; el Mesero sólo ve la cuenta de mesa que acaba de dejar a nombre del cliente (`?debt=`).
+- Corte de caja: el dinero entra al registrar el depósito; los pagos con saldo (`CREDIT`, sin método) no se suman en `_terminal_expected`, que sólo cuenta `PAYMENT`.
+- Se mantiene la aplicación automática del saldo al cerrar la captura en Pedidos; Caja ya muestra "✓ Pagado con saldo a favor".
+- Pruebas: `orders/test_credit_debts.py` (4 escenarios, rechazos, corte de caja, preguntas automáticas, pantalla, Telefonista y Mesero).
+- `app.css` v355, `credit-apply.js` v1. En producción ejecutar `python manage.py migrate`.
+
+## 2026-10-01 — Caja › Herramientas: texto más grande en los botones (verificado con Playwright)
+
+- Pedido: el usuario de Caja casi no alcanza a leer los botones del panel "Herramientas" (`cashier_tools_nav.html`); medían 10.9 px de letra en todos los tamaños.
+- Ahora: 15.2 px en ordenador y tabletas, 16.8 px en celular (≤760 px), peso 800, alto mínimo 3.2rem; si el texto no cabe en una línea se acomoda en dos dentro del botón (sin cortes, verificado). Todos los botones de una fila tienen la misma altura. "Registrar un pedido que no pagó" (enlace en las demás pantallas de Caja o `.cashier-unpaid-quick` en Caja) ocupa dos columnas en pantallas >760 px.
+- `app.css` v359.
+
+## 2026-10-01 — Caja › Cambios: Herramientas en una sola fila (verificado con Playwright)
+
+- En ordenador y tabletas horizontales el bloque del título de `/app/caja/cambios/` ocupaba ~770 px y Herramientas sólo 515–590 px, así que 8 botones saltaban a una segunda fila y "terminales" se cortaba.
+- `cashier_change_board.html` usa `.cashier-page-header--wide-tools`. Desde 1000 px: título en columna angosta (`minmax(14rem, 17rem)`; título y "Volver al panel" arriba, descripción debajo) y Herramientas con columnas automáticas en una fila (`grid-auto-flow: column`). Verificado en 1440, 1280 (laptop y TABA+9) y 1180 (iPad): 1 fila, sin textos cortados. 853 px sin cambios.
+- `app.css` v360.
+
+## 2026-10-01 — Herramientas en una sola fila en todas las páginas de Caja (verificado con Playwright)
+
+- La clase `.cashier-page-header--wide-tools` (antes sólo Cambios) se aplica ahora a los 8 encabezados de Caja: Caja, Adeudos, Saldos, Terminales, Cambios, Propinas, Bebidas calientes y Corte. Desde 1000 px el título va en columna angosta y Herramientas en una fila.
+- En Caja, "CENTRO DE COBRO" queda arriba del título y "Registrar un pedido que no pagó" (`.cashier-unpaid-quick`) toma la misma altura que los demás botones.
+- Medido en 1440, 1280 (laptop y TABA+9) y 1180 (iPad) en las 8 páginas: 1 fila, sin textos cortados ni desbordes. 853 px y celular sin cambios (Herramientas siguen plegadas debajo del título).
+- `app.css` v362.
+
+## 2026-10-01 — Lupa con sugerencias en Mesas, Pedidos, Menú, Repartos, Adeudos y Clientes (verificado con Playwright)
+
+- Componente único `static/js/live-search.js` (cargado en `base_internal.html`). Desde 1 letra muestra hasta 10 coincidencias parciales sin acentos ni mayúsculas y, si hay más, "Enter para ver los N resultados". Flechas + Enter o toque eligen; Enter sin resaltar conserva el comportamiento propio de cada pantalla (filtrar o buscar todo); Escape cierra. La lista es `position: fixed` (abre arriba si no hay espacio).
+- Fuentes: Mesas y Pedidos leen las tarjetas ya dibujadas (`data-live-search-cards`) y conservan el filtrado en vivo; elegir deja sólo la tarjeta de ese producto (`live-search:select` en `table-pos.js` e `internal-order-form.js`). Menú, Repartos y Adeudos reciben candidatos en JSON (`search_options` + `json_script`): Menú abre `?q=&product=` (la vista filtra un solo producto), Repartos `?q=<folio completo>`, Adeudos `?customer=&q=<folio>&scope=all`. Clientes consulta `orders:customer_lookup`, que ahora también responde `results`/`total`, y abre la ficha.
+- Corrección: en tabletas horizontales (700–1200 px táctil) el fondo de la lupa compacta (`.compact-search-backdrop`, z-index 1000) tapaba el campo abierto de Mesas y Pedidos (sólo se elevaba el de Desayunos); ahora cualquier `.catalog-search-box.is-compact-field-open` queda en 1002.
+- Verificado en ordenador, celular y tableta 853×405 en las 6 pantallas. No quedó CSS obsoleto: el filtrado en vivo y las búsquedas del servidor se conservan.
+
+## 2026-10-01 — Contador de tarjetas de Comida corrida/ejecutiva conserva las piezas ya empaquetadas
+
+- Antes el número de cada tarjeta sólo contaba piezas sueltas (`candidate_quantities`) y volvía a 0 al armarse el paquete.
+- `internal_order_ticket` y `ticket_summary` envían `meal_quantities` (piezas sueltas + piezas dentro de paquetes, por producto, de cualquier paquete); las tarjetas muestran ese total. "−" sólo quita piezas sueltas: se desactiva cuando todas están en paquete (con aviso "Ya forma parte de un paquete; quítalo desde el ticket").
+- Prueba: `tables.tests.TicketModificationLinesTests.test_meal_card_counter_keeps_pieces_after_the_package_is_formed`.
+- `app.css` v364, `live-search.js` v1, `table-pos.js` v37, `internal-order-form.js` v60.
+

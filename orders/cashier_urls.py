@@ -30,6 +30,7 @@ urlpatterns = [
     path("saldos/", views.cashier_credit_board, name="credit_board"),
     path("saldos/registrar/", views.cashier_credit_deposit, name="credit_deposit"),
     path("saldos/<int:customer_id>/devolver/", views.cashier_credit_refund, name="credit_refund"),
+    path("saldos/<int:customer_id>/aplicar/", views.cashier_credit_apply, name="credit_apply"),
     path("<int:order_id>/pago/", views.cashier_payment_update, name="payment_update"),
     path("<int:order_id>/cambio-devuelto/", views.cashier_cash_settlement, name="cash_settlement"),
     path("<int:order_id>/liberar/", views.cashier_release_order, name="release_order"),

@@ -24,6 +24,7 @@ from django.db.models.deletion import ProtectedError
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from urllib.parse import urlencode
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
@@ -59,8 +60,22 @@ def configuration(request):
     search = request.GET.get("q", "").strip()
     category_id = request.GET.get("category", "").strip()
     availability = request.GET.get("availability", "").strip()
+    product_id = request.GET.get("product", "").strip()
+    # Sugerencias de la lupa: todos los productos; elegir uno muestra sólo ése.
+    search_options = [
+        {
+            "label": product.name, "detail": product.category.name,
+            "search": f"{product.name} {product.description}",
+            "url": f"{reverse('menu:configuration')}?{urlencode({'q': product.name, 'product': product.pk})}",
+        }
+        for product in Product.objects.select_related("category").only(
+            "id", "name", "description", "category__name",
+        ).order_by("name")
+    ]
 
-    if search:
+    if product_id.isdigit():
+        products = products.filter(pk=int(product_id))
+    elif search:
         products = products.filter(Q(name__icontains=search) | Q(description__icontains=search))
     if category_id.isdigit():
         products = products.filter(category_id=category_id)
@@ -75,6 +90,7 @@ def configuration(request):
         "search": search,
         "selected_category": category_id,
         "availability": availability,
+        "search_options": search_options,
     })
 
 

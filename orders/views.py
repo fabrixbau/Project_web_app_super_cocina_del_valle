@@ -20,6 +20,7 @@ from django.db.models import Case, DateTimeField, F, IntegerField, Prefetch, Q, 
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from urllib.parse import urlencode
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
@@ -38,7 +39,7 @@ from .coffee_report import coffee_sales_for_date
 from .phones import phone_key as normalize_customer_phone
 from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm, PublicOrderModeForm
 from .models import CashRegisterCut, CashRegisterExpense, CoffeeSettlement, Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
-from .services import ACTION_LABELS, add_cash_register_expense, add_customer_credit, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, settle_selected_debts_from_cashier, start_internal_order, transfer_order_to_table, transition_order, update_cash_register_cut, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
+from .services import ACTION_LABELS, add_cash_register_expense, add_customer_credit, apply_credit_to_debts, open_customer_debts, suggested_credit_allocation, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, settle_selected_debts_from_cashier, start_internal_order, transfer_order_to_table, transition_order, update_cash_register_cut, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
 
 
 INTERNAL_MENU_MODE_KEY = "internal_order_menu_mode"
@@ -275,6 +276,7 @@ def internal_order_ticket(order):
     items = []
     quantities = {}
     candidate_quantities = {}
+    meal_quantities = {}
     for item in order.items.all():
         base_name = item.product_name_snapshot or item.package_name_snapshot
         if item.item_type == OrderItem.ItemType.PACKAGE and item.with_water:
@@ -314,10 +316,18 @@ def internal_order_ticket(order):
         if item.item_type == OrderItem.ItemType.PRODUCT:
             target = candidate_quantities if item.is_package_candidate else quantities
             target[str(item.product_id)] = target.get(str(item.product_id), 0) + item.quantity
+            if item.is_package_candidate:
+                meal_quantities[str(item.product_id)] = meal_quantities.get(str(item.product_id), 0) + item.quantity
+        else:
+            # Las piezas que ya forman un paquete siguen contando en las tarjetas de
+            # Comida corrida/ejecutiva (antes el contador volvía a 0 al armarse).
+            for course_id in (item.first_course_id, item.second_course_id, item.main_course_id):
+                if course_id:
+                    meal_quantities[str(course_id)] = meal_quantities.get(str(course_id), 0) + item.quantity
     return {
         "items": items, "total": f"{order.total:.2f}",
         "count": sum(item["quantity"] for item in items), "quantities": quantities,
-        "candidate_quantities": candidate_quantities, "note": order.notes,
+        "candidate_quantities": candidate_quantities, "meal_quantities": meal_quantities, "note": order.notes,
         "customer_credit": _customer_credit_projection(order),
         "customer_debt": _customer_debt_projection(order),
         "stock_warnings": stock_warning_payload(selected_date=order.operating_date),
@@ -911,6 +921,8 @@ def customer_edit(request, customer_id):
                 messages.error(request, error.message)
             else:
                 messages.success(request, "El depósito fue registrado.")
+                if open_customer_debts(customer):
+                    return redirect(credit_apply_url(customer.pk, reverse("orders:customer_edit", args=(customer.pk,))))
             return redirect("orders:customer_edit", customer_id=customer.pk)
         elif action == "credit_refund" and user_has_any_role(request.user, (ADMIN,)):
             try:
@@ -934,6 +946,7 @@ def customer_edit(request, customer_id):
         ),
         "customer_credit_movements": customer.credit_movements.all()[:20],
         "can_manage_credit": user_has_any_role(request.user, (ADMIN,)),
+        "can_apply_credit": user_has_any_role(request.user, (ADMIN, ORDER_TAKER)),
         "payment_method_choices": ASSIGNABLE_PAYMENT_METHOD_CHOICES,
     })
 
@@ -943,13 +956,16 @@ def customer_lookup(request):
     query = request.GET.get("q", "").strip()
     phone_query = normalize_customer_phone(query)
     customers = Customer.objects.prefetch_related("addresses", "debts__order")
+    total = 0
     if query:
         phone_filter = Q(phone_key__icontains=phone_query) if phone_query else Q(pk__isnull=True)
         customers = customers.filter(
             Q(name__icontains=query) | Q(phone__icontains=query)
             | phone_filter
             | Q(addresses__street__icontains=query)
-        ).distinct()[:10]
+        ).distinct()
+        total = customers.count()
+        customers = customers.order_by("name")[:10]
     else:
         customers = customers.none()
     customer_rows = []
@@ -976,7 +992,13 @@ def customer_lookup(request):
             "references": address.references,
         } for address in customer.addresses.all()],
         })
-    return JsonResponse({"customers": customer_rows})
+    # `results`/`total` alimentan la lupa con sugerencias (live-search.js) de Clientes.
+    results = [{
+        "label": row["name"],
+        "detail": " · ".join(filter(None, (row["phone"], row["addresses"][0]["street"] if row["addresses"] else ""))),
+        "url": row["edit_url"],
+    } for row in customer_rows]
+    return JsonResponse({"customers": customer_rows, "results": results, "total": total})
 
 
 @role_required(ADMIN, ORDER_TAKER)
@@ -1652,6 +1674,26 @@ def delivery_board(request):
         date_from, date_to = date_to, date_from
     search = request.GET.get("q", "").strip()
     exact_folio_query = _full_folio_search_query(search)
+    # Sugerencias de la lupa: los repartos del rango (sin los demás filtros). Elegir uno
+    # busca su folio completo, que muestra sólo ese pedido.
+    suggestion_orders = Order.objects.filter(
+        order_type=Order.OrderType.DELIVERY, operating_date__range=(date_from, date_to),
+    ).select_related("delivery_person").order_by("-operating_date", "-daily_number")
+    if is_delivery_profile:
+        suggestion_orders = suggestion_orders.filter(delivery_person=request.user)
+    search_options = []
+    for order in suggestion_orders[:400]:
+        person = order.delivery_person.get_full_name() or order.delivery_person.username if order.delivery_person else "Sin repartidor"
+        address = " ".join(filter(None, (order.street, order.exterior_number)))
+        search_options.append({
+            "label": f"{order.formatted_number} · {order.customer_name or 'Sin nombre'}",
+            "detail": " · ".join(filter(None, (address, order.neighborhood, person))),
+            "search": " ".join(filter(None, (
+                order.formatted_number, str(order.daily_number), order.customer_name, order.phone,
+                address, order.neighborhood, person,
+            ))),
+            "url": f"{reverse('deliveries:delivery_board')}?{urlencode({'q': order.formatted_number})}",
+        })
     delivery_orders = Order.objects.filter(order_type=Order.OrderType.DELIVERY)
     if exact_folio_query is not None:
         delivery_orders = delivery_orders.filter(exact_folio_query)
@@ -1733,6 +1775,7 @@ def delivery_board(request):
             order.quick_action_label = ACTION_LABELS.get(order.quick_action, "")
     return render(request, "orders/delivery_board.html", {
         "delivery_orders": delivery_orders,
+        "search_options": search_options,
         "repartidores": repartidores,
         "status_choices": Order.Status.choices,
         "payment_method_choices": ASSIGNABLE_PAYMENT_METHOD_CHOICES,
@@ -1952,6 +1995,19 @@ def cashier_debt_board(request):
     ).prefetch_related("movements__registered_by")
     search = request.GET.get("q", "").strip()
     customer_id = request.GET.get("customer", "").strip()
+    # Sugerencias de la lupa: cada adeudo (cliente, teléfono y folio). Elegir uno muestra
+    # ese pedido del cliente, esté pendiente o ya cerrado.
+    search_options = [
+        {
+            "label": f"{debt.customer.name} · {debt.order.formatted_number}",
+            "detail": " · ".join(filter(None, (
+                debt.customer.phone, f"Debe ${debt.balance:.2f}", debt.get_status_display(),
+            ))),
+            "search": f"{debt.customer.name} {debt.customer.phone} {debt.order.customer_name} {debt.order.formatted_number} {debt.order.daily_number}",
+            "url": f"{reverse('cashier:debt_board')}?{urlencode({'customer': debt.customer_id, 'q': debt.order.formatted_number, 'scope': 'all'})}",
+        }
+        for debt in CustomerDebt.objects.select_related("customer", "order").order_by("-created_at")[:500]
+    ]
     scope = request.GET.get("scope", "active")
     # NOTA TEMPORAL PARA APRENDIZAJE: a diferencia de Pedidos/Repartos/Caja, aquí el
     # default de fecha es "todas" (un adeudo puede llevar semanas sin resolverse y no
@@ -1991,9 +2047,10 @@ def cashier_debt_board(request):
         debts = debts.filter(status__in=(CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL))
     debts = list(debts)
     return render(request, "orders/cashier_debt_board.html", {
-        "debts": debts, "search": search, "selected_scope": scope,
+        "debts": debts, "search": search, "selected_scope": scope, "search_options": search_options,
         "date_from": date_from, "date_to": date_to,
         "can_manage_debts": user_has_any_role(request.user, (ADMIN,)),
+        "can_apply_credit": user_has_any_role(request.user, (ADMIN, ORDER_TAKER)),
         "payment_method_choices": ASSIGNABLE_PAYMENT_METHOD_CHOICES,
         "original_total": sum((debt.original_amount for debt in debts), Decimal("0")),
         "paid_total": sum((debt.paid_amount for debt in debts), Decimal("0")),
@@ -2019,7 +2076,10 @@ def cashier_debt_create(request):
         messages.error(request, error.message)
         return redirect("cashier:debt_board")
     messages.success(request, f"{order.formatted_number} quedó a cuenta de {debt.customer.name}.")
-    return redirect(f"{reverse('cashier:debt_board')}?customer={debt.customer_id}")
+    board_url = f"{reverse('cashier:debt_board')}?customer={debt.customer_id}"
+    if debt.customer.credit_balance > 0:
+        return redirect(credit_apply_url(debt.customer_id, board_url, debt.pk))
+    return redirect(board_url)
 
 
 @require_POST
@@ -2037,15 +2097,18 @@ def cashier_order_debt_create(request, order_id):
         )
     except ValidationError as error:
         messages.error(request, error.message)
+        debt = None
     else:
         messages.success(
             request,
             f"{order.formatted_number} quedó registrado como no pagado a nombre de {debt.customer.name}.",
         )
     next_url = request.POST.get("next", "")
-    if next_url.startswith("/") and not next_url.startswith("//"):
-        return redirect(next_url)
-    return redirect("cashier:debt_board")
+    if not (next_url.startswith("/") and not next_url.startswith("//")):
+        next_url = reverse("cashier:debt_board")
+    if debt and debt.customer.credit_balance > 0:
+        return redirect(credit_apply_url(debt.customer_id, next_url, debt.pk))
+    return redirect(next_url)
 
 
 @require_POST
@@ -2152,12 +2215,82 @@ def cashier_credit_board(request):
                     running_balance -= movement.amount
                 movement.balance_after = running_balance
             movements.reverse()
+    owing_ids = set(CustomerDebt.objects.filter(
+        customer__in=customers,
+        status__in=(CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL),
+    ).values_list("customer_id", flat=True))
+    for customer in customers:
+        customer.has_open_debts = customer.pk in owing_ids
     return render(request, "orders/cashier_credit_board.html", {
         "customers": customers, "search": search,
         "can_manage_credit": user_has_any_role(request.user, (ADMIN,)),
+        "can_apply_credit": user_has_any_role(request.user, (ADMIN, ORDER_TAKER)),
         "payment_method_choices": ASSIGNABLE_PAYMENT_METHOD_CHOICES,
         "balance_total": sum((customer.credit_balance for customer in customers), Decimal("0")),
         "selected_customer": selected_customer, "movements": movements,
+    })
+
+
+def credit_apply_url(customer_id, next_url, debt_id=None):
+    """Pantalla para pagar adeudos con saldo a favor; al terminar regresa a `next_url`."""
+    params = {"next": next_url}
+    if debt_id:
+        params["debt"] = debt_id
+    return f"{reverse('cashier:credit_apply', args=(customer_id,))}?{urlencode(params)}"
+
+
+@role_required(ADMIN, ORDER_TAKER, WAITER)
+def cashier_credit_apply(request, customer_id):
+    """Pagar adeudos del cliente con su saldo a favor.
+
+    Aparece sola tras registrar un depósito (si el cliente debe pedidos) o un
+    "no pagó" (si el cliente tiene saldo a favor); también se abre desde la ficha
+    del cliente, Adeudos y Saldos a favor. El mesero sólo ve la cuenta que acaba de
+    dejar a nombre del cliente (`?debt=`).
+    """
+    customer = get_object_or_404(Customer, pk=customer_id)
+    next_url = request.POST.get("next") or request.GET.get("next") or ""
+    if not (next_url.startswith("/") and not next_url.startswith("//")):
+        next_url = f"{reverse('cashier:debt_board')}?customer={customer.pk}"
+    raw_focus = request.POST.get("debt") or request.GET.get("debt") or ""
+    focus_id = int(raw_focus) if raw_focus.isdigit() else None
+    debts = open_customer_debts(customer)
+    if not user_has_any_role(request.user, (ADMIN, ORDER_TAKER)):
+        debts = [debt for debt in debts if debt.pk == focus_id]
+    if customer.credit_balance <= 0 or not debts:
+        return redirect(next_url)
+    suggestion = suggested_credit_allocation(
+        credit=customer.credit_balance, debts=debts, focus_debt_id=focus_id,
+    )
+    if request.method == "POST":
+        allocations = {
+            debt.pk: request.POST.get(f"amount_{debt.pk}", "0") if request.POST.get(f"apply_{debt.pk}") else "0"
+            for debt in debts
+        }
+        try:
+            apply_credit_to_debts(customer=customer, allocations=allocations, actor=request.user)
+        except ValidationError as error:
+            messages.error(request, " ".join(error.messages))
+            # Se vuelve a mostrar lo que se capturó para corregirlo.
+            suggestion = {}
+            for debt in debts:
+                try:
+                    suggestion[debt.pk] = Decimal(str(allocations[debt.pk] or "0"))
+                except Exception:
+                    suggestion[debt.pk] = Decimal("0")
+        else:
+            customer.refresh_from_db()
+            messages.success(
+                request,
+                f"Se pagaron pedidos de {customer.name} con su saldo a favor. "
+                f"Saldo restante: ${customer.credit_balance:.2f}.",
+            )
+            return redirect(next_url)
+    rows = [{"debt": debt, "amount": suggestion[debt.pk]} for debt in debts]
+    rows.sort(key=lambda row: row["debt"].pk != focus_id)
+    return render(request, "orders/cashier_credit_apply.html", {
+        "customer": customer, "rows": rows, "next_url": next_url, "focus_id": focus_id,
+        "debt_total": sum((debt.balance for debt in debts), Decimal("0")),
     })
 
 
@@ -2194,6 +2327,8 @@ def cashier_credit_deposit(request):
         messages.error(request, error.message)
     else:
         messages.success(request, f"Depósito registrado para {customer.name}.")
+        if open_customer_debts(customer):
+            return redirect(credit_apply_url(customer.pk, f"{reverse('cashier:credit_board')}?customer={customer.pk}"))
     return redirect(f"{reverse('cashier:credit_board')}?customer={customer.pk}")
 
 

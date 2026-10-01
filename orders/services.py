@@ -324,6 +324,92 @@ def refund_customer_credit(*, customer, amount, actor, note=""):
     return customer
 
 
+def open_customer_debts(customer):
+    """Adeudos que todavía se pueden pagar, del más antiguo al más reciente."""
+    return list(
+        CustomerDebt.objects.filter(
+            customer=customer,
+            status__in=(CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL),
+        ).select_related("order").order_by("created_at", "id")
+    )
+
+
+def suggested_credit_allocation(*, credit, debts, focus_debt_id=None):
+    """Reparto propuesto del saldo a favor: {debt_id: importe}.
+
+    Cubre del adeudo más antiguo al más reciente hasta agotar el saldo; si se acaba
+    de registrar un adeudo (`focus_debt_id`), ése va primero.
+    """
+    ordered = sorted(debts, key=lambda debt: debt.pk != focus_debt_id)
+    remaining = Decimal(credit)
+    allocation = {}
+    for debt in ordered:
+        amount = min(remaining, debt.balance)
+        allocation[debt.pk] = amount if amount > 0 else Decimal("0")
+        remaining -= allocation[debt.pk]
+    return allocation
+
+
+@transaction.atomic
+def apply_credit_to_debts(*, customer, allocations, actor):
+    """Paga adeudos del cliente con su saldo a favor.
+
+    `allocations` es {debt_id: importe}. Cada importe abona ese adeudo (lo liquida o
+    lo deja en pago parcial) y descuenta el saldo; se registran un movimiento de
+    saldo "Aplicado a pedido" y uno de adeudo "Pagado con saldo a favor", ligados
+    entre sí. Si algún importe no es válido no se aplica ninguno.
+    """
+    customer = Customer.objects.select_for_update().get(pk=customer.pk)
+    amounts = {}
+    for debt_id, raw_amount in allocations.items():
+        try:
+            amount = Decimal(str(raw_amount or "0")).quantize(Decimal("0.01"))
+            debt_key = int(debt_id)
+        except Exception as error:
+            raise ValidationError("Escribe importes válidos para cada pedido.") from error
+        if amount < 0:
+            raise ValidationError("Los importes no pueden ser negativos.")
+        if amount > 0:
+            amounts[debt_key] = amount
+    if not amounts:
+        raise ValidationError("Indica cuánto aplicar al menos a un pedido.")
+    total = sum(amounts.values(), Decimal("0"))
+    if total > customer.credit_balance:
+        raise ValidationError(f"El saldo a favor disponible es ${customer.credit_balance:.2f}.")
+    debts = {
+        debt.pk: debt for debt in CustomerDebt.objects.select_for_update().filter(
+            pk__in=amounts, customer=customer,
+            status__in=(CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL),
+        ).select_related("order")
+    }
+    if len(debts) != len(amounts):
+        raise ValidationError("Alguno de los pedidos ya no tiene adeudo pendiente.")
+    for debt in sorted(debts.values(), key=lambda debt: (debt.created_at, debt.pk)):
+        amount = amounts[debt.pk]
+        if amount > debt.balance:
+            raise ValidationError(
+                f"Al pedido {debt.order.formatted_number} sólo le faltan ${debt.balance:.2f}."
+            )
+        credit_movement = CustomerCreditMovement.objects.create(
+            customer=customer, order=debt.order, action=CustomerCreditMovement.Action.REDEMPTION,
+            amount=amount, registered_by=actor,
+            note=f"Pago del adeudo de {debt.order.formatted_number}.",
+        )
+        debt.paid_amount += amount
+        debt.status = (
+            CustomerDebt.Status.PAID if debt.paid_amount >= debt.original_amount
+            else CustomerDebt.Status.PARTIAL
+        )
+        debt.save(update_fields=("paid_amount", "status", "updated_at"))
+        CustomerDebtMovement.objects.create(
+            debt=debt, action=CustomerDebtMovement.Action.CREDIT, amount=amount,
+            credit_movement=credit_movement, registered_by=actor,
+        )
+    customer.credit_balance -= total
+    customer.save(update_fields=("credit_balance", "updated_at"))
+    return customer
+
+
 @transaction.atomic
 def apply_customer_credit_to_order(*, order, actor):
     # NOTA TEMPORAL PARA APRENDIZAJE: se aplica automáticamente al cerrar la

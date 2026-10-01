@@ -355,6 +355,16 @@ catalogSearch?.addEventListener("input", () => {
   catalogSearchEmpty.hidden = matches > 0;
 });
 
+// Lupa con sugerencias (live-search.js): al elegir un producto sólo queda su tarjeta.
+document.addEventListener("live-search:select", (event) => {
+  if (!event.target.matches?.("[data-catalog-search]") || !catalogSearchResults) return;
+  const chosen = normalizedSearchText(event.detail.item.label);
+  catalogSearchResults.querySelectorAll("[data-catalog-product]").forEach((card) => {
+    card.hidden = normalizedSearchText(card.dataset.productName || "") !== chosen;
+  });
+  catalogSearchEmpty.hidden = true;
+});
+
 function ticketButton(item, action, label, className = "") {
   const button = document.createElement("button");
   button.type = "button";
@@ -447,7 +457,7 @@ function renderTicket(ticket) {
   ticketPanel.hidden = !hasItems;
   pos.classList.toggle("has-ticket", hasItems);
   renderStandardQuantities(ticket.standard_quantities || {});
-  renderCandidateQuantities(ticket.candidate_quantities || {});
+  renderCandidateQuantities(ticket.candidate_quantities || {}, ticket.meal_quantities || {});
 }
 
 function renderStockWarnings(warnings) {
@@ -474,11 +484,17 @@ function renderStandardQuantities(quantities) {
   });
 }
 
-function renderCandidateQuantities(quantities) {
+// El número cuenta todas las piezas del producto (sueltas y ya dentro de un paquete);
+// "−" sólo quita piezas sueltas, así que se desactiva cuando todas están en paquete.
+function renderCandidateQuantities(quantities, mealQuantities = quantities) {
   document.querySelectorAll("[data-auto-meal-card]").forEach((card) => {
-    const quantity = quantities[String(card.dataset.catalogProduct)] || 0;
-    card.querySelector("[data-standard-quantity]").textContent = quantity;
-    card.querySelector("[data-catalog-decrease]").disabled = quantity === 0;
+    const productKey = String(card.dataset.catalogProduct);
+    const loose = quantities[productKey] || 0;
+    const total = mealQuantities[productKey] || 0;
+    card.querySelector("[data-standard-quantity]").textContent = total;
+    const decrease = card.querySelector("[data-catalog-decrease]");
+    decrease.disabled = loose === 0;
+    decrease.title = loose === 0 && total > 0 ? "Ya forma parte de un paquete; quítalo desde el ticket" : "";
   });
 }
 
@@ -653,7 +669,10 @@ if (standardQuantitiesNode) {
   renderStandardQuantities(JSON.parse(standardQuantitiesNode.textContent || "{}"));
 }
 if (candidateQuantitiesNode) {
-  renderCandidateQuantities(JSON.parse(candidateQuantitiesNode.textContent || "{}"));
+  renderCandidateQuantities(
+    JSON.parse(candidateQuantitiesNode.textContent || "{}"),
+    JSON.parse(document.querySelector("#table-meal-quantities")?.textContent || "{}"),
+  );
 }
 
 document.addEventListener("submit", (event) => {
