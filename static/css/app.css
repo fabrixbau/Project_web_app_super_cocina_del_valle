@@ -12464,3 +12464,26 @@ html[data-theme="dark"] .live-search-empty { color: #aab8b1; }
 html[data-theme="dark"] .live-search-option:hover,
 html[data-theme="dark"] .live-search-option.is-active { background: #20352b; }
 
+/* Lupa de Mesas y Pedidos en tabletas horizontales: dos columnas. El campo se fija
+   arriba a la izquierda (media pantalla) y live-search.js coloca las sugerencias en la
+   mitad derecha, desde arriba hasta el borde visible (sobre el teclado). */
+@media (min-width: 700px) and (max-width: 1400px) and (orientation: landscape) and (pointer: coarse) {
+  body.compact-field-open .catalog-search-box.compact-field-ready.is-compact-field-open:has(input[data-live-search-side]) {
+    top: .5rem !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: .5rem !important;
+    width: calc(50vw - .75rem) !important;
+    max-width: none !important;
+    transform: none !important;
+  }
+  body.compact-field-open .catalog-search-box.compact-field-ready.is-compact-field-open:has(input[data-live-search-side])::after {
+    content: "Toca una sugerencia o presiona Enter para ver todos los resultados.";
+    display: block;
+    color: rgb(255 255 255 / 82%);
+    font-size: .74rem;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+}
+

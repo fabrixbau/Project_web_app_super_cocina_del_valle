@@ -2335,3 +2335,11 @@ El desarrollador pidió explícitamente que, de aquí en adelante, él se encarg
 - Prueba: `tables.tests.TicketModificationLinesTests.test_meal_card_counter_keeps_pieces_after_the_package_is_formed`.
 - `app.css` v364, `live-search.js` v1, `table-pos.js` v37, `internal-order-form.js` v60.
 
+## 2026-10-01 — Lupa de Mesas y Pedidos en dos columnas para tabletas horizontales (verificado con Playwright)
+
+- En tabletas horizontales táctiles (700–1400 px, `pointer: coarse`, incluye 853×405, iPad Air y TABA+9) el panel de la lupa abierto se fija arriba a la izquierda a media pantalla (con la ayuda "Toca una sugerencia o presiona Enter…") y las sugerencias van en la mitad derecha desde arriba, para que el teclado no las tape.
+- El panel se identifica con `.catalog-search-box…:has(input[data-live-search-side])` porque `compact-capture.js` lo saca de su contenedor al abrirlo. Los inputs de Mesas y Pedidos llevan `data-live-search-side="(media query)"`; `live-search.js` coloca la lista a la derecha mientras la media coincide.
+- `live-search.js` mide el área disponible con `visualViewport` (lo que el teclado deja visible) en todas las lupas y se recoloca cuando cambia.
+- Celular, ordenador y tabletas en vertical sin cambios. El emulador no simula el teclado real: falta confirmarlo en la tableta.
+- `app.css` v366, `live-search.js` v2.
+

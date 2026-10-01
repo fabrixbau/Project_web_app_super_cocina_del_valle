@@ -10,6 +10,9 @@ Fuentes (atributos del input):
   data-live-search-source="#id"   JSON en la página: [{label, detail, url, search}]
   data-live-search-cards="selector"  nombres de tarjetas ya dibujadas (Mesas/Pedidos)
   data-live-search-url="/ruta/"   consulta al servidor (?q=) que responde {results: [...]}
+  data-live-search-side="(media query)"  mientras coincida, la lista va en la mitad derecha
+                                  de la pantalla (lupa de Mesas/Pedidos en tableta horizontal)
+La altura disponible se mide con visualViewport: es el área que no tapa el teclado.
 Borra esta nota después de leerla. */
 (() => {
   const MAX_SUGGESTIONS = 10;
@@ -65,15 +68,32 @@ Borra esta nota después de leerla. */
       return localItems;
     };
 
+    const sideLayout = input.dataset.liveSearchSide ? window.matchMedia(input.dataset.liveSearchSide) : null;
+
     const place = () => {
       if (list.hidden) return;
+      const viewport = window.visualViewport;
+      const visibleTop = viewport ? viewport.offsetTop : 0;
+      const visibleLeft = viewport ? viewport.offsetLeft : 0;
+      const visibleWidth = viewport ? viewport.width : window.innerWidth;
+      const visibleBottom = visibleTop + (viewport ? viewport.height : window.innerHeight);
+      if (sideLayout?.matches) {
+        // Tableta horizontal: campo a la izquierda, sugerencias en la mitad derecha.
+        const half = visibleWidth / 2;
+        list.style.left = `${visibleLeft + half + 4}px`;
+        list.style.width = `${half - 12}px`;
+        list.style.top = `${visibleTop + 8}px`;
+        list.style.bottom = "auto";
+        list.style.maxHeight = `${Math.max(visibleBottom - visibleTop - 16, 120)}px`;
+        return;
+      }
       const box = input.getBoundingClientRect();
-      const width = Math.max(box.width, Math.min(320, window.innerWidth - 16));
-      const left = Math.min(Math.max(8, box.left), window.innerWidth - width - 8);
+      const width = Math.max(box.width, Math.min(320, visibleWidth - 16));
+      const left = Math.min(Math.max(visibleLeft + 8, box.left), visibleLeft + visibleWidth - width - 8);
       list.style.left = `${left}px`;
       list.style.width = `${width}px`;
-      const below = window.innerHeight - box.bottom - 12;
-      const above = box.top - 12;
+      const below = visibleBottom - box.bottom - 12;
+      const above = box.top - visibleTop - 12;
       if (below < 180 && above > below) {
         list.style.top = "auto";
         list.style.bottom = `${window.innerHeight - box.top + 4}px`;
@@ -212,6 +232,9 @@ Borra esta nota después de leerla. */
     input.addEventListener("blur", () => window.setTimeout(close, 120));
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
+    // El teclado en pantalla cambia el área visible sin cambiar el tamaño de la ventana.
+    window.visualViewport?.addEventListener("resize", place);
+    window.visualViewport?.addEventListener("scroll", place);
   };
 
   const scan = () => document.querySelectorAll("input[data-live-search-source], input[data-live-search-cards], input[data-live-search-url]").forEach(setup);
