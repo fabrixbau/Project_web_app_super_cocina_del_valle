@@ -2237,3 +2237,18 @@ El desarrollador pidió explícitamente que, de aquí en adelante, él se encarg
 - En Mesas el contador `− # +` quedaba centrado en la barra del diálogo: la regla `.table-package-dialog-heading > div { margin-right: auto; }` (pensada para el título) también alcanzaba al contador, que es un `<div>`. Se limitó a `> div:first-child`; ahora va pegado antes del switch "2 tiempos", igual que en Pedidos (verificado en TABA+9, 853×405 y celular, corrida y ejecutiva).
 - `app.css` v336.
 
+## 2026-10-01 — Alineación de tarjetas, Mesas sin bolillo en ejecutiva, orden de guisados y sin huevo suelto en Mesas (verificado con Playwright)
+
+- Tarjetas de los diálogos de paquete: filas `auto 1fr auto` (imagen | nombre | controles). Los nombres de dos renglones ya no desplazan los controles; medido 0 px de desalineación en TABA+9, escritorio, 853×405, iPad Air y celular, Mesas y Pedidos, corrida y ejecutiva. En iPad Air (Ejecutiva de Mesas, filas fijas de 11.5rem) la imagen queda en 3.6rem para que todo quepa sin encimarse.
+- Mesas, Comida ejecutiva: también se quitó "Lleva bolillo" (la plantilla ya no lo dibuja para ningún paquete; `package-egg.js` coloca el huevo en `[data-egg-slot]`). TABA+9/escritorio: Refill y Huevo a la izquierda, comentario para cocina en la celda derecha de esa fila (antes la del huevo). iPad Air: Agua | Refill | Huevo en la fila 1 y el comentario en toda la fila 2. Las 5 reglas `.table-package-stacked-rules > .product-rule-card:last-child` (posición del bolillo) se renombraron a `.package-egg-choice`; se borraron 2 reglas `.table-package-visual-extras > .package-egg-choice` que quedaron sin uso.
+- Orden de guisados pollo → res → guisado variado: el formulario de paquete (`PackageSelectionForm`, usado por Mesas y Pedidos) ordena el tercer tiempo de la Comida corrida según el menú del día; la Ejecutiva sigue alfabética. En Existencias (`inventory_tracking`) el tercer tiempo se ordena por ese mismo lugar en el menú del día (o por tipo de componente) y la plancha al final.
+- Mesas: se quitó el panel "Huevo opcional" de las secciones Comida corrida/ejecutiva armadas tiempo por tiempo (lo creaba `package-egg.js`); `table-pos.js` ya no envía ni limpia ese `egg_product`. Pedidos conserva su huevo en esas opciones.
+- `app.css` v341, `package-egg.js` v5, `table-pos.js` v35.
+
+## 2026-10-01 — Switch "2 tiempos" ya no borra el tiempo elegido
+
+- Antes, encender "2 tiempos" en los diálogos de paquete (Mesas y Pedidos, corrida y ejecutiva) limpiaba siempre primer y segundo tiempo, aunque sólo hubiera uno elegido.
+- Ahora (`package-selection.js`): con uno solo de los dos (o ninguno) no se borra nada; si primer y segundo estaban elegidos, se conserva el que se eligió al último y se quita el otro. Con el switch encendido, elegir uno sigue quitando el otro.
+- Verificado con Playwright en los 4 diálogos: 1+3 → se conservan; 1,2,3 con el 2.º al último → queda el 2.º; con el 1.º al último → queda el 1.º. El tercer tiempo nunca se toca.
+- `package-selection.js` v9.
+

@@ -112,15 +112,21 @@ document.querySelectorAll("[data-package-form], [data-internal-package]").forEac
     groups.forEach((inputs) => inputs.forEach((input) => { input.required = !enabled; }));
     form.classList.toggle("is-two-course-package", enabled);
   };
+  // Al encender 2 tiempos sólo se quita algo si primer Y segundo tiempo estaban
+  // elegidos: se conserva el que se eligió al último. Con uno solo no se borra nada.
+  let lastChosenGroup = null;
+  const hasChoice = (inputs) => inputs.some((input) => input.checked);
   [...firstInputs, ...secondInputs].forEach((input) => input.addEventListener("change", () => {
-    if (!toggle.checked || !input.checked) return;
-    clearGroup(firstInputs.includes(input) ? secondInputs : firstInputs);
+    if (!input.checked) return;
+    const ownGroup = firstInputs.includes(input) ? firstInputs : secondInputs;
+    lastChosenGroup = ownGroup;
+    if (!toggle.checked) return;
+    clearGroup(ownGroup === firstInputs ? secondInputs : firstInputs);
     refresh();
   }));
   toggle.addEventListener("change", () => {
-    if (toggle.checked) {
-      clearGroup(firstInputs);
-      clearGroup(secondInputs);
+    if (toggle.checked && hasChoice(firstInputs) && hasChoice(secondInputs)) {
+      clearGroup(lastChosenGroup === firstInputs ? secondInputs : firstInputs);
     }
     refresh();
   });
