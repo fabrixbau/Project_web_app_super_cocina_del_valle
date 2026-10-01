@@ -11813,38 +11813,340 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
 }
 html[data-theme="dark"] .table-ticket-item .ticket-item-modification { color: #f4c766; }
 
-/* Tableta horizontal 853×405 (Pedidos y Mesas): tarjetas de producto en 5 columnas y
-   ticket que crece hasta 6 renglones; desde el 7.º la lista se desplaza por dentro
-   (ticket-expand.js calcula la altura del 6.º renglón y agrega .is-row-limited). */
+/* Tableta horizontal 853×405. Mesas: tarjetas en 5 columnas y ticket debajo que crece
+   hasta 6 renglones; desde el 7.º la lista se desplaza por dentro (ticket-expand.js
+   calcula la altura del 6.º renglón y agrega .is-row-limited). Pedidos: ticket a la
+   derecha, como en ordenador; tarjetas en 4 columnas, o 6 si el ticket está vacío. */
 @media (min-width: 780px) and (max-width: 900px) and (max-height: 500px) and (orientation: landscape) {
-  .table-pos-layout .table-product-grid,
-  .internal-pos-workspace .table-product-grid {
+  .table-pos-layout .table-product-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
     gap: .35rem !important;
   }
   .table-pos-layout .catalog-product-card,
   .internal-pos-workspace .catalog-product-card { min-width: 0 !important; }
-  /* El ticket queda debajo del catálogo: sin tope de altura de pantalla. Antes medía
-     389 px con overflow oculto y, tras Cobrar e Imprimir, a la lista le quedaban ~94 px
-     (un solo renglón con un scroll diminuto). */
-  .table-pos-layout .table-ticket:not(.is-closed-summary),
-  .internal-pos-workspace .internal-live-ticket {
+  /* Mesas: el ticket queda debajo del catálogo, sin tope de altura de pantalla. Antes
+     medía 389 px con overflow oculto y a la lista le quedaban ~94 px (un renglón). */
+  .table-pos-layout .table-ticket:not(.is-closed-summary) {
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
   }
-  .table-pos-layout .table-ticket-items,
-  .internal-pos-workspace .table-ticket-items {
+  .table-pos-layout .table-ticket-items {
     flex: 0 0 auto !important;
     min-height: 0 !important;
     height: auto !important;
     max-height: none;
     overflow-y: visible !important;
   }
-  .table-pos-layout .table-ticket-items.is-row-limited,
-  .internal-pos-workspace .table-ticket-items.is-row-limited {
+  .table-pos-layout .table-ticket-items.is-row-limited {
     overflow-y: auto !important;
     overscroll-behavior: auto;
+  }
+
+  /* Pedidos: catálogo y ticket lado a lado. La regla de hasta 900 px los apila. */
+  .internal-pos-workspace:not(.is-ticket-empty) {
+    grid-template-columns: minmax(0, 1.55fr) minmax(250px, .95fr) !important;
+    gap: .5rem !important;
+  }
+  .internal-pos-workspace.ticket-expanded:not(.is-ticket-empty) {
+    grid-template-columns: minmax(200px, .6fr) minmax(0, 1.4fr) !important;
+  }
+  .internal-pos-workspace .internal-live-ticket {
+    position: sticky !important;
+    top: .5rem !important;
+    max-height: calc(100dvh - 1rem) !important;
+    overflow-y: auto !important;
+  }
+  .internal-pos-workspace .table-product-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: .35rem !important;
+  }
+  .internal-pos-workspace.is-ticket-empty .table-product-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  }
+  /* Ticket de Pedidos como en TABA+9: panel fijo al alto de la pantalla y la lista se
+     desplaza en el espacio libre. Para que quepan al menos 5 productos: renglón en una
+     línea (nombre · precio · − + × Nota), detalle del paquete a todo lo ancho debajo, y
+     los 6 botones de acciones y los márgenes del panel más compactos. */
+  .internal-pos-workspace .internal-live-ticket {
+    padding-top: .5rem !important;
+    padding-bottom: .5rem !important;
+  }
+  .internal-pos-workspace .internal-live-ticket .ticket-payment-control {
+    gap: .2rem !important;
+    margin-top: -.5rem !important;
+    margin-bottom: .25rem !important;
+    padding: .3rem .5rem !important;
+  }
+  .internal-pos-workspace .internal-live-ticket .ticket-payment-control button {
+    min-height: 1.7rem !important;
+    padding: .1rem !important;
+    font-size: .6rem !important;
+  }
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-quick-actions {
+    gap: .2rem !important;
+    margin: .2rem 0 !important;
+  }
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-quick-actions button,
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-quick-actions a {
+    min-height: 1.5rem !important;
+    height: auto !important;
+    padding: .1rem .2rem !important;
+    font-size: .52rem !important;
+    line-height: 1 !important;
+  }
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-actions-hint {
+    margin: 0 0 .1rem !important;
+    font-size: .52rem !important;
+  }
+  .internal-pos-workspace .internal-live-ticket > .table-ticket-items {
+    min-height: 9.2rem !important;
+    gap: .1rem !important;
+    row-gap: .1rem !important;
+  }
+  .internal-pos-workspace .internal-live-ticket > .table-ticket-total {
+    margin: .2rem 0 .1rem !important;
+    padding-top: .25rem !important;
+    font-size: .95rem !important;
+  }
+  .internal-pos-workspace .internal-live-ticket > .ticket-payment-summary {
+    margin: .1rem 0 0 !important;
+  }
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-item {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    grid-template-areas: none !important;
+    align-items: center !important;
+    column-gap: .3rem !important;
+    row-gap: .05rem !important;
+    min-height: 0 !important;
+    padding: .08rem 0 !important;
+  }
+  /* El bloque de texto se "abre" para que nombre, precio y botones compartan la primera
+     fila y el detalle (tiempos del paquete, modificaciones) use todo el ancho debajo. */
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-item > span { display: contents !important; }
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-item > span > strong {
+    grid-area: 1 / 1 !important;
+    min-width: 0;
+    overflow: hidden;
+    font-size: .7rem !important;
+    line-height: 1.15 !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-item > span > small {
+    grid-column: 1 / -1 !important;
+    margin: 0 !important;
+    font-size: .56rem !important;
+    line-height: 1.15 !important;
+  }
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-item > strong {
+    grid-area: 1 / 2 !important;
+    margin: 0 !important;
+    font-size: .7rem !important;
+    white-space: nowrap;
+  }
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-item > .quantity-buttons {
+    grid-area: 1 / 3 !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: .15rem !important;
+    width: auto !important;
+    margin: 0 !important;
+  }
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-item > .quantity-buttons button {
+    width: 1.4rem !important;
+    min-width: 1.4rem !important;
+    height: 1.35rem !important;
+    min-height: 1.35rem !important;
+    padding: 0 !important;
+    font-size: .8rem !important;
+    line-height: 1 !important;
+  }
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-item > .quantity-buttons .ticket-item-note-button,
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-item > .quantity-buttons .ticket-edit-extras {
+    width: auto !important;
+    padding: 0 .3rem !important;
+    font-size: .55rem !important;
+    white-space: nowrap;
+  }
+  /* Botones cafés de "Crear paquete" más bajos: nombre y precio en una sola línea. */
+  .internal-pos-workspace [data-internal-package-open] {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: .4rem !important;
+    min-height: 2.1rem !important;
+    height: auto !important;
+    padding: .2rem .5rem !important;
+    line-height: 1.1 !important;
+  }
+  .internal-pos-workspace [data-internal-package-open] > strong { font-size: .72rem !important; white-space: nowrap; }
+  .internal-pos-workspace [data-internal-package-open] > span { margin: 0 !important; font-size: .58rem !important; white-space: nowrap; }
+  /* Barra de complementos de Comida corrida/ejecutiva: una fila con anchos según su
+     contenido (Acompañamiento lleva tres botones) y título arriba en todas, huevo incluido. */
+  .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] {
+    display: grid !important;
+    grid-template-columns: minmax(0, .8fr) minmax(0, 1.75fr) minmax(0, 1fr) minmax(0, 1.05fr) !important;
+    align-items: stretch !important;
+    gap: .3rem !important;
+    padding: .4rem !important;
+  }
+  .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] > .auto-extra-group,
+  .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] > .package-egg-choice {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto 1fr !important;
+    align-content: start !important;
+    gap: .2rem !important;
+    justify-self: stretch !important;
+    min-width: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: .3rem !important;
+  }
+  /* Sin pantalla táctil, la regla de hasta 900 px reparte los complementos por áreas;
+     aquí cada uno conserva su columna en el orden Agua, Acompañamiento, Frijoles, Huevo. */
+  .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] > .auto-extra-group:nth-child(1) { grid-area: 1 / 1 !important; }
+  .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] > .auto-extra-group:nth-child(2) { grid-area: 1 / 2 !important; }
+  .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] > .auto-extra-group:nth-child(3) { grid-area: 1 / 3 !important; }
+  .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] > .package-egg-choice { grid-area: 1 / 4 !important; }
+  .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] > .auto-extra-group > strong,
+  .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] > .package-egg-choice > .package-egg-caption {
+    display: block !important;
+    overflow: hidden;
+    font-size: .52rem !important;
+    line-height: 1.1 !important;
+    letter-spacing: .03em;
+    text-align: center;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] > .auto-extra-group > div {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: .15rem !important;
+    min-width: 0 !important;
+  }
+  .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] > .auto-extra-group button,
+  .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] > .package-egg-choice .app-select-trigger {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 1.9rem !important;
+    height: auto !important;
+    padding: .1rem .15rem !important;
+    overflow: hidden;
+    font-size: .58rem !important;
+    line-height: 1.05 !important;
+    text-overflow: ellipsis;
+  }
+  .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] > .package-egg-choice .app-select-trigger {
+    padding: .1rem .3rem !important;
+  }
+  .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] > .package-egg-choice .app-select-chevron {
+    width: .45rem !important;
+    height: .45rem !important;
+  }
+
+  /* Títulos de categoría ("Comida corrida", etc.): sin el margen por defecto del h2
+     (~20 px arriba y abajo), que dejaba franjas vacías alrededor del título. */
+  .internal-pos-workspace .internal-menu-workspace .internal-category > h2 {
+    margin: .2rem 0 .3rem !important;
+    line-height: 1.1 !important;
+  }
+  .internal-pos-workspace .internal-menu-workspace .internal-category > h2 + .auto-package-options {
+    margin-top: 0 !important;
+  }
+
+  /* Envases de Comida corrida: en ~160 px por tarjeta la imagen dejaba ~10 px al nombre y
+     el contador se desbordaba. Imagen chica a la izquierda; tipo, nombre (hasta 2 líneas)
+     y precio a la derecha; contador − # + a todo lo ancho abajo. */
+  .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card {
+    display: grid !important;
+    grid-template-columns: 2.6rem minmax(0, 1fr) !important;
+    grid-template-rows: none !important;
+    grid-auto-rows: auto !important;
+    align-items: center !important;
+    column-gap: .35rem !important;
+    row-gap: .1rem !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: .3rem !important;
+  }
+  .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card > .catalog-product-visual {
+    grid-column: 1 !important;
+    grid-row: 1 / span 3 !important;
+    width: 2.6rem !important;
+    height: 2.6rem !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+  }
+  .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card > .catalog-product-visual img {
+    position: static !important;
+    inset: auto !important;
+    width: 2.6rem !important;
+    height: 2.6rem !important;
+    min-height: 0 !important;
+    object-fit: contain !important;
+    transform: none !important;
+  }
+  .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card > .catalog-product-information { display: contents !important; }
+  .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card > .catalog-product-information > small,
+  .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card > .catalog-product-information > strong,
+  .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card > .catalog-product-information > span {
+    grid-column: 2 !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    overflow: hidden;
+    line-height: 1.1 !important;
+  }
+  .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card > .catalog-product-information > small {
+    grid-row: 1 !important;
+    order: 0 !important;
+    font-size: .5rem !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card > .catalog-product-information > strong {
+    grid-row: 2 !important;
+    order: 0 !important;
+    display: -webkit-box !important;
+    font-size: .62rem !important;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card > .catalog-product-information > span { grid-row: 3 !important; order: 0 !important; font-size: .72rem !important; }
+  .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card .catalog-quick-controls {
+    grid-column: 1 / -1 !important;
+    display: grid !important;
+    grid-template-columns: 1.7rem minmax(0, 1fr) 1.7rem !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: .15rem 0 0 !important;
+    padding: .1rem !important;
+  }
+  .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card .catalog-quick-controls form { margin: 0 !important; }
+  .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card .catalog-quick-controls button {
+    width: 1.6rem !important;
+    min-width: 1.6rem !important;
+    height: 1.6rem !important;
+    min-height: 1.6rem !important;
+    padding: 0 !important;
+  }
+  .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card .catalog-quick-controls > strong { text-align: center; font-size: .75rem !important; }
+
+  /* "Editar extras" se abrevia a "Extras" para dejar espacio al nombre del paquete. */
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-item > .quantity-buttons .ticket-edit-extras {
+    font-size: 0 !important;
+  }
+  .internal-pos-workspace .internal-live-ticket .internal-ticket-item > .quantity-buttons .ticket-edit-extras::before {
+    content: "Extras";
+    font-size: .55rem;
   }
 }
 

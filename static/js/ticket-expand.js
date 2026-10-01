@@ -44,8 +44,9 @@ document.querySelectorAll(".table-ticket").forEach((ticket) => {
   });
 });
 
-// Tableta horizontal 853×405 (Mesas y Pedidos): la lista del ticket crece conforme se
-// agregan productos hasta mostrar 6 renglones; desde el 7.º se desplaza por dentro.
+// Tableta horizontal 853×405 (Mesas, donde el ticket va debajo del catálogo): la lista
+// del ticket crece conforme se agregan productos hasta mostrar 6 renglones; desde el 7.º
+// se desplaza por dentro. En Pedidos el ticket va a la derecha con su propio scroll.
 // La altura se mide sobre el 6.º renglón real porque cada partida puede ocupar más
 // de una línea (descripción, modificaciones).
 (() => {
@@ -53,9 +54,7 @@ document.querySelectorAll(".table-ticket").forEach((ticket) => {
   const compactTablet = window.matchMedia(
     "(min-width: 780px) and (max-width: 900px) and (max-height: 500px) and (orientation: landscape)",
   );
-  const lists = [...document.querySelectorAll(
-    "[data-table-pos] .table-ticket-items, [data-internal-capture] .table-ticket-items",
-  )];
+  const lists = [...document.querySelectorAll("[data-table-pos] .table-ticket-items")];
   if (!lists.length) return;
 
   const limitRows = (list) => {

@@ -2252,3 +2252,34 @@ El desarrollador pidió explícitamente que, de aquí en adelante, él se encarg
 - Verificado con Playwright en los 4 diálogos: 1+3 → se conservan; 1,2,3 con el 2.º al último → queda el 2.º; con el 1.º al último → queda el 1.º. El tercer tiempo nunca se toca.
 - `package-selection.js` v9.
 
+## 2026-10-01 — Pedidos en tableta 853×405: ticket a la derecha, tarjetas 4/6 columnas
+
+- Diagnóstico: en producción la tableta mostraba el ticket a la derecha porque Chrome estaba en modo "sitio de escritorio" (dibuja la página con ~980 px). Con el viewport real de 853×405 (verificado con whatismyviewport), la regla `@media (max-width: 900px)` apila el ticket abajo; se comprobó con Playwright que así ocurre con el `app.css` de los últimos 8 commits. Los ajustes de este rango sólo aplican con el modo escritorio desactivado.
+- Ahora, sólo en `/app/pedidos/<id>/editar/` y sólo en 780–900 px de ancho, ≤500 px de alto, horizontal: catálogo y ticket lado a lado (`minmax(0, 1.55fr) minmax(250px, .95fr)`; ampliado: `.6fr / 1.4fr`), ticket `sticky` con su propio scroll. Tarjetas en 4 columnas; con el ticket vacío/oculto (`.is-ticket-empty`) en 6 columnas.
+- Pedidos deja de usar en ese rango los ajustes del ticket apilado (5 columnas, sin tope de altura, límite de 6 renglones de `ticket-expand.js`); Mesas los conserva.
+- Verificado con Playwright: pedido con productos → ticket al lado (315 px), queda fijo al desplazar, 4 columnas; pedido vacío → 6 columnas.
+- `app.css` v342, `ticket-expand.js` v8.
+
+## 2026-10-01 — Pedidos en tableta 853×405: ticket compacto como TABA+9 (verificado con Playwright)
+
+- Comportamiento igual a TABA+9: el panel del ticket queda fijo al alto de la pantalla y la lista de productos se desplaza en el espacio libre. (Se midió que TABA+9 tampoco muestra 6 renglones: con 7 productos se ven 4.)
+- Antes en 853×405 cada producto medía ~186 px (botones en varias líneas) y la lista sólo dejaba ver 1. Ahora, en ese rango: cada renglón va en una línea (nombre recortado con "…" · precio · − + × Nota), y el detalle del paquete y las modificaciones bajan a todo lo ancho (`span { display: contents }` y colocación explícita en la cuadrícula). "Editar extras" se muestra como "Extras".
+- Para que quepan al menos 4 productos: botones de método de pago y las 6 acciones del ticket más bajos (1.5rem), menos relleno del panel y márgenes de Total/Pago, separación entre productos de .2rem.
+- Medido: panel 378/380 px sin scroll propio, 4 productos visibles de 7, productos simples 31 px y paquetes 42–52 px. TABA+9 sin cambios.
+- `app.css` v345.
+
+## 2026-10-01 — Pedidos en tableta 853×405: botones de paquete y barra de complementos (verificado con Playwright)
+
+- Sólo dentro del bloque `@media (min-width: 780px) and (max-width: 900px) and (max-height: 500px) and (orientation: landscape)`; TABA+9 se midió idéntico antes y después.
+- Botones cafés de "Crear paquete" (`[data-internal-package-open]`): nombre y precio en una línea; 55 → 34 px de alto.
+- Barra de complementos de Comida corrida/ejecutiva (`.auto-package-options`): una fila con columnas `.8fr 1.75fr 1fr 1.05fr` (Agua, Acompañamiento con sus 3 botones, Frijoles, Huevo), título arriba en las cuatro y botones compactos; antes "Ninguno/Tortillas/Bolillo" se cortaban y el huevo tenía letra grande. La regla de tabletas 700–1200 px táctil fijaba 4 columnas iguales con mayor especificidad, por eso el selector usa `.internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options]`; sin pantalla táctil, cada complemento se fija en su columna (la regla de ≤900 px los reparte por áreas). Verificado con y sin táctil: sin textos cortados.
+- `app.css` v349.
+
+## 2026-10-01 — Pedidos en tableta 853×405: envases, 5 renglones en el ticket y espacio del título (verificado con Playwright)
+
+- Todo dentro del bloque `@media (min-width: 780px) and (max-width: 900px) and (max-height: 500px) and (orientation: landscape)`; TABA+9, iPad Air, celular y escritorio medidos sin cambios.
+- Envases de Comida corrida (`.packaging-quick-panel`): con ~160 px por tarjeta la imagen dejaba ~10 px al nombre y el contador se desbordaba. Ahora: imagen 2.6rem a la izquierda (se anula el `min-height: 92px` general), tipo/nombre (hasta 2 líneas)/precio a la derecha (`.catalog-product-information { display: contents }` con filas explícitas) y contador − # + a todo lo ancho abajo.
+- Ticket: 5 productos visibles (antes 4): renglones de 25 px (botones 1.35rem, relleno .08rem) y separación .1rem.
+- Títulos de categoría ("Comida corrida", etc.): margen `.2rem 0 .3rem` en lugar del margen por defecto del h2 (~20 px arriba y abajo); la barra de complementos sube 40 px.
+- `app.css` v353.
+
