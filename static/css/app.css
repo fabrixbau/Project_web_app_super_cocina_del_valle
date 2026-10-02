@@ -12564,3 +12564,25 @@ html[data-theme="dark"] .live-search-count { color: #edf4f0; }
 .stock-reference-channels { display: flex; flex-wrap: wrap; gap: .35rem; margin: .5rem 0; }
 .stock-reference-channels button { min-height: 0; padding: .3rem .7rem; color: #27735a; background: #fff; border: 1px solid #27735a; border-radius: 999px; font-size: .76rem; font-weight: 800; }
 .stock-reference-channels button.is-active { color: #fff; background: #27735a; }
+
+/* Tablet 853×405: 2 tarjetas por fila. Dentro de cada tarjeta, fila 1 las 4 cifras del total,
+   fila 2 los bloques Mesas | Pedidos y fila 3 sus editores lado a lado (Actualizar debajo). */
+@media (min-width: 780px) and (max-width: 900px) and (max-height: 500px) {
+  .stock-tracking-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stock-product-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .stock-channel-split { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; margin-top: .45rem; }
+  .stock-channel { padding: .4rem .5rem; border-top-width: 3px; }
+  .stock-channel header { margin-bottom: .2rem; }
+  .stock-channel h3 { font-size: .85rem; }
+  .stock-channel-status { padding: .08rem .38rem; font-size: .6rem; }
+  .stock-channel dl { gap: .05rem; }
+  .stock-channel dt { font-size: .68rem; }
+  .stock-channel dd { font-size: .82rem; }
+  .stock-channel-alert { margin-top: .2rem; font-size: .64rem; }
+  .stock-prepared-form.stock-channel-form { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; }
+  .stock-channel-form fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem; padding: .3rem .45rem .45rem; }
+  .stock-channel-form legend { font-size: .74rem; }
+  .stock-channel-form label { gap: .15rem; font-size: .64rem; line-height: 1.05; }
+  .stock-channel-form input { min-height: 34px; padding: .3rem .4rem; }
+  .stock-prepared-form.stock-channel-form button { grid-column: 1 / -1; width: 100%; }
+}
