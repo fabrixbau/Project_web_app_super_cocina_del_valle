@@ -12534,3 +12534,33 @@ html[data-theme="dark"] .live-search-count { color: #edf4f0; }
     bottom: auto !important;
   }
 }
+
+/* Seguimiento de existencias: división por canal (Mesas / Pedidos / Compartido). Cada canal
+   muestra sus cifras con su propio color de estado y el formulario edita preparado y alerta
+   por canal. */
+.stock-tracking-totals article { flex-wrap: wrap; align-items: baseline; gap: .15rem .5rem; }
+.stock-total-channels { flex-basis: 100%; color: #4f5d56; font-size: .78rem; font-weight: 700; }
+.stock-channel-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .5rem; margin-top: .6rem; }
+.stock-channel { padding: .55rem .6rem; border: 1px solid #d8ddd7; border-top: 4px solid #27735a; border-radius: 10px; background: #fafbf9; }
+.stock-channel.is-low { border-top-color: #e0a519; }
+.stock-channel.is-empty { border-top-color: #e46f25; }
+.stock-channel.is-deficit { border-top-color: #bd2922; background: #fff8f7; }
+.stock-channel header { display: flex; justify-content: space-between; align-items: center; gap: .4rem; margin-bottom: .35rem; }
+.stock-channel h3 { margin: 0; font-size: .95rem; }
+.stock-channel-status { padding: .12rem .45rem; border-radius: 999px; color: #fff; background: #27735a; font-size: .66rem; font-weight: 800; }
+.stock-channel.is-low .stock-channel-status { color: #3d2c00; background: #f2c14e; }
+.stock-channel.is-empty .stock-channel-status { background: #e46f25; }
+.stock-channel.is-deficit .stock-channel-status { background: #bd2922; }
+.stock-channel { min-width: 0; }
+.stock-channel dl { display: grid; grid-template-columns: minmax(0, 1fr); gap: .2rem; margin: 0; }
+.stock-channel dl div { display: flex; justify-content: space-between; gap: .3rem; min-width: 0; }
+.stock-channel dt { color: #5b6862; font-size: .74rem; }
+.stock-channel dd { margin: 0; font-size: .9rem; font-weight: 800; }
+.stock-channel-alert { margin: .35rem 0 0; color: #6a7570; font-size: .72rem; }
+.stock-prepared-form.stock-channel-form { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) minmax(90px, auto); }
+.stock-channel-form fieldset { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; min-width: 0; margin: 0; padding: .45rem .55rem .55rem; border: 1px solid #d8ddd7; border-radius: 10px; }
+.stock-channel-form legend { padding: 0 .3rem; font-size: .82rem; font-weight: 800; }
+.stock-channel-form label { font-size: .74rem; overflow-wrap: normal; word-break: normal; }
+.stock-reference-channels { display: flex; flex-wrap: wrap; gap: .35rem; margin: .5rem 0; }
+.stock-reference-channels button { min-height: 0; padding: .3rem .7rem; color: #27735a; background: #fff; border: 1px solid #27735a; border-radius: 999px; font-size: .76rem; font-weight: 800; }
+.stock-reference-channels button.is-active { color: #fff; background: #27735a; }

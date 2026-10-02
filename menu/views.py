@@ -276,75 +276,103 @@ def inventory_tracking(request):
         return (stock.item_kind, stock.product_id, stock.chicken_piece)
 
     if request.method == "POST" and request.POST.get("action") == "set_prepared":
+        # Cada canal (Mesas, Pedidos o Compartido) tiene su propio preparado y su propia
+        # alerta: el formulario envía prepared_<id> y alert_<id> por cada existencia del
+        # producto y sólo se ajusta el canal que cambió.
         stock = get_object_or_404(DailyProductStock, pk=request.POST.get("stock_id"), date=selected_date)
         siblings = [row for row in stocks if identity(row) == identity(stock)]
         try:
-            desired = int(request.POST.get("prepared", ""))
-            alert_threshold = int(request.POST.get("alert_threshold", str(stock.low_stock_threshold)))
-            if desired < 0 or alert_threshold < 0:
-                raise ValueError
-        except ValueError:
-            messages.error(request, "La cantidad preparada y la alerta deben ser cero o mayores.")
-        else:
-            committed = finalized = free = 0
-            for row in siblings:
-                free += row.available_quantity
-                committed -= row.movements.filter(reason__in=(
-                    StockMovement.Reason.RESERVATION, StockMovement.Reason.RELEASE,
-                )).aggregate(total=Sum("quantity"))["total"] or 0
-                finalized -= row.movements.filter(
-                    reason=StockMovement.Reason.CONSUMPTION,
-                ).aggregate(total=Sum("quantity"))["total"] or 0
-            current_prepared = free + committed + finalized
-            previous_threshold = max((row.low_stock_threshold for row in siblings), default=0)
-            difference = desired - current_prepared
-            if difference:
-                adjust_stock(
-                    stock=stock, quantity=difference, actor=request.user,
-                    note=request.POST.get("note", "").strip() or "Actualización del total preparado",
-                )
-            from notifications.services import sync_stock_alert
+            requested = {}
             for sibling in siblings:
-                if sibling.low_stock_threshold != alert_threshold:
+                desired = int(request.POST.get(f"prepared_{sibling.pk}", ""))
+                alert_threshold = int(request.POST.get(f"alert_{sibling.pk}", str(sibling.low_stock_threshold)))
+                if desired < 0 or alert_threshold < 0:
+                    raise ValueError
+                requested[sibling.pk] = (desired, alert_threshold)
+        except ValueError:
+            messages.error(request, "Las cantidades preparadas y las alertas deben ser cero o mayores.")
+        else:
+            from notifications.services import sync_stock_alert
+            note = request.POST.get("note", "").strip()
+            for sibling in siblings:
+                desired, alert_threshold = requested[sibling.pk]
+                committed = -(sibling.movements.filter(reason__in=(
+                    StockMovement.Reason.RESERVATION, StockMovement.Reason.RELEASE,
+                )).aggregate(total=Sum("quantity"))["total"] or 0)
+                finalized = -(sibling.movements.filter(
+                    reason=StockMovement.Reason.CONSUMPTION,
+                ).aggregate(total=Sum("quantity"))["total"] or 0)
+                current_prepared = sibling.available_quantity + committed + finalized
+                previous_threshold = sibling.low_stock_threshold
+                if desired == current_prepared and alert_threshold == previous_threshold:
+                    continue
+                if desired != current_prepared:
+                    adjust_stock(
+                        stock=sibling, quantity=desired - current_prepared, actor=request.user,
+                        note=note or f"Actualización del preparado de {sibling.get_channel_display()}",
+                    )
+                if alert_threshold != previous_threshold:
                     sibling.low_stock_threshold = alert_threshold
                     sibling.save(update_fields=("low_stock_threshold", "updated_at"))
                 sync_stock_alert(sibling)
-            InventoryAuditLog.objects.create(
-                stock=stock, actor=request.user,
-                prepared_before=current_prepared, prepared_after=desired,
-                threshold_before=previous_threshold, threshold_after=alert_threshold,
-                note=request.POST.get("note", "").strip(),
-            )
-            messages.success(request, f"Existencias y alerta de {stock.item_name} actualizadas.")
+                InventoryAuditLog.objects.create(
+                    stock=sibling, actor=request.user,
+                    prepared_before=current_prepared, prepared_after=desired,
+                    threshold_before=previous_threshold, threshold_after=alert_threshold,
+                    note=note,
+                )
+            messages.success(request, f"Existencias y alertas de {stock.item_name} actualizadas.")
         return redirect(f"{reverse('menu:inventory_tracking')}?date={selected_date.isoformat()}")
     if request.method == "POST":
         raise PermissionDenied
 
+    def stock_status(free, threshold):
+        return "deficit" if free < 0 else "empty" if free == 0 else "low" if free <= threshold else "ok"
+
+    # Un producto agrupa sus existencias por canal (Mesas, Pedidos o Compartido). El total
+    # suma los canales y cada canal conserva sus propias cifras y su alerta.
+    channel_order = {
+        DailyProductStock.Channel.TABLE: 0,
+        DailyProductStock.Channel.ORDERS: 1,
+        DailyProductStock.Channel.SHARED: 2,
+    }
     groups = {}
     stock_to_key = {}
+    channel_rows = {}
     for stock in stocks:
         key = identity(stock)
         stock_to_key[stock.pk] = key
         group = groups.setdefault(key, {
             "name": stock.item_name, "stock": stock, "free": 0, "committed": 0,
-            "finalized": 0, "prepared": 0, "threshold": 0,
+            "finalized": 0, "prepared": 0, "threshold": 0, "channels": [],
             "committed_refs": defaultdict(int), "finalized_refs": defaultdict(int),
+            "ref_channel": {},
         })
         group["free"] += stock.available_quantity
-        group["threshold"] = max(group["threshold"], stock.low_stock_threshold)
+        channel_rows[stock.pk] = {
+            "stock": stock, "channel": stock.channel, "label": stock.get_channel_display(),
+            "free": stock.available_quantity, "committed": 0, "finalized": 0,
+            "threshold": stock.low_stock_threshold,
+        }
+        group["channels"].append(channel_rows[stock.pk])
 
     movements = StockMovement.objects.filter(stock_id__in=stock_to_key).select_related("stock")
     for movement in movements:
         group = groups[stock_to_key[movement.stock_id]]
+        channel_row = channel_rows[movement.stock_id]
         ref = (movement.reference_type, movement.reference_id)
         if movement.reason in (StockMovement.Reason.RESERVATION, StockMovement.Reason.RELEASE):
             group["committed"] -= movement.quantity
+            channel_row["committed"] -= movement.quantity
             if movement.reference_id:
                 group["committed_refs"][ref] -= movement.quantity
+                group["ref_channel"][ref] = movement.stock.channel
         elif movement.reason == StockMovement.Reason.CONSUMPTION:
             group["finalized"] -= movement.quantity
+            channel_row["finalized"] -= movement.quantity
             if movement.reference_id:
                 group["finalized_refs"][ref] -= movement.quantity
+                group["ref_channel"][ref] = movement.stock.channel
 
     from orders.models import OrderItem
     from tables.models import TableAccountItem
@@ -390,12 +418,30 @@ def inventory_tracking(request):
         group["committed"] = max(0, group["committed"])
         group["finalized"] = max(0, group["finalized"])
         group["prepared"] = group["free"] + group["committed"] + group["finalized"]
-        group["status"] = "deficit" if group["free"] < 0 else "empty" if group["free"] == 0 else "low" if group["free"] <= group["threshold"] else "ok"
-        group["committed_details"] = [item for ref, qty in group["committed_refs"].items() if qty > 0 and (item := detail(ref, qty))]
-        group["finalized_details"] = [item for ref, qty in group["finalized_refs"].items() if qty > 0 and (item := detail(ref, qty, finalized=True))]
+        group["channels"].sort(key=lambda row: channel_order.get(row["channel"], 9))
+        for channel_row in group["channels"]:
+            channel_row["committed"] = max(0, channel_row["committed"])
+            channel_row["finalized"] = max(0, channel_row["finalized"])
+            channel_row["prepared"] = channel_row["free"] + channel_row["committed"] + channel_row["finalized"]
+            channel_row["status"] = stock_status(channel_row["free"], channel_row["threshold"])
+        group["threshold"] = sum(row["threshold"] for row in group["channels"])
+        group["status"] = stock_status(group["free"], group["threshold"])
+
+        def details(refs, finalized=False):
+            items = []
+            for ref, qty in refs.items():
+                if qty > 0 and (item := detail(ref, qty, finalized=finalized)):
+                    item["channel"] = group["ref_channel"].get(ref, "")
+                    items.append(item)
+            return items
+
+        group["committed_details"] = details(group["committed_refs"])
+        group["finalized_details"] = details(group["finalized_refs"], finalized=True)
         if search and search not in group["name"].casefold():
             continue
-        if status_filter and group["status"] != status_filter:
+        # El filtro de estado encuentra el producto si el total o cualquiera de sus canales
+        # está en ese estado (p. ej. Mesas agotado aunque Pedidos tenga piezas libres).
+        if status_filter and status_filter not in {group["status"], *(row["status"] for row in group["channels"])}:
             continue
         rows.append(group)
     first_course_types = {
@@ -458,6 +504,15 @@ def inventory_tracking(request):
         "selected_date": selected_date, "rows": rows, "search": request.GET.get("q", ""),
         "status_filter": status_filter, "total_committed": sum(row["committed"] for row in rows),
         "total_finalized": sum(row["finalized"] for row in rows),
+        "channel_totals": [
+            {
+                "label": label,
+                "committed": sum(ch["committed"] for row in rows for ch in row["channels"] if ch["channel"] == value),
+                "finalized": sum(ch["finalized"] for row in rows for ch in row["channels"] if ch["channel"] == value),
+            }
+            for value, label in DailyProductStock.Channel.choices
+            if any(ch["channel"] == value for row in rows for ch in row["channels"])
+        ],
         "deficit_count": sum(row["status"] == "deficit" for row in rows),
         "can_edit": can_edit,
     })

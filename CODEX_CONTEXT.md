@@ -1,5 +1,13 @@
 # CODEX_CONTEXT — Super Cocina del Valle
 
+### Seguimiento de existencias dividido por Mesas y Pedidos (2026-10-02, rama `main`)
+
+- `/app/menu/inventario/seguimiento/` agrupaba las existencias de un producto (una por canal: Mesas, Pedidos o Compartido) y sólo mostraba el total; además "Total preparado" ajustaba únicamente la primera existencia del grupo, descuadrando el reparto entre canales sin que se notara.
+- Ahora cada tarjeta conserva la fila del total y debajo un bloque por canal (`row.channels`, orden Mesas → Pedidos → Compartido) con Preparadas/Comprometidas/Finalizadas/Libres, su propio estado de color y su alerta. El total usa como umbral la suma de las alertas de los canales.
+- El formulario envía `prepared_<stock_id>` y `alert_<stock_id>` por cada canal; la vista ajusta sólo los canales que cambiaron (`adjust_stock` en esa existencia), guarda la alerta de cada canal y crea un `InventoryAuditLog` por canal modificado. Ya no existe el campo único `prepared`/`alert_threshold`.
+- El resumen superior muestra Comprometidas/Finalizadas por canal (`channel_totals`). Las listas "Ver comprometidas/finalizadas" marcan el canal de cada ticket (`data-channel`) y traen botones Todos/Mesas/Pedidos (`inventory-tracking.js?v=2`). El filtro de estado encuentra el producto si el total o cualquier canal está en ese estado.
+- Estilos `.stock-channel*`, `.stock-channel-form`, `.stock-reference-channels` al final de `app.css` (v373). Pruebas: `test_tracking_splits_each_product_by_channel` y `test_order_taker_can_edit_tracking` (reescrita para el formulario por canal). Sin migraciones.
+
 ### Celular: barra de búsqueda de la lupa en el tope de la pantalla (2026-10-02)
 
 - En celular (`max-width: 600px`), la barra que abre la lupa en Mesas y Pedidos (`.catalog-search-box.is-compact-field-open`, movida a `body` por `compact-capture.js`) ahora se fija en `top: calc(.5rem + env(safe-area-inset-top))` en lugar de `max(4.5rem, 18dvh)`; las sugerencias quedan justo debajo y hay más espacio libre sobre el teclado. Tabletas y escritorio sin cambios (regla al final de `app.css`, v369). Verificado con Playwright en 390×844 y 360×740 (barra en y=8 px) y 768×1024 sin cambio. El campo Cliente de Mesas no se tocó.
