@@ -12551,3 +12551,55 @@ html[data-theme="dark"] .live-search-count { color: #edf4f0; }
 .customer-visibility-option { display: flex; align-items: center; gap: .6rem; min-height: 3rem; padding: .6rem .8rem; border: 2px solid #d8d2c4; border-radius: .65rem; background: #fff; cursor: pointer; }
 .customer-visibility-option:has(input:checked) { border-color: #1f5a43; background: #edf4f0; }
 .customer-visibility-option input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: #1f5a43; }
+
+/* Seguimiento de existencias: división por canal (Mesas / Pedidos / Compartido). Cada canal
+   muestra sus cifras con su propio color de estado y el formulario edita preparado y alerta
+   por canal. */
+.stock-tracking-totals article { flex-wrap: wrap; align-items: baseline; gap: .15rem .5rem; }
+.stock-total-channels { flex-basis: 100%; color: #4f5d56; font-size: .78rem; font-weight: 700; }
+.stock-channel-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .5rem; margin-top: .6rem; }
+.stock-channel { padding: .55rem .6rem; border: 1px solid #d8ddd7; border-top: 4px solid #27735a; border-radius: 10px; background: #fafbf9; }
+.stock-channel.is-low { border-top-color: #e0a519; }
+.stock-channel.is-empty { border-top-color: #e46f25; }
+.stock-channel.is-deficit { border-top-color: #bd2922; background: #fff8f7; }
+.stock-channel header { display: flex; justify-content: space-between; align-items: center; gap: .4rem; margin-bottom: .35rem; }
+.stock-channel h3 { margin: 0; font-size: .95rem; }
+.stock-channel-status { padding: .12rem .45rem; border-radius: 999px; color: #fff; background: #27735a; font-size: .66rem; font-weight: 800; }
+.stock-channel.is-low .stock-channel-status { color: #3d2c00; background: #f2c14e; }
+.stock-channel.is-empty .stock-channel-status { background: #e46f25; }
+.stock-channel.is-deficit .stock-channel-status { background: #bd2922; }
+.stock-channel { min-width: 0; }
+.stock-channel dl { display: grid; grid-template-columns: minmax(0, 1fr); gap: .2rem; margin: 0; }
+.stock-channel dl div { display: flex; justify-content: space-between; gap: .3rem; min-width: 0; }
+.stock-channel dt { color: #5b6862; font-size: .74rem; }
+.stock-channel dd { margin: 0; font-size: .9rem; font-weight: 800; }
+.stock-channel-alert { margin: .35rem 0 0; color: #6a7570; font-size: .72rem; }
+.stock-prepared-form.stock-channel-form { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) minmax(90px, auto); }
+.stock-channel-form fieldset { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; min-width: 0; margin: 0; padding: .45rem .55rem .55rem; border: 1px solid #d8ddd7; border-radius: 10px; }
+.stock-channel-form legend { padding: 0 .3rem; font-size: .82rem; font-weight: 800; }
+.stock-channel-form label { font-size: .74rem; overflow-wrap: normal; word-break: normal; }
+.stock-reference-channels { display: flex; flex-wrap: wrap; gap: .35rem; margin: .5rem 0; }
+.stock-reference-channels button { min-height: 0; padding: .3rem .7rem; color: #27735a; background: #fff; border: 1px solid #27735a; border-radius: 999px; font-size: .76rem; font-weight: 800; }
+.stock-reference-channels button.is-active { color: #fff; background: #27735a; }
+
+/* Tablet 853×405: 2 tarjetas por fila. Dentro de cada tarjeta, fila 1 las 4 cifras del total,
+   fila 2 los bloques Mesas | Pedidos y fila 3 sus editores lado a lado (Actualizar debajo). */
+@media (min-width: 780px) and (max-width: 900px) and (max-height: 500px) {
+  .stock-tracking-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stock-product-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .stock-channel-split { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; margin-top: .45rem; }
+  .stock-channel { padding: .4rem .5rem; border-top-width: 3px; }
+  .stock-channel header { margin-bottom: .2rem; }
+  .stock-channel h3 { font-size: .85rem; }
+  .stock-channel-status { padding: .08rem .38rem; font-size: .6rem; }
+  .stock-channel dl { gap: .05rem; }
+  .stock-channel dt { font-size: .68rem; }
+  .stock-channel dd { font-size: .82rem; }
+  .stock-channel-alert { margin-top: .2rem; font-size: .64rem; }
+  .stock-prepared-form.stock-channel-form { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; }
+  .stock-channel-form fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem; padding: .3rem .45rem .45rem; }
+  .stock-channel-form legend { font-size: .74rem; }
+  .stock-channel-form label { gap: .15rem; font-size: .64rem; line-height: 1.05; }
+  .stock-channel-form input { min-height: 34px; padding: .3rem .4rem; }
+  .stock-prepared-form.stock-channel-form button { grid-column: 1 / -1; width: 100%; }
+}

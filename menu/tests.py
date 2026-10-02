@@ -311,7 +311,7 @@ class InventoryControlViewTests(TestCase):
                 response = self.client.get(reverse("menu:inventory_tracking"))
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, "Vista de consulta")
-                self.assertNotContains(response, 'class="stock-prepared-form"')
+                self.assertNotContains(response, "stock-prepared-form")
                 response = self.client.post(reverse("menu:inventory_tracking"), {
                     "action": "set_prepared", "date": timezone.localdate().isoformat(),
                     "stock_id": daily.pk, "prepared": "30",
@@ -349,23 +349,64 @@ class InventoryControlViewTests(TestCase):
         user.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
         self.client.force_login(user)
 
+        # Cada canal se edita por separado: Pedidos sube de 2 a 4 piezas con alerta 4;
+        # Mesas conserva sus 3 piezas y sólo cambia su alerta a 2.
         response = self.client.post(reverse("menu:inventory_tracking"), {
             "action": "set_prepared", "date": timezone.localdate().isoformat(),
-            "stock_id": daily.pk, "prepared": "7", "alert_threshold": "4",
+            "stock_id": daily.pk,
+            f"prepared_{daily.pk}": "4", f"alert_{daily.pk}": "4",
+            f"prepared_{table_stock.pk}": "3", f"alert_{table_stock.pk}": "2",
         })
 
         self.assertEqual(response.status_code, 302)
         daily.refresh_from_db()
         table_stock.refresh_from_db()
-        self.assertEqual(daily.available_quantity + table_stock.available_quantity, 7)
+        self.assertEqual(daily.available_quantity, 4)
+        self.assertEqual(table_stock.available_quantity, 3)
         self.assertEqual(daily.low_stock_threshold, 4)
-        self.assertEqual(table_stock.low_stock_threshold, 4)
-        audit = InventoryAuditLog.objects.get()
-        self.assertEqual(audit.actor, user)
-        self.assertEqual((audit.prepared_before, audit.prepared_after), (5, 7))
-        self.assertEqual((audit.threshold_before, audit.threshold_after), (15, 4))
+        self.assertEqual(table_stock.low_stock_threshold, 2)
+        self.assertFalse(table_stock.movements.exists())
+        audits = {audit.stock_id: audit for audit in InventoryAuditLog.objects.all()}
+        self.assertEqual(len(audits), 2)
+        self.assertEqual(audits[daily.pk].actor, user)
+        self.assertEqual((audits[daily.pk].prepared_before, audits[daily.pk].prepared_after), (2, 4))
+        self.assertEqual((audits[daily.pk].threshold_before, audits[daily.pk].threshold_after), (15, 4))
+        self.assertEqual((audits[table_stock.pk].prepared_before, audits[table_stock.pk].prepared_after), (3, 3))
+        self.assertEqual((audits[table_stock.pk].threshold_before, audits[table_stock.pk].threshold_after), (15, 2))
         response = self.client.get(reverse("menu:inventory_audit"))
         self.assertContains(response, "tracking-order-taker")
+
+    def test_tracking_splits_each_product_by_channel(self):
+        orders = self.make_daily_stock()
+        table = DailyProductStock.objects.create(
+            date=timezone.localdate(), product=self.product,
+            channel=DailyProductStock.Channel.TABLE, initial_quantity=5, low_stock_threshold=1,
+        )
+        reserve_stock(stock=table, quantity=2, actor=self.admin, reference_type="table_item", reference_id=999998)
+        reserve_stock(stock=orders, quantity=3, actor=self.admin, reference_type="order_item", reference_id=999999)
+
+        response = self.client.get(reverse("menu:inventory_tracking"))
+
+        row = response.context["rows"][0]
+        self.assertEqual((row["prepared"], row["committed"], row["free"]), (7, 5, 2))
+        channels = {channel["channel"]: channel for channel in row["channels"]}
+        self.assertEqual([channel["label"] for channel in row["channels"]], ["Mesas", "Pedidos"])
+        self.assertEqual(
+            (channels["table"]["prepared"], channels["table"]["committed"], channels["table"]["free"], channels["table"]["status"]),
+            (5, 2, 3, "ok"),
+        )
+        self.assertEqual(
+            (channels["orders"]["prepared"], channels["orders"]["committed"], channels["orders"]["free"], channels["orders"]["status"]),
+            (2, 3, -1, "deficit"),
+        )
+        self.assertContains(response, f'name="prepared_{table.pk}"')
+        self.assertContains(response, f'name="alert_{orders.pk}"')
+        self.assertContains(response, 'data-reference-channel="orders"')
+        totals = {item["label"]: item for item in response.context["channel_totals"]}
+        self.assertEqual((totals["Mesas"]["committed"], totals["Pedidos"]["committed"]), (2, 3))
+        # El filtro "Rebasado" encuentra el producto porque Pedidos está rebasado.
+        response = self.client.get(reverse("menu:inventory_tracking"), {"status": "deficit"})
+        self.assertEqual(len(response.context["rows"]), 1)
 
     def test_inventory_history_filters_and_summarizes_movements(self):
         adjust_stock(

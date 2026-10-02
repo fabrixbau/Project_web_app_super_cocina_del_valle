@@ -6,19 +6,28 @@
     const input = list.querySelector("[data-reference-search]");
     const cards = [...list.querySelectorAll("[data-reference-card]")];
     const empty = list.querySelector("[data-reference-empty]");
+    const channelButtons = [...list.querySelectorAll("[data-reference-channel]")];
+    let channel = "";
     if (!input) return;
 
+    // Búsqueda por texto y filtro por canal (Todos / Mesas / Pedidos) se combinan.
     const filter = () => {
       const query = normalize(input.value);
       let visible = 0;
       cards.forEach((card) => {
-        const matches = !query || normalize(card.dataset.searchText || "").includes(query);
+        const matches = (!query || normalize(card.dataset.searchText || "").includes(query))
+          && (!channel || card.dataset.channel === channel);
         card.hidden = !matches;
         if (matches) visible += 1;
       });
-      if (empty) empty.hidden = visible > 0 || !query;
+      if (empty) empty.hidden = visible > 0 || (!query && !channel);
     };
     input.addEventListener("input", filter);
+    channelButtons.forEach((button) => button.addEventListener("click", () => {
+      channel = button.dataset.referenceChannel;
+      channelButtons.forEach((candidate) => candidate.classList.toggle("is-active", candidate === button));
+      filter();
+    }));
 
     if (touchMode) {
       input.readOnly = true;
