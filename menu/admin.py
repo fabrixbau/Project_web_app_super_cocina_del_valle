@@ -12,6 +12,7 @@ class CategoryAdmin(admin.ModelAdmin):
     search_fields = ("name",)
 
 
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = ("name", "category", "component_type", "packaging_kind", "price", "is_available", "sort_order")
