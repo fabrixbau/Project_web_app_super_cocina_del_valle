@@ -12487,3 +12487,50 @@ html[data-theme="dark"] .live-search-option.is-active { background: #20352b; }
   }
 }
 
+
+/* Sugerencias de la lupa en Mesas y Pedidos: cada fila trae − # + y Personalizar (presionan los
+   botones reales de la tarjeta). Si la lista es angosta, los botones bajan debajo del nombre. */
+.live-search-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .25rem .4rem;
+  padding-right: .3rem;
+  border-radius: .55rem;
+}
+.live-search-row:hover,
+.live-search-row:has(.live-search-option.is-active) { background: #edf4f0; }
+.live-search-row > .live-search-option { flex: 1 1 6.5rem; width: auto; min-width: 0; background: transparent; }
+.live-search-controls { display: flex; flex: 0 0 auto; align-items: center; gap: .3rem; margin-left: auto; }
+.live-search-control {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.15rem;
+  height: 2.15rem;
+  min-height: 0;
+  padding: 0 .45rem;
+  border: 0;
+  border-radius: .5rem;
+  color: #fff;
+  background: #6f4a32;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+.live-search-control:disabled { opacity: .4; cursor: not-allowed; }
+.live-search-control.is-customize { padding-inline: .6rem; color: #6f4a32; background: #f4e6d6; font-size: .78rem; font-weight: 800; }
+.live-search-count { min-width: 1.4rem; font-size: .95rem; font-weight: 900; text-align: center; }
+html[data-theme="dark"] .live-search-row:hover,
+html[data-theme="dark"] .live-search-row:has(.live-search-option.is-active) { background: #20352b; }
+html[data-theme="dark"] .live-search-count { color: #edf4f0; }
+
+/* Celular: la barra de búsqueda que abre la lupa (Mesas y Pedidos) se coloca en el tope de la
+   pantalla en vez de a 18% de la altura; así deja más espacio a las sugerencias y al teclado. */
+@media (max-width: 600px) {
+  body.compact-field-open .catalog-search-box.compact-field-ready.is-compact-field-open {
+    top: calc(.5rem + env(safe-area-inset-top)) !important;
+    bottom: auto !important;
+  }
+}

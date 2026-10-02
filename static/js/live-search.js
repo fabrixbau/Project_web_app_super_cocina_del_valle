@@ -12,6 +12,9 @@ Fuentes (atributos del input):
   data-live-search-url="/ruta/"   consulta al servidor (?q=) que responde {results: [...]}
   data-live-search-side="(media query)"  mientras coincida, la lista va en la mitad derecha
                                   de la pantalla (lupa de Mesas/Pedidos en tableta horizontal)
+  data-live-search-controls       (con data-live-search-cards) cada sugerencia trae − # + y
+                                  Personalizar; presionan los botones reales de la tarjeta, así
+                                  que agregan al ticket exactamente igual que el catálogo.
 La altura disponible se mide con visualViewport: es el área que no tapa el teclado.
 Borra esta nota después de leerla. */
 (() => {
@@ -25,15 +28,33 @@ Borra esta nota después de leerla. */
     return text.includes(query) ? 2 : 99;
   };
 
+  // Tarjetas que arman paquetes (Comida corrida/ejecutiva): sólo se usan si el producto no
+  // tiene otra tarjeta, para que + agregue el producto suelto como en Comida por orden/categoría.
+  const AUTO_MEAL_CARD = "[data-auto-meal-card], [data-internal-auto-product]";
+
   const cardItems = (selector) => {
     const seen = new Map();
     document.querySelectorAll(selector).forEach((card) => {
       const label = (card.querySelector(".catalog-product-information > strong, strong")?.textContent
         || card.dataset.productName || "").trim();
       const key = normalize(label);
-      if (key && !seen.has(key)) seen.set(key, {label, search: key});
+      if (!key) return;
+      const known = seen.get(key);
+      if (!known) seen.set(key, {label, search: key, card});
+      else if (known.card.matches(AUTO_MEAL_CARD) && !card.matches(AUTO_MEAL_CARD)) known.card = card;
     });
     return [...seen.values()];
+  };
+
+  // Botones reales de la tarjeta: − (restar), contador, + (agregar) y Personalizar (opcional).
+  const cardControls = (card) => {
+    const quick = card?.querySelector(".catalog-quick-controls");
+    const decrease = quick?.querySelector(":scope > button");
+    const count = quick?.querySelector(":scope > strong");
+    const add = quick?.querySelector("form [type=submit]");
+    if (!decrease || !count || !add) return null;
+    const customize = card.querySelector(".catalog-customize-form [type=submit], form[data-customizable-product] [type=submit]");
+    return {quick, decrease, count, add, customize};
   };
 
   const setup = (input) => {
@@ -55,6 +76,12 @@ Borra esta nota después de leerla. */
     let active = -1;
     let requestId = 0;
     let ignoreNextInput = false;
+    let observers = [];
+    const withControls = input.hasAttribute("data-live-search-controls");
+    const stopObserving = () => {
+      observers.forEach((observer) => observer.disconnect());
+      observers = [];
+    };
 
     const loadLocal = () => {
       if (localItems) return localItems;
@@ -88,7 +115,7 @@ Borra esta nota después de leerla. */
         return;
       }
       const box = input.getBoundingClientRect();
-      const width = Math.max(box.width, Math.min(320, visibleWidth - 16));
+      const width = Math.max(box.width, Math.min(withControls ? 460 : 320, visibleWidth - 16));
       const left = Math.min(Math.max(visibleLeft + 8, box.left), visibleLeft + visibleWidth - width - 8);
       list.style.left = `${left}px`;
       list.style.width = `${width}px`;
@@ -106,6 +133,7 @@ Borra esta nota después de leerla. */
     };
 
     const close = () => {
+      stopObserving();
       list.hidden = true;
       active = -1;
       input.setAttribute("aria-expanded", "false");
@@ -132,8 +160,53 @@ Borra esta nota después de leerla. */
       input.blur();
     };
 
+    // Fila con − # + Personalizar que presiona los botones de la tarjeta del producto.
+    const controlsFor = (item) => {
+      const real = withControls ? cardControls(item.card) : null;
+      if (!real) return null;
+      const box = document.createElement("div");
+      box.className = "live-search-controls";
+      const button = (text, label, target, keepOpen = true) => {
+        const control = document.createElement("button");
+        control.type = "button";
+        control.className = "live-search-control";
+        control.textContent = text;
+        control.setAttribute("aria-label", label + " " + item.label);
+        control.addEventListener("pointerdown", (event) => event.preventDefault());
+        control.addEventListener("click", (event) => {
+          event.stopPropagation();
+          if (!keepOpen) {
+            close();
+            input.blur();
+          }
+          target.click();
+        });
+        return control;
+      };
+      const minus = button("−", "Restar", real.decrease);
+      const count = document.createElement("strong");
+      count.className = "live-search-count";
+      const sync = () => {
+        count.textContent = real.count.textContent.trim() || "0";
+        minus.disabled = real.decrease.disabled;
+        minus.title = real.decrease.title || "";
+      };
+      sync();
+      const observer = new MutationObserver(sync);
+      observer.observe(real.quick, {subtree: true, childList: true, characterData: true, attributes: true});
+      observers.push(observer);
+      box.append(minus, count, button("+", "Agregar", real.add));
+      if (real.customize) {
+        const customize = button("Personalizar", "Personalizar", real.customize, false);
+        customize.classList.add("is-customize");
+        box.append(customize);
+      }
+      return box;
+    };
+
     const render = (items, total, query) => {
       current = items;
+      stopObserving();
       list.replaceChildren();
       if (!items.length) {
         const empty = document.createElement("p");
@@ -158,7 +231,15 @@ Borra esta nota después de leerla. */
         option.addEventListener("pointerdown", (event) => event.preventDefault());
         option.addEventListener("click", () => choose(item));
         option.addEventListener("mouseenter", () => highlight(index));
-        list.append(option);
+        const controls = controlsFor(item);
+        if (controls) {
+          const row = document.createElement("div");
+          row.className = "live-search-row";
+          row.append(option, controls);
+          list.append(row);
+        } else {
+          list.append(option);
+        }
       });
       if (items.length && total > items.length) {
         const more = document.createElement("p");

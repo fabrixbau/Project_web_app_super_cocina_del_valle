@@ -70,9 +70,22 @@
     );
   }, true);
 
+  // Los botones − + de las sugerencias (live-search.js) reenvían su clic al botón real de
+  // la tarjeta; ni ese clic ni el reenviado deben cerrar la lupa (se siguen agregando).
+  let liveSearchProxyClick = false;
+
   document.addEventListener("click", (event) => {
     const button = event.target.closest("button, input[type='submit']");
     if (!button) return;
+    if (button.closest(".live-search-controls")) {
+      liveSearchProxyClick = true;
+      window.setTimeout(() => { liveSearchProxyClick = false; }, 0);
+      return;
+    }
+    if (liveSearchProxyClick) {
+      liveSearchProxyClick = false;
+      return;
+    }
 
     const activeInput = (isSearchInput(document.activeElement) ? document.activeElement : null) || pointerSearchInput;
     pointerSearchInput = null;

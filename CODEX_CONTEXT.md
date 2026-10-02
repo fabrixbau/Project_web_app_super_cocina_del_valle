@@ -1,5 +1,18 @@
 # CODEX_CONTEXT — Super Cocina del Valle
 
+### Celular: barra de búsqueda de la lupa en el tope de la pantalla (2026-10-02)
+
+- En celular (`max-width: 600px`), la barra que abre la lupa en Mesas y Pedidos (`.catalog-search-box.is-compact-field-open`, movida a `body` por `compact-capture.js`) ahora se fija en `top: calc(.5rem + env(safe-area-inset-top))` en lugar de `max(4.5rem, 18dvh)`; las sugerencias quedan justo debajo y hay más espacio libre sobre el teclado. Tabletas y escritorio sin cambios (regla al final de `app.css`, v369). Verificado con Playwright en 390×844 y 360×740 (barra en y=8 px) y 768×1024 sin cambio. El campo Cliente de Mesas no se tocó.
+
+### Mesas y Pedidos: − # + Personalizar dentro de las sugerencias de la lupa (2026-10-02)
+
+- En `/app/mesas/cuentas/<id>/` y `/app/pedidos/<id>/editar/`, cada sugerencia de la lupa trae a la derecha `−`, contador, `+` y `Personalizar` (todas las pantallas; si la lista es angosta los botones bajan debajo del nombre). Se activa con el atributo `data-live-search-controls` en el input (junto a `data-live-search-cards`).
+- **No hay lógica nueva de ticket**: `live-search.js` (v3) guarda la tarjeta de cada sugerencia y cada botón de la fila hace `.click()` sobre el botón real de esa tarjeta (`.catalog-quick-controls > button` para −, `form [type=submit]` para +, `.catalog-customize-form`/`form[data-customizable-product]` para Personalizar). Así reutiliza diálogos (Personalizar, pieza de pollo), paquetes, existencias y validaciones existentes. Un `MutationObserver` sobre `.catalog-quick-controls` refleja contador y `disabled` del − en la fila.
+- Si un producto tiene varias tarjetas, se prefiere la que NO arma paquetes (`[data-auto-meal-card]`, `[data-internal-auto-product]`), para que + agregue el producto suelto; la de Comida corrida/ejecutiva sólo se usa si es la única.
+- `+`/`−` dejan la lista abierta para seguir agregando; `Personalizar` la cierra y abre el diálogo. Para eso `search-dismiss.js` (v6) ignora el clic en `.live-search-controls` y el clic reenviado inmediato a la tarjeta (antes cualquier botón cerraba la lupa).
+- Estilos `.live-search-row/.live-search-controls/.live-search-control/.live-search-count` al final de `app.css` (v368). La lista con controles mide hasta 460px de ancho (antes 320).
+- Verificado con Playwright en 1440×900, 1280×800 (TABA+9), 853×405 y 390×844 en Mesas y Pedidos: + suma y la lista sigue abierta, − resta, contador = tarjeta, Personalizar abre su diálogo. No requiere migración.
+
 ### Pedidos y Caja: selector Mostrar táctil sin teclado (2026-09-29)
 
 - En celular y tablet táctil, `Mostrar` de `/app/pedidos/` y `/app/caja/` usa el mismo comportamiento de lista fija que Huevo opcional: un toque muestra opciones y otro toque sobre la misma barra las oculta.
