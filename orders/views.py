@@ -34,10 +34,10 @@ from menu.packaging import parse_packaging_quantities
 from menu.selection import apply_package_component_customizations, expanded_customizations, requested_customizations, requested_packages, resolve_product_selection, serialize_product_selector, ticket_item_name, ticket_modifications
 from tables.models import DiningTable, TableAccount
 
-from .cart import add_package, add_product, cart_control_summary, clear, decrease_product, get_order_mode, product_is_orderable, remove_item, resolve_cart, set_cart_note, set_item_note, set_order_mode, update_item, update_product_selection
+from .cart import add_package, add_product, cart_control_summary, clear, decrease_product, get_order_mode, product_is_orderable, remove_item, resolve_cart, set_cart_note, set_item_note, update_item, update_product_selection
 from .coffee_report import coffee_sales_for_date
 from .phones import phone_key as normalize_customer_phone
-from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm, PublicOrderModeForm
+from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm
 from .models import CashRegisterCut, CashRegisterExpense, CoffeeSettlement, Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
 from .services import ACTION_LABELS, add_cash_register_expense, add_customer_credit, apply_credit_to_debts, open_customer_debts, suggested_credit_allocation, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, settle_selected_debts_from_cashier, start_internal_order, transfer_order_to_table, transition_order, update_cash_register_cut, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
 
@@ -334,17 +334,9 @@ def internal_order_ticket(order):
     }
 
 
-def public_order_mode(request):
-    form = PublicOrderModeForm(request.POST or None, initial={"order_type": get_order_mode(request.session)})
-    if request.method == "POST" and form.is_valid():
-        set_order_mode(request.session, form.cleaned_data["order_type"])
-        return redirect("public_portal:menu")
-    return render(request, "orders/public_order_mode.html", {"form": form})
-
-
 def public_package_order(request, package_type):
     if not get_order_mode(request.session):
-        return redirect("public_portal:order_mode")
+        return redirect("public_portal:home")
     package = get_object_or_404(MealPackage, package_type=package_type, is_active=True)
     daily_menu = get_object_or_404(
         DailyMenu.objects.select_related(
@@ -355,7 +347,7 @@ def public_package_order(request, package_type):
         date=timezone.localdate(),
         status=DailyMenu.Status.PUBLISHED,
     )
-    form = PackageCartForm(request.POST or None, package=package, daily_menu=daily_menu)
+    form = PackageCartForm(request.POST or None, package=package, daily_menu=daily_menu, customers_only=True)
     if request.method == "POST" and form.is_valid():
         add_package(request.session, package=package, daily_menu=daily_menu, cleaned_data=form.cleaned_data)
         messages.success(request, "La comida fue agregada al carrito.")
@@ -372,7 +364,7 @@ def public_product_add(request, product_id):
     if not get_order_mode(request.session):
         if wants_json:
             return JsonResponse({"ok": False, "error": "Primero selecciona la modalidad del pedido."}, status=400)
-        return redirect("public_portal:order_mode")
+        return redirect("public_portal:home")
     product = get_object_or_404(
         Product.objects.select_related("category").prefetch_related(
             "service_periods", "option_groups__options",
@@ -444,7 +436,7 @@ def public_product_decrease(request, product_id):
 def public_cart(request):
     order_type = get_order_mode(request.session)
     if not order_type:
-        return redirect("public_portal:order_mode")
+        return redirect("public_portal:home")
     return render(request, "orders/public_cart.html", {
         "cart": resolve_cart(request.session), "order_type": order_type,
         "order_type_label": dict(Order.OrderType.choices)[order_type],
@@ -510,7 +502,7 @@ def public_cart_item_note(request, key):
 def public_checkout(request):
     order_type = get_order_mode(request.session)
     if not order_type:
-        return redirect("public_portal:order_mode")
+        return redirect("public_portal:home")
     cart_data = resolve_cart(request.session)
     if not cart_data["items"]:
         messages.error(request, "Agrega al menos un producto antes de finalizar.")

@@ -1,19 +1,35 @@
-<!-- NOTA TEMPORAL PARA APRENDIZAJE:
-La portada pública ahora ofrece un enlace hacia el catálogo real del menú.
-Borra esta nota al terminar de revisarla. -->
-<!doctype html>
-<html lang="es-MX">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pedir | Super Cocina del Valle</title>
-  <link rel="stylesheet" href="/static/css/app.css">
-</head>
-<body>
-  <main class="container public-home">
-    <h1>Super Cocina del Valle</h1>
-    <p>Consulta los productos disponibles de nuestro menú.</p>
-    <a class="button-link" href="{% url 'public_portal:menu' %}">Ver menú</a>
-  </main>
-</body>
-</html>
+{% extends "public_portal/base.html" %}
+{% block body_class %}pp-home{% endblock %}
+{% block content %}
+<section class="pp-hero">
+  <p class="pp-eyebrow">Comida casera todos los días</p>
+  <h1>¿Cómo quieres tu pedido?</h1>
+  <p>Elige una opción para ver el menú disponible ahora.</p>
+</section>
+
+<div class="pp-mode-choices">
+  <a class="pp-mode-choice{% if current_mode == 'pickup' %} is-current{% endif %}" href="{% url 'public_portal:menu' %}?modalidad=pickup">
+    <span class="pp-mode-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+    </span>
+    <span class="pp-mode-copy"><strong>Recoger en la fonda</strong><small>Pasas por él cuando esté listo. Pagas al recoger.</small></span>
+    <span class="pp-mode-arrow" aria-hidden="true">→</span>
+  </a>
+  <a class="pp-mode-choice{% if current_mode == 'delivery' %} is-current{% endif %}" href="{% url 'public_portal:menu' %}?modalidad=delivery">
+    <span class="pp-mode-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><circle cx="6" cy="17" r="2.5"/><circle cx="18" cy="17" r="2.5"/><path d="M8.5 17h7M3.5 17V9h8v8M11.5 11h4l3 4v2"/></svg>
+    </span>
+    <span class="pp-mode-copy"><strong>Entrega a domicilio</strong><small>Te lo llevamos. Pagas en efectivo, terminal o transferencia.</small></span>
+    <span class="pp-mode-arrow" aria-hidden="true">→</span>
+  </a>
+</div>
+
+{% if current_mode and cart_count %}
+  <a class="pp-resume" href="{% url 'public_portal:menu' %}">Tienes {{ cart_count }} artículo{{ cart_count|pluralize }} en tu pedido · <strong>Continuar</strong></a>
+{% endif %}
+
+<section class="pp-schedule" aria-label="Horario">
+  <div><strong>Desayunos</strong><span>Hasta las 12:30 p. m.</span></div>
+  <div><strong>Comida</strong><span>12:30 a 6:00 p. m.</span></div>
+</section>
+{% endblock %}

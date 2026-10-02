@@ -12534,3 +12534,20 @@ html[data-theme="dark"] .live-search-count { color: #edf4f0; }
     bottom: auto !important;
   }
 }
+
+/* Menú interno: visibilidad para el portal de clientes (/pedir/). Etiqueta sobre la foto de la
+   ficha, botón "Ocultar/Mostrar a clientes" en el pie y la pregunta Sí/No del formulario. */
+.menu-product-visual > .customer-visibility-badge {
+  position: absolute; left: .55rem; bottom: .55rem; padding: .28rem .5rem; border-radius: 999px;
+  color: #173c2f; background: rgb(255 255 255 / 92%); font-size: .64rem; font-style: normal; font-weight: 800;
+}
+.menu-admin-product.is-hidden-for-customers .customer-visibility-badge { color: #fff; background: rgb(122 67 32 / 92%); }
+.menu-admin-product.is-hidden-for-customers { border-color: #d9b48f; }
+.menu-admin-product footer .customer-visibility-toggle button { color: #7a4320; background: #f6ece2; border: 1px solid #e3c7aa; }
+.menu-admin-product footer .customer-visibility-toggle button.is-hidden { color: #fff; background: #1f5a43; border-color: #1f5a43; }
+.customer-visibility-field { display: grid; gap: .45rem; margin-bottom: .9rem; }
+.customer-visibility-label { font-weight: 800; }
+.customer-visibility-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .5rem; }
+.customer-visibility-option { display: flex; align-items: center; gap: .6rem; min-height: 3rem; padding: .6rem .8rem; border: 2px solid #d8d2c4; border-radius: .65rem; background: #fff; cursor: pointer; }
+.customer-visibility-option:has(input:checked) { border-color: #1f5a43; background: #edf4f0; }
+.customer-visibility-option input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: #1f5a43; }

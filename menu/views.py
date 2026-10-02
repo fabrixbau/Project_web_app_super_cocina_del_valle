@@ -970,6 +970,20 @@ def product_toggle_availability(request, product_id):
     return redirect("menu:configuration")
 
 
+@role_required(*SECTION_ROLE_MATRIX["menu"])
+@require_POST
+def product_toggle_customer_visibility(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+    product.show_to_customers = not product.show_to_customers
+    product.save(update_fields=["show_to_customers", "updated_at"])
+    state = "visible" if product.show_to_customers else "oculto"
+    messages.success(request, f"{product.name} ahora está {state} para clientes.")
+    next_url = request.POST.get("next", "")
+    if next_url.startswith("/app/menu/"):
+        return redirect(next_url)
+    return redirect("menu:configuration")
+
+
 def _product_delete_blocker(product):
     # NOTA TEMPORAL PARA APRENDIZAJE: DailyMenu protege sus 9 componentes (agua,
     # consomé, tiempos, guisados, complemento) y DailyProductStock protege su
@@ -1121,8 +1135,15 @@ def package_configuration(request):
 
 
 def public_menu(request):
-    if request.session.get("public_order_mode") not in {"pickup", "delivery"}:
-        return redirect("public_portal:order_mode")
+    from orders.cart import get_order_mode, set_order_mode
+
+    requested_mode = request.GET.get("modalidad")
+    if requested_mode in {"pickup", "delivery"}:
+        # La portada envía la modalidad elegida; se guarda y se limpia la URL.
+        set_order_mode(request.session, requested_mode)
+        return redirect("public_portal:menu")
+    if not get_order_mode(request.session):
+        return redirect("public_portal:home")
     current_time = timezone.localtime().time()
     public_mode = "breakfast" if current_time < time(12, 30) else "lunch"
     public_visibility_field = (
@@ -1146,7 +1167,7 @@ def public_menu(request):
     )
     base_public_products = (
         Product.objects.filter(
-            is_available=True, is_sold_individually=True,
+            is_available=True, is_sold_individually=True, show_to_customers=True,
             packaging_kind=Product.PackagingKind.NONE,
         )
         .exclude(component_type__in=daily_component_types)
@@ -1208,7 +1229,7 @@ def public_menu(request):
         )
         for title, products in group_products:
             visible_products = filter_products_by_stock(
-                [product for product in products if product and product.is_available],
+                [product for product in products if product and product.is_available and product.show_to_customers],
                 daily_menu=daily_menu, channel=DailyProductStock.Channel.ORDERS,
             )
             if visible_products:

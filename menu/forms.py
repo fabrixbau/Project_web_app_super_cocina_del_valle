@@ -55,7 +55,7 @@ class ProductForm(forms.ModelForm):
         model = Product
         fields = (
             "category", "name", "price", "description", "image", "image_position_x",
-            "image_position_y", "image_zoom", "is_available",
+            "image_position_y", "image_zoom", "is_available", "show_to_customers",
             "component_type", "service_periods", "is_sold_individually", "uses_bread_stock",
             "eligible_for_executive_meal", "packaging_kind", "sort_order",
         )
@@ -90,6 +90,30 @@ class ProductForm(forms.ModelForm):
             "packaging_kind": "Clasifícalo para mostrarlo en Envases; estas opciones nunca aparecen en el menú público.",
             "sort_order": "Los números menores aparecen primero dentro de la categoría.",
         }
+
+    CUSTOMER_VISIBILITY_CHOICES = (
+        ("yes", "Sí, mostrarlo en el menú para clientes"),
+        ("no", "No, sólo para uso interno"),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Al crear un producto la pregunta no trae respuesta marcada: hay que decidir
+        # explícitamente si el cliente lo verá en /pedir/.
+        is_new = not self.instance.pk
+        self.fields["show_to_customers"] = forms.TypedChoiceField(
+            label="¿Mostrar en el menú para clientes?",
+            choices=self.CUSTOMER_VISIBILITY_CHOICES,
+            coerce=lambda value: value == "yes",
+            widget=forms.RadioSelect,
+            help_text="Ocultarlo lo retira de /pedir/ (también como opción de paquetes); Mesas y Pedidos internos no cambian.",
+            error_messages={"required": "Indica si el cliente podrá ver este producto."},
+        )
+        # ModelForm toma el booleano del producto como valor inicial; el radio usa "yes"/"no".
+        if is_new and not self.is_bound:
+            self.initial.pop("show_to_customers", None)
+        elif not is_new:
+            self.initial["show_to_customers"] = "yes" if self.instance.show_to_customers else "no"
 
     def clean_name(self):
         name = " ".join(self.cleaned_data["name"].split())
@@ -549,15 +573,19 @@ class PackageSelectionForm(forms.Form):
     tortillas = forms.ChoiceField(label="¿Lleva tortillas?", choices=YES_NO_CHOICES)
     beans = forms.ChoiceField(label="¿Lleva frijoles?", choices=YES_NO_CHOICES)
 
-    def __init__(self, *args, package, daily_menu, **kwargs):
+    def __init__(self, *args, package, daily_menu, customers_only=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.package = package
         self.daily_menu = daily_menu
+        self.customers_only = customers_only
+        # En /pedir/ sólo se ofrecen componentes visibles para clientes; Mesas y Pedidos
+        # internos (customers_only=False) conservan todas las opciones.
+        visible = {"show_to_customers": True} if customers_only else {}
         self.fields["first_course"].queryset = Product.objects.filter(
-            pk__in=[product.pk for product in daily_menu.first_course_options if product], is_available=True
+            pk__in=[product.pk for product in daily_menu.first_course_options if product], is_available=True, **visible
         ).order_by("name")
         self.fields["second_course"].queryset = Product.objects.filter(
-            pk__in=[product.pk for product in daily_menu.second_course_options if product], is_available=True
+            pk__in=[product.pk for product in daily_menu.second_course_options if product], is_available=True, **visible
         ).order_by("name")
 
         if package.package_type == MealPackage.PackageType.RUNNING:
@@ -571,7 +599,7 @@ class PackageSelectionForm(forms.Form):
             )
             self.fields["main_course"].label = "Tercer tiempo · plancha"
         main_ids = [product.pk for product in main_products if product]
-        main_queryset = Product.objects.filter(pk__in=main_ids, is_available=True)
+        main_queryset = Product.objects.filter(pk__in=main_ids, is_available=True, **visible)
         if package.package_type == MealPackage.PackageType.RUNNING:
             # Guisados en el orden del menú del día: pollo, res y guisado variado.
             main_queryset = main_queryset.order_by(Case(

@@ -1,12 +1,81 @@
+{% extends "public_portal/base.html" %}
 {% load static %}
-<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Menú | Super Cocina del Valle</title><link rel="stylesheet" href="{% static 'css/app.css' %}?v=197"></head>
-<body><main class="container public-menu-page">
-<header class="public-menu-heading"><div><a href="{% url 'public_portal:home' %}">← Inicio</a><h1>Nuestro menú</h1><p>Mostrando {{ public_menu_mode_label|lower }} disponibles en este horario.</p></div><div><strong>{% if request.session.public_order_mode == 'pickup' %}Recoger en la fonda{% else %}Entrega a domicilio{% endif %}</strong><a href="{% url 'public_portal:order_mode' %}">Cambiar modalidad</a></div></header>
-{% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
-<div class="public-menu-workspace" data-public-workspace><div class="public-menu-catalog">
-{% if public_menu_mode == 'breakfast' %}<section class="public-category-area"><h2>Desayunos</h2><nav class="public-category-tabs" data-public-tabs="breakfast">{% for category in categories %}<button type="button" data-public-category="breakfast-{{ category.id }}"{% if forloop.first %} class="is-selected"{% endif %}>{{ category.name }}</button>{% endfor %}</nav>{% for category in categories %}<section class="public-category-panel" data-public-panel="breakfast-{{ category.id }}"{% if not forloop.first %} hidden{% endif %}><h2>{{ category.name }}</h2><div class="table-product-grid">{% for product in category.available_products %}{% include "menu/_public_product_card.html" with product=product %}{% endfor %}</div></section>{% endfor %}</section><p class="message public-food-notice"><strong>Puedes pedir tu comida desde ahora.</strong> Las entregas y recolecciones de comida comienzan después de la 1:00 p. m., cuando el menú está listo.</p>{% endif %}
-{% if daily_menu %}<section class="public-food-feature{% if public_menu_mode == 'breakfast' %} is-advance{% endif %}"><div class="public-package-actions"><span>Arma tu comida</span><h2>Paquetes de comida</h2>{% for package in meal_packages %}<a href="{% url 'public_portal:package_selection' package.package_type %}"><strong>{{ package.name }}</strong><small>Desde ${{ package.price_without_water }}</small></a>{% endfor %}</div><article class="public-daily-board"><header><span>Menú diario</span><h2>Hoy tenemos</h2>{% if daily_menu.water_product %}<p>Agua del día · <strong>{{ daily_menu.water_product.name }}</strong></p>{% endif %}</header><div>{% for group in daily_groups %}<section><h3>{{ group.title }}</h3>{% for product in group.products %}<p>{{ product.name }}</p>{% endfor %}</section>{% endfor %}</div></article></section>{% endif %}
-{% if public_menu_mode == 'lunch' %}{% include "menu/_public_category_catalog.html" with food_categories=categories catalog_id="lunch" title="También puedes pedir" %}{% elif advance_lunch_categories %}{% include "menu/_public_category_catalog.html" with food_categories=advance_lunch_categories catalog_id="advance" title="Otros productos de comida" %}{% endif %}
-</div><aside class="table-ticket public-live-ticket" data-public-ticket{% if not cart_controls.count %} hidden{% endif %}><div class="current-ticket-heading"><div><small>Tu pedido</small><h2>Ticket</h2></div><span><strong data-public-ticket-count>0</strong> artículos</span></div><button type="button" class="public-note-button" data-public-note-open>Agregar nota general</button><p class="public-ticket-note" data-public-ticket-note hidden></p><div class="table-ticket-items" data-public-ticket-items></div><p class="table-ticket-total"><span>Total</span><strong data-public-ticket-total>$0.00</strong></p><a class="button-link public-checkout-link" href="{% url 'public_portal:checkout' %}">Continuar con datos y pago</a></aside></div>
-</main><dialog class="ticket-note-dialog" data-public-note-dialog><form method="post" action="{% url 'public_portal:cart_note' %}" data-public-note-form>{% csrf_token %}<div class="dialog-heading"><div><h2>Nota general</h2><p>Escribe una indicación para todo el pedido.</p></div><button type="button" data-public-note-close>×</button></div><label>Comentario<textarea name="note" rows="4" maxlength="1000"></textarea></label><button type="submit">Guardar nota</button></form></dialog>
-{{ product_customizations|json_script:"product-selector-data" }}{{ cart_controls|json_script:"public-cart-controls" }}{% include "menu/_product_selector_dialog.html" %}<script src="{% static 'js/product-selector.js' %}?v=7"></script><script src="{% static 'js/public-menu-controls.js' %}?v=2"></script><script src="{% static 'js/ticket-expand.js' %}?v=8"></script><script src="{% static 'js/search-dismiss.js' %}?v=2"></script></body></html>
+{% block title %}Menú | Super Cocina del Valle{% endblock %}
+{% block body_class %}pp-menu-page{% endblock %}
+{% block topbar_actions %}
+  <a class="pp-mode-chip" href="{% url 'public_portal:home' %}" title="Cambiar modalidad">
+    <span>{% if request.session.public_order_mode == 'pickup' %}Recoger en la fonda{% else %}Entrega a domicilio{% endif %}</span>
+    <small>Cambiar</small>
+  </a>
+{% endblock %}
+{% block content %}
+<div class="pp-menu-layout" data-public-workspace>
+  <div class="pp-menu-catalog">
+    <section class="pp-menu-intro">
+      <h1>{% if public_menu_mode == 'breakfast' %}Desayunos{% else %}Comida{% endif %}</h1>
+      <p>{% if public_menu_mode == 'breakfast' %}Menú disponible hasta las 12:30 p. m. También puedes adelantar tu comida.{% else %}Menú disponible hasta las 6:00 p. m.{% endif %}</p>
+    </section>
+
+    {# Orden en comida: menú del día, barra de categorías, paquetes y después los productos. #}
+    {% if public_menu_mode == 'lunch' %}{% include "menu/_public_daily_board.html" %}{% endif %}
+
+    {# Navegación por categorías: fija arriba y desplazable horizontalmente. #}
+    <nav class="pp-category-nav" aria-label="Categorías" data-pp-category-nav>
+      {% if daily_menu and meal_packages and public_menu_mode == 'lunch' %}<a href="#pp-paquetes">Paquetes del día</a>{% endif %}
+      {% for category in categories %}<a href="#pp-cat-{{ category.id }}">{{ category.name }}</a>{% endfor %}
+      {% if public_menu_mode == 'breakfast' and daily_menu %}<a href="#pp-adelanta">Comida del día</a>{% endif %}
+      {% for category in advance_lunch_categories %}<a href="#pp-cat-{{ category.id }}">{{ category.name }}</a>{% endfor %}
+    </nav>
+
+    {% if public_menu_mode == 'lunch' %}{% include "menu/_public_daily_packages.html" %}{% endif %}
+
+    {% for category in categories %}{% include "menu/_public_category_catalog.html" with category=category %}{% endfor %}
+
+    {% if public_menu_mode == 'breakfast' %}
+      {% if daily_menu or advance_lunch_categories %}
+        <div class="pp-section pp-advance-divider" id="pp-adelanta"><strong>Adelanta tu comida</strong><span>Las comidas se entregan o recogen a partir de la 1:00 p. m.</span></div>
+      {% endif %}
+      {% include "menu/_public_daily_board.html" %}
+      {% include "menu/_public_daily_packages.html" %}
+      {% for category in advance_lunch_categories %}{% include "menu/_public_category_catalog.html" with category=category %}{% endfor %}
+    {% endif %}
+
+    {% if not categories and not advance_lunch_categories and not daily_menu %}
+      <p class="pp-empty">Por ahora no hay productos disponibles. Vuelve a intentarlo más tarde.</p>
+    {% endif %}
+  </div>
+
+  {# Ticket: columna derecha en pantallas grandes; hoja inferior en celular (se abre con la barra "Ver pedido"). #}
+  <aside class="pp-ticket" data-public-ticket data-pp-ticket{% if not cart_controls.count %} hidden{% endif %} aria-label="Tu pedido">
+    <header class="pp-ticket-heading">
+      <div><small>Tu pedido</small><h2>Artículos: <span data-public-ticket-count>0</span></h2></div>
+      <button type="button" class="pp-ticket-close" data-pp-ticket-close aria-label="Cerrar pedido">×</button>
+    </header>
+    <div class="pp-ticket-items table-ticket-items" data-public-ticket-items></div>
+    <p class="pp-ticket-note public-ticket-note" data-public-ticket-note hidden></p>
+    <button type="button" class="pp-link-button" data-public-note-open>Agregar nota para todo el pedido</button>
+    <footer class="pp-ticket-footer">
+      <p><span>Total</span><strong data-public-ticket-total>$0.00</strong></p>
+      <a class="pp-primary-button" href="{% url 'public_portal:checkout' %}">Continuar con datos y pago</a>
+    </footer>
+  </aside>
+</div>
+{% endblock %}
+
+{% block after_main %}
+<button type="button" class="pp-cart-bar" data-pp-cart-bar{% if not cart_controls.count %} hidden{% endif %}>
+  <span class="pp-cart-bar-count" data-public-cart-count>{{ cart_controls.count }}</span>
+  <span>Ver pedido</span>
+  <strong data-pp-cart-total>${{ cart_controls.total_display }}</strong>
+</button>
+<div class="pp-sheet-backdrop" data-pp-sheet-backdrop hidden></div>
+<dialog class="ticket-note-dialog" data-public-note-dialog><form method="post" action="{% url 'public_portal:cart_note' %}" data-public-note-form>{% csrf_token %}<div class="dialog-heading"><div><h2>Nota para todo el pedido</h2><p>Por ejemplo: sin cebolla en todo, tocar el timbre, etc.</p></div><button type="button" data-public-note-close aria-label="Cerrar">×</button></div><label>Comentario<textarea name="note" rows="4" maxlength="1000"></textarea></label><button type="submit">Guardar nota</button></form></dialog>
+{{ product_customizations|json_script:"product-selector-data" }}{{ cart_controls|json_script:"public-cart-controls" }}
+{% include "menu/_product_selector_dialog.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/product-selector.js' %}?v=7"></script>
+<script src="{% static 'js/public-menu-controls.js' %}?v=3"></script>
+<script src="{% static 'js/public-portal.js' %}?v=1"></script>
+{% endblock %}

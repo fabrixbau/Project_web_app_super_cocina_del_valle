@@ -26,6 +26,12 @@ class PackageCartForm(PackageSelectionForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields.pop("order_type")
+        if self.customers_only:
+            # Portal de clientes: sin la opción vacía "---------" y con el nombre del
+            # producto a secas (Product.__str__ antepone la categoría, p. ej. "Comida corrida · ").
+            for name in ("first_course", "second_course", "main_course"):
+                self.fields[name].empty_label = None
+                self.fields[name].label_from_instance = lambda product: product.name
         for name in ("first_course", "second_course", "main_course", "chicken_piece", "tortillas", "beans"):
             choices = self.fields[name].choices
             if name == "chicken_piece":
@@ -277,14 +283,6 @@ class CustomerAddressForm(forms.ModelForm):
             "references": "Referencias",
         }
         widgets = {"references": forms.Textarea(attrs={"rows": 3})}
-
-
-class PublicOrderModeForm(forms.Form):
-    order_type = forms.ChoiceField(
-        label="¿Cómo quieres recibir tu pedido?",
-        choices=Order.OrderType.choices,
-        widget=forms.RadioSelect,
-    )
 
 
 class PublicCheckoutForm(forms.Form):

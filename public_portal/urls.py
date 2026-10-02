@@ -1,6 +1,5 @@
-# NOTA TEMPORAL PARA APRENDIZAJE:
-# La modalidad se elige antes del menú; las demás rutas reutilizan esa decisión guardada
-# en sesión. Borra esta nota después de leerla.
+# La portada /pedir/ pregunta la modalidad (Recoger o Entrega) y enlaza a
+# /pedir/menu/?modalidad=pickup|delivery, que la guarda en sesión para el resto del flujo.
 
 from django.urls import path
 
@@ -13,7 +12,6 @@ from . import views
 app_name = "public_portal"
 urlpatterns = [
     path("", views.home, name="home"),
-    path("modalidad/", order_views.public_order_mode, name="order_mode"),
     path("menu/", menu_views.public_menu, name="menu"),
     path("menu/paquete/<str:package_type>/", order_views.public_package_order, name="package_selection"),
     path("menu/producto/<int:product_id>/agregar/", order_views.public_product_add, name="product_add"),

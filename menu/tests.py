@@ -53,6 +53,7 @@ class ProductImageFramingTests(TestCase):
                 "image_position_y": "82",
                 "image_zoom": "2.25",
                 "is_available": "on",
+                "show_to_customers": "yes",
                 "component_type": Product.ComponentType.GENERAL,
                 "is_sold_individually": "on",
                 "packaging_kind": Product.PackagingKind.NONE,

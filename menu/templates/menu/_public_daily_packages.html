@@ -1,0 +1,20 @@
+{# Paquetes Comida corrida/ejecutiva (tarjetas claras con botón Armar). #}
+{% if daily_menu and meal_packages %}
+<section class="pp-section pp-packages" id="pp-paquetes">
+  <h2>{% if public_menu_mode == 'breakfast' %}Comida del día{% else %}Paquetes del día{% endif %}</h2>
+  <div class="pp-package-cards">
+    {% for package in meal_packages %}
+      <a class="pp-package-card" href="{% url 'public_portal:package_selection' package.package_type %}">
+        <span class="pp-package-copy">
+          <strong>{{ package.name }}</strong>
+          <small>{% if package.package_type == 'running' %}Sopa, segundo tiempo y guisado del día{% else %}Sopa, segundo tiempo y plato a la plancha{% endif %}</small>
+        </span>
+        <span class="pp-package-side">
+          <span class="pp-package-price"><small>Desde</small>${{ package.price_without_water }}</span>
+          <span class="pp-package-cta">Armar</span>
+        </span>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

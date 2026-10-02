@@ -7,7 +7,6 @@ Borra esta nota cuando termines de revisar el flujo. */
   const stateNode = document.querySelector("#public-cart-controls");
   if (!stateNode) return;
   const csrfToken = document.querySelector("input[name='csrfmiddlewaretoken']")?.value;
-  const cartLinkCount = document.querySelector("[data-public-cart-count]");
   const ticket = document.querySelector("[data-public-ticket]");
   const ticketItems = document.querySelector("[data-public-ticket-items]");
   const ticketCount = document.querySelector("[data-public-ticket-count]");
@@ -22,7 +21,7 @@ Borra esta nota cuando termines de revisar el flujo. */
       card.querySelector("[data-standard-quantity]").textContent = quantity;
       card.querySelector("[data-public-decrease]").disabled = quantity === 0;
     });
-    if (cartLinkCount) cartLinkCount.textContent = cart.count;
+    document.querySelectorAll("[data-public-cart-count]").forEach((node) => { node.textContent = cart.count; });
     if (ticketCount) ticketCount.textContent = cart.count;
     if (ticketTotal) ticketTotal.textContent = `$${cart.total_display}`;
     if (ticketNote) {
@@ -68,6 +67,8 @@ Borra esta nota cuando termines de revisar el flujo. */
         row.append(copy, price, controls); ticketItems.append(row);
       });
     }
+    // public-portal.js escucha este aviso para la barra "Ver pedido" del celular.
+    document.dispatchEvent(new CustomEvent("public-cart-rendered", {detail: cart}));
   }
 
   function showError(message) {

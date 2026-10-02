@@ -29,6 +29,7 @@ urlpatterns = [
     path("productos/<int:product_id>/ingredientes/grupos/<int:group_id>/opciones/<int:option_id>/editar/", views.product_option_form, name="product_option_edit"),
     path("productos/<int:product_id>/ingredientes/grupos/<int:group_id>/opciones/<int:option_id>/eliminar/", views.product_option_delete, name="product_option_delete"),
     path("productos/<int:product_id>/disponibilidad/", views.product_toggle_availability, name="product_toggle_availability"),
+    path("productos/<int:product_id>/clientes/", views.product_toggle_customer_visibility, name="product_toggle_customer_visibility"),
     path("productos/<int:product_id>/eliminar/", views.product_delete, name="product_delete"),
     path("diario/", views.daily_menu_list, name="daily_menu_list"),
     path("diario/nuevo/", views.daily_menu_form, name="daily_menu_create"),

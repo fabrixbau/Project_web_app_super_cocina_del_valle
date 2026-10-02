@@ -91,6 +91,9 @@ class Product(models.Model):
     image_position_y = models.PositiveSmallIntegerField(default=50, validators=[MaxValueValidator(100)])
     image_zoom = models.DecimalField(max_digits=3, decimal_places=2, default=1, validators=[MinValueValidator(1), MaxValueValidator(3)])
     is_available = models.BooleanField(default=True)
+    # Portal de clientes (/pedir/): un producto oculto no aparece en el menú público ni como
+    # opción de los paquetes, aunque siga disponible para Mesas y Pedidos internos.
+    show_to_customers = models.BooleanField("visible para clientes", default=True)
     component_type = models.CharField(
         max_length=30,
         choices=ComponentType.choices,

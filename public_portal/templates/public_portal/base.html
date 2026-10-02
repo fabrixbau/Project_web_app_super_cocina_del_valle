@@ -1,0 +1,27 @@
+{% load static %}<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#174735">
+  <title>{% block title %}Pedir | Super Cocina del Valle{% endblock %}</title>
+  {# app.css aporta el diálogo de Personalizar; public-portal.css da el diseño del portal de clientes. #}
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=370">
+  <link rel="stylesheet" href="{% static 'css/public-portal.css' %}?v=6">
+</head>
+<body class="pp-body {% block body_class %}{% endblock %}">
+  <header class="pp-topbar">
+    <a class="pp-brand" href="{% url 'public_portal:home' %}">
+      <span class="pp-brand-mark" aria-hidden="true">SC</span>
+      <span><strong>Super Cocina</strong><small>del Valle</small></span>
+    </a>
+    {% block topbar_actions %}{% endblock %}
+  </header>
+  <main class="pp-main {% block main_class %}{% endblock %}">
+    {% for message in messages %}<p class="pp-message {{ message.tags }}">{{ message }}</p>{% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+  {% block after_main %}{% endblock %}
+  {% block scripts %}{% endblock %}
+</body>
+</html>

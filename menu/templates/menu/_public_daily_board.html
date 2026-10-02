@@ -1,0 +1,14 @@
+{# "Hoy tenemos": lo que hay hoy en el menú diario (tiempos y guisados), arriba del menú. #}
+{% if daily_menu and daily_groups %}
+<section class="pp-today" aria-label="Menú del día">
+  <header>
+    <h2>Hoy tenemos</h2>
+    {% if daily_menu.water_product %}<span class="pp-today-water">Agua del día: <strong>{{ daily_menu.water_product.name }}</strong></span>{% endif %}
+  </header>
+  <div class="pp-today-groups">
+    {% for group in daily_groups %}
+      <div class="pp-today-group"><strong>{{ group.title }}</strong><p>{% for product in group.products %}<span>{{ product.name }}</span>{% endfor %}</p></div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

@@ -193,7 +193,7 @@ def set_order_mode(session, mode):
 
 
 def product_is_orderable(product):
-    if not product.is_available or not product.is_sold_individually:
+    if not product.is_available or not product.is_sold_individually or not product.show_to_customers:
         return False
     daily_types = {
         Product.ComponentType.CHICKEN_CONSOMME, Product.ComponentType.VARIABLE_FIRST_COURSE,
@@ -254,7 +254,9 @@ def resolve_cart(session):
             selected = Product.objects.in_bulk([
                 raw.get("first_course_id"), raw.get("second_course_id"), raw.get("main_course_id")
             ])
-            if not package or not daily_menu or len(selected) != 3 or any(not product.is_available for product in selected.values()):
+            if not package or not daily_menu or len(selected) != 3 or any(
+                not product.is_available or not product.show_to_customers for product in selected.values()
+            ):
                 continue
             first_id, second_id, main_id = (
                 raw["first_course_id"], raw["second_course_id"], raw["main_course_id"]
