@@ -34,12 +34,14 @@ from menu.packaging import parse_packaging_quantities
 from menu.selection import apply_package_component_customizations, expanded_customizations, requested_customizations, requested_packages, resolve_product_selection, serialize_product_selector, ticket_item_name, ticket_modifications
 from tables.models import DiningTable, TableAccount
 
-from .cart import add_package, add_product, cart_control_summary, clear, decrease_product, get_order_mode, product_is_orderable, remove_item, resolve_cart, set_cart_note, set_item_note, update_item, update_product_selection
+from public_portal.preview import public_time
+from .delivery_zone import street_choices
+from .cart import add_package, add_product, cart_control_summary, cart_has_lunch_items, clear, decrease_product, get_order_mode, product_is_orderable, remove_item, resolve_cart, set_cart_note, set_item_note, update_item, update_product_selection
 from .coffee_report import coffee_sales_for_date
 from .phones import phone_key as normalize_customer_phone
 from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm
 from .models import CashRegisterCut, CashRegisterExpense, CoffeeSettlement, Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
-from .services import ACTION_LABELS, add_cash_register_expense, add_customer_credit, apply_credit_to_debts, open_customer_debts, suggested_credit_allocation, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, settle_selected_debts_from_cashier, start_internal_order, transfer_order_to_table, transition_order, update_cash_register_cut, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
+from .services import ACTION_LABELS, link_public_order_customer, add_cash_register_expense, add_customer_credit, apply_credit_to_debts, open_customer_debts, suggested_credit_allocation, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, settle_selected_debts_from_cashier, start_internal_order, transfer_order_to_table, transition_order, update_cash_register_cut, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
 
 
 INTERNAL_MENU_MODE_KEY = "internal_order_menu_mode"
@@ -348,13 +350,35 @@ def public_package_order(request, package_type):
         status=DailyMenu.Status.PUBLISHED,
     )
     form = PackageCartForm(request.POST or None, package=package, daily_menu=daily_menu, customers_only=True)
-    if request.method == "POST" and form.is_valid():
-        add_package(request.session, package=package, daily_menu=daily_menu, cleaned_data=form.cleaned_data)
-        messages.success(request, "La comida fue agregada al carrito.")
-        return redirect("public_portal:menu")
+    if request.method == "POST":
+        # Con el contador − # + llegan varias comidas en `package_batch` (mismo formato que
+        # el diálogo del personal). Se validan todas antes de agregar cualquiera.
+        try:
+            requested = requested_packages(request.POST)
+        except ValidationError as error:
+            form.add_error(None, error.message)
+            requested = []
+        candidates = [
+            (PackageCartForm(data, package=package, daily_menu=daily_menu, customers_only=True), quantity)
+            for data, quantity in requested
+        ]
+        invalid = next((candidate for candidate, _quantity in candidates if not candidate.is_valid()), None)
+        if candidates and not invalid:
+            total_meals = 0
+            for candidate, quantity in candidates:
+                cleaned = {**candidate.cleaned_data, "quantity": min(99, candidate.cleaned_data["quantity"] * quantity)}
+                add_package(request.session, package=package, daily_menu=daily_menu, cleaned_data=cleaned)
+                total_meals += cleaned["quantity"]
+            messages.success(
+                request,
+                "La comida fue agregada al pedido." if total_meals == 1 else f"Se agregaron {total_meals} comidas al pedido.",
+            )
+            return redirect("public_portal:menu")
+        if invalid:
+            form = invalid
     return render(request, "orders/public_package_order.html", {
         "package": package, "daily_menu": daily_menu, "form": form,
-        "advance_food_order": timezone.localtime().time() < time(13, 0),
+        "advance_food_order": public_time(request.session) < time(13, 0),
     })
 
 
@@ -380,7 +404,7 @@ def public_product_add(request, product_id):
         Product.ComponentType.BEEF_STEW,
         Product.ComponentType.VARIED_STEW,
     }
-    current_time = timezone.localtime().time()
+    current_time = public_time(request.session)
     visibility_field = "show_on_public_breakfast" if current_time < time(12, 31) else "show_on_public_lunch"
     category_is_visible = product.component_type in daily_component_types or getattr(product.category, visibility_field)
     if current_time < time(12, 31) and product.category.show_on_public_lunch:
@@ -389,7 +413,7 @@ def public_product_add(request, product_id):
         error_message = "Los envases se registran directamente por el personal."
     elif not category_is_visible:
         error_message = "Ese producto no está visible en el menú de este horario."
-    elif not product_is_orderable(product):
+    elif not product_is_orderable(product, now=current_time):
         error_message = "Ese producto no está disponible para pedir ahora."
     elif form.is_valid():
         try:
@@ -447,28 +471,30 @@ def public_cart(request):
 def public_cart_update(request, key):
     form = ProductCartForm(request.POST)
     updated = form.is_valid() and update_item(request.session, key=key, quantity=form.cleaned_data["quantity"])
-    if updated:
-        messages.success(request, "La cantidad fue actualizada.")
-    else:
-        messages.error(request, "No fue posible actualizar esa partida.")
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        # Los botones del ticket no recargan la página: un aviso guardado aquí se
+        # acumularía y aparecería de golpe en la siguiente pantalla (p. ej. al Armar).
         return JsonResponse({
             "ok": bool(updated), "cart": cart_control_summary(request.session),
             "error": "No fue posible actualizar esa partida." if not updated else "",
         }, status=200 if updated else 400)
+    if updated:
+        messages.success(request, "La cantidad fue actualizada.")
+    else:
+        messages.error(request, "No fue posible actualizar esa partida.")
     return redirect("public_portal:cart")
 
 
 @require_POST
 def public_cart_remove(request, key):
     removed = remove_item(request.session, key=key)
-    if removed:
-        messages.success(request, "La partida fue eliminada.")
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return JsonResponse({
             "ok": bool(removed), "cart": cart_control_summary(request.session),
             "error": "La partida ya no está en tu ticket." if not removed else "",
         }, status=200 if removed else 404)
+    if removed:
+        messages.success(request, "La partida fue eliminada.")
     return redirect("public_portal:cart")
 
 
@@ -510,6 +536,8 @@ def public_checkout(request):
     form = PublicCheckoutForm(
         request.POST or None, cart_total=cart_data["total"], order_type=order_type,
         initial={"notes": request.session.get("public_order_note", "")},
+        now=public_time(request.session),
+        earliest=time(13, 0) if cart_has_lunch_items(cart_data) else None,
     )
     if request.method == "POST" and form.is_valid():
         if cart_data["invalid_count"]:
@@ -524,6 +552,8 @@ def public_checkout(request):
                 return redirect("public_portal:order_confirmation", public_token=order.public_token)
     return render(request, "orders/public_checkout.html", {
         "cart": cart_data, "form": form, "order_type": order_type,
+        "summary": cart_control_summary(request.session),
+        "delivery_streets": street_choices() if order_type == Order.OrderType.DELIVERY else [],
     })
 
 
@@ -1576,7 +1606,15 @@ def order_detail(request, order_id):
         {"value": action, "label": ACTION_LABELS[action], "danger": action == "cancel"}
         for action in _order_actions_for_user(order, request.user)
     ] if can_manage else []
+    # Pedido web sin ficha: clientes registrados con el mismo celular (sugerencia para asociar).
+    agenda_matches = []
+    if order.source == Order.Source.PUBLIC_WEB and not order.agenda_customer_id and can_manage:
+        agenda_matches = list(
+            Customer.objects.filter(phone_key=normalize_customer_phone(order.phone)).prefetch_related("addresses")
+        ) if order.phone else []
     return render(request, "orders/order_detail.html", {
+        "agenda_matches": agenda_matches,
+        "show_agenda_panel": order.source == Order.Source.PUBLIC_WEB and not order.agenda_customer_id and can_manage,
         "order": order,
         "order_actions": actions,
         "can_edit_order": can_edit,
@@ -1588,6 +1626,25 @@ def order_detail(request, order_id):
         ),
         "auto_print_job_id": request.GET.get("printed_job") if request.GET.get("printed_job", "").isdigit() else None,
     })
+
+
+@require_POST
+@role_required(ADMIN, ORDER_TAKER)
+def order_link_customer(request, order_id):
+    """Pedido web: asociarlo a un cliente registrado (opcionalmente sustituyendo sus datos)
+    o crear la ficha con lo que mandó el cliente."""
+    order = get_object_or_404(Order, pk=order_id)
+    customer = address = None
+    if request.POST.get("action") != "create":
+        customer = get_object_or_404(Customer, pk=request.POST.get("customer_id"))
+        address_id = request.POST.get("address_id")
+        address = customer.addresses.filter(pk=address_id).first() if address_id else customer.addresses.order_by("-updated_at").first()
+    order = link_public_order_customer(
+        order=order, actor=request.user, customer=customer, address=address,
+        replace_data=request.POST.get("replace_data") == "on",
+    )
+    messages.success(request, f"{order.formatted_number} quedó asociado a {order.agenda_customer.name}.")
+    return redirect("orders:order_detail", order_id=order.pk)
 
 
 @require_POST

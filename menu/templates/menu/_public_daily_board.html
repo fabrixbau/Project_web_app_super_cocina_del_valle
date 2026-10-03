@@ -1,14 +1,66 @@
-{# "Hoy tenemos": lo que hay hoy en el menú diario (tiempos y guisados), arriba del menú. #}
+{% comment %}
+"Menú del día" estilo pizarra elegante con dos pestañas: Comida corrida | Comida ejecutiva.
+Primer y segundo tiempo son los mismos; el tercer tiempo cambia (guisados del día o platillos a
+la plancha). De la plancha se ven 3 destacados del día y "+N opciones más" despliega el resto.
+public-portal.js cambia la pestaña (data-pp-board-tab), abre el armador si se toca otra vez
+la pestaña ya elegida y despliega las opciones.
+{% endcomment %}
 {% if daily_menu and daily_groups %}
-<section class="pp-today" aria-label="Menú del día">
-  <header>
-    <h2>Hoy tenemos</h2>
-    {% if daily_menu.water_product %}<span class="pp-today-water">Agua del día: <strong>{{ daily_menu.water_product.name }}</strong></span>{% endif %}
-  </header>
-  <div class="pp-today-groups">
-    {% for group in daily_groups %}
-      <div class="pp-today-group"><strong>{{ group.title }}</strong><p>{% for product in group.products %}<span>{{ product.name }}</span>{% endfor %}</p></div>
-    {% endfor %}
+<section class="pp-today" aria-label="Menú del día" data-pp-board data-pp-board-tab="running">
+  <div class="pp-today-frame">
+    <p class="pp-today-date">{{ daily_menu.date|date:"l j \d\e F" }}</p>
+    <h2 class="pp-today-title"><span class="pp-today-rule" aria-hidden="true"></span>Menú del día<span class="pp-today-rule" aria-hidden="true"></span></h2>
+    {% if daily_menu.water_product %}<p class="pp-today-water">Agua del día · <strong>{{ daily_menu.water_product.name }}</strong></p>{% endif %}
+
+    {% if running_package and executive_package and executive_featured %}
+      <div class="pp-today-tabs" role="tablist" aria-label="Tipo de comida">
+        <button type="button" role="tab" aria-selected="true" data-pp-board-select="running">Comida corrida <span>${{ running_package.price_without_water }}</span></button>
+        <button type="button" role="tab" aria-selected="false" data-pp-board-select="executive">Comida ejecutiva <span>${{ executive_package.price_without_water }}</span></button>
+      </div>
+    {% endif %}
+
+    <div class="pp-today-groups">
+      {% for group in daily_groups %}{% if group.title != "Guisados" %}
+        <div class="pp-today-group">
+          <span class="pp-today-numeral" aria-hidden="true">{% if forloop.first %}I{% else %}II{% endif %}</span>
+          <h3>{{ group.title }}</h3>
+          <ul>{% for product in group.products %}<li>{{ product.name }}</li>{% endfor %}</ul>
+        </div>
+      {% endif %}{% endfor %}
+
+      {% for group in daily_groups %}{% if group.title == "Guisados" %}
+        <div class="pp-today-group" data-pp-board-for="running">
+          <span class="pp-today-numeral" aria-hidden="true">III</span>
+          <h3>Guisados del día</h3>
+          <ul>{% for product in group.products %}<li>{{ product.name }}</li>{% endfor %}</ul>
+        </div>
+      {% endif %}{% endfor %}
+
+      {% if executive_featured %}
+        <div class="pp-today-group pp-today-group-wide" data-pp-board-for="executive">
+          <span class="pp-today-numeral" aria-hidden="true">III</span>
+          <h3>A la plancha</h3>
+          <ul>
+            {% for product in executive_featured %}<li>{{ product.name }}</li>{% endfor %}
+            {% for product in executive_more %}<li class="pp-today-extra" data-pp-board-extra hidden>{{ product.name }}</li>{% endfor %}
+          </ul>
+          {% if executive_more %}<button type="button" class="pp-today-more" data-pp-board-more data-more-label="+{{ executive_more|length }} opciones más" aria-expanded="false">+{{ executive_more|length }} opciones más</button>{% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    {% if running_package %}
+      <a class="pp-today-cta" data-pp-board-for="running" href="{% url 'public_portal:package_selection' running_package.package_type %}">
+        <span>Comida corrida completa desde <strong>${{ running_package.price_without_water }}</strong></span>
+        <span class="pp-today-cta-button">Armar mi comida corrida <span aria-hidden="true">→</span></span>
+      </a>
+    {% endif %}
+    {% if executive_package and executive_featured %}
+      <a class="pp-today-cta" data-pp-board-for="executive" href="{% url 'public_portal:package_selection' executive_package.package_type %}">
+        <span>Comida ejecutiva completa desde <strong>${{ executive_package.price_without_water }}</strong></span>
+        <span class="pp-today-cta-button">Armar mi comida ejecutiva <span aria-hidden="true">→</span></span>
+      </a>
+    {% endif %}
   </div>
 </section>
 {% endif %}

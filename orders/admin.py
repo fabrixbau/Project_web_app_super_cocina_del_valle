@@ -10,7 +10,7 @@ from django.contrib import admin
 
 from .models import (
     CashRegisterCut, CashRegisterExpense, Customer, CustomerAddress, CustomerCreditMovement,
-    CustomerDebt, CustomerDebtMovement, DailyOrderCounter, Order, OrderItem, OrderStatusHistory,
+    CustomerDebt, CustomerDebtMovement, DailyOrderCounter, DeliveryStreet, Order, OrderItem, OrderStatusHistory,
     TerminalCut, TerminalMovement,
 )
 
@@ -58,3 +58,12 @@ admin.site.register(CustomerDebtMovement)
 admin.site.register(CustomerCreditMovement)
 admin.site.register(CashRegisterCut)
 admin.site.register(CashRegisterExpense)
+
+
+@admin.register(DeliveryStreet)
+class DeliveryStreetAdmin(admin.ModelAdmin):
+    """Calles de reparto del portal de clientes: calle + rango de números (vacío = toda la calle)."""
+
+    list_display = ("name", "number_from", "number_to", "is_active")
+    list_editable = ("number_from", "number_to", "is_active")
+    search_fields = ("name",)

@@ -1240,10 +1240,23 @@ def create_public_cart_order(*, cart_data, cleaned_data):
     counter.last_number += 1
     counter.save(update_fields=["last_number"])
     order_type = cleaned_data["order_type"]
+    # Zona de reparto: se revisa calle + número escritos; si usó el domicilio registrado,
+    # el del primer domicilio de su ficha (nunca se le muestra al cliente).
+    address_from_agenda = bool(cleaned_data.get("address_from_agenda"))
+    outside_zone = False
+    if order_type == Order.OrderType.DELIVERY:
+        from .delivery_zone import is_in_delivery_zone
+        if address_from_agenda:
+            saved = CustomerAddress.objects.filter(customer__phone_key=cleaned_data["phone"]).order_by("-updated_at").first()
+            outside_zone = not (saved and is_in_delivery_zone(saved.street, saved.exterior_number))
+        else:
+            outside_zone = not is_in_delivery_zone(cleaned_data["street"], cleaned_data["exterior_number"])
     order = Order.objects.create(
         daily_number=counter.last_number,
         operating_date=today,
         order_type=order_type,
+        outside_delivery_zone=outside_zone,
+        address_from_agenda=address_from_agenda,
         customer_name=" ".join(filter(None, (
             cleaned_data["customer_first_name"].strip(), cleaned_data["customer_last_name"].strip(),
         ))),
@@ -1251,12 +1264,14 @@ def create_public_cart_order(*, cart_data, cleaned_data):
         street=cleaned_data["street"].strip() if order_type == Order.OrderType.DELIVERY else "",
         exterior_number=cleaned_data["exterior_number"].strip() if order_type == Order.OrderType.DELIVERY else "",
         interior_number=cleaned_data["interior_number"].strip() if order_type == Order.OrderType.DELIVERY else "",
-        neighborhood=cleaned_data["neighborhood"].strip() if order_type == Order.OrderType.DELIVERY else "",
         references=cleaned_data["references"].strip() if order_type == Order.OrderType.DELIVERY else "",
         notes=cleaned_data["notes"].strip(),
         payment_method=cleaned_data["payment_method"],
         needs_change=cleaned_data["needs_change"],
         cash_tendered=cleaned_data["cash_tendered"],
+        requested_date=cleaned_data.get("requested_date"),
+        requested_time=cleaned_data.get("requested_time"),
+        requested_for=cleaned_data.get("requested_for"),
         total=total,
     )
     OrderStatusHistory.objects.create(
@@ -1285,9 +1300,9 @@ def create_public_cart_order(*, cart_data, cleaned_data):
             order_item = OrderItem.objects.create(
                 order=order, item_type=OrderItem.ItemType.PACKAGE, package=item["package"],
                 daily_menu=item["daily_menu"],
-                package_name_snapshot=item["package"].name,
-                first_course=item["first_course"], first_course_name_snapshot=item["first_course"].name,
-                second_course=item["second_course"], second_course_name_snapshot=item["second_course"].name,
+                package_name_snapshot=item["package"].name, is_two_course=bool(item.get("is_two_course")),
+                first_course=item["first_course"], first_course_name_snapshot=item["first_course"].name if item["first_course"] else "",
+                second_course=item["second_course"], second_course_name_snapshot=item["second_course"].name if item["second_course"] else "",
                 main_course=item["main_course"], main_course_name_snapshot=item["main_course"].name,
                 chicken_piece=item["chicken_piece"], with_water=item["with_water"],
                 water_name_snapshot=(item["daily_menu"].water_product.name if item["daily_menu"].water_product else "") if item["with_water"] else "",
@@ -1304,7 +1319,11 @@ def create_public_cart_order(*, cart_data, cleaned_data):
         notification_type=InternalNotification.NotificationType.NEW_PUBLIC_ORDER,
         order=order,
         title=f"Nuevo pedido web {order.formatted_number}",
-        message=f"{order.customer_name} · {order.get_order_type_display()} · ${order.total}",
+        message=" · ".join(filter(None, (
+            order.customer_name or order.phone, order.get_order_type_display(), f"${order.total}",
+            "Domicilio registrado" if address_from_agenda else "",
+            "Fuera de zona" if outside_zone else "",
+        ))),
     )
     return order
 
@@ -1814,3 +1833,38 @@ def transfer_table_to_order(*, table_account, actor):
     table_account.status = TableAccount.Status.TRANSFERRED
     table_account.save(update_fields=("status",))
     return target_order
+
+
+@transaction.atomic
+def link_public_order_customer(*, order, actor, customer=None, address=None, replace_data=False):
+    """El personal asocia un pedido web a la agenda (o crea la ficha) al confirmarlo.
+
+    - customer: cliente registrado elegido (puede no coincidir con el celular, p. ej. la
+      mamá que pide a nombre del hijo). replace_data copia nombre y teléfono del cliente.
+    - address: domicilio de esa ficha; se copia al pedido si el cliente no escribió uno
+      (usó "domicilio registrado") o si se pidió sustituir los datos.
+    - Sin customer: crea la ficha con los datos que mandó el cliente.
+    """
+    from .delivery_zone import is_in_delivery_zone
+
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if customer is None:
+        customer = Customer.objects.create(name=order.customer_name or order.phone, phone=order.phone)
+        if order.order_type == Order.OrderType.DELIVERY and order.street:
+            address = CustomerAddress.objects.create(
+                customer=customer, street=order.street, exterior_number=order.exterior_number,
+                interior_number=order.interior_number, references=order.references,
+            )
+    fields = ["agenda_customer", "agenda_address", "updated_at"]
+    order.agenda_customer = customer
+    order.agenda_address = address
+    if replace_data:
+        order.customer_name, order.phone = customer.name, customer.phone
+        fields += ["customer_name", "phone"]
+    if address and order.order_type == Order.OrderType.DELIVERY and (order.address_from_agenda or replace_data or not order.street):
+        order.street, order.exterior_number = address.street, address.exterior_number
+        order.interior_number, order.references = address.interior_number, address.references
+        order.outside_delivery_zone = not is_in_delivery_zone(address.street, address.exterior_number)
+        fields += ["street", "exterior_number", "interior_number", "references", "outside_delivery_zone"]
+    order.save(update_fields=fields)
+    return order

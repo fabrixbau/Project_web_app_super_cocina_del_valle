@@ -1,0 +1,28 @@
+{% comment %}
+Pedido web sin ficha en la agenda: el personal lo asocia al confirmarlo. Se sugieren los clientes
+con el mismo celular; puede elegir otro cliente en el editor (p. ej. la mamá pide a nombre del hijo)
+o crear la ficha con los datos que mandó el cliente.
+{% endcomment %}
+<section class="card spaced-card order-agenda-panel">
+  <h2>Agenda de clientes</h2>
+  {% if agenda_matches %}
+    <p>Este celular coincide con {{ agenda_matches|length }} cliente{{ agenda_matches|length|pluralize }} registrado{{ agenda_matches|length|pluralize }}:</p>
+    {% for customer in agenda_matches %}
+      <form method="post" action="{% url 'orders:order_link_customer' order.id %}" class="order-agenda-match">{% csrf_token %}
+        <input type="hidden" name="customer_id" value="{{ customer.id }}">
+        <p class="order-agenda-who"><strong>{{ customer.name }}</strong><span>{{ customer.phone }}</span></p>
+        {% if order.order_type == 'delivery' and customer.addresses.all %}
+          <fieldset class="order-agenda-addresses"><legend>Domicilio</legend>{% for address in customer.addresses.all %}<label><input type="radio" name="address_id" value="{{ address.id }}"{% if forloop.first %} checked{% endif %}><span>{{ address.street }} {{ address.exterior_number }}{% if address.interior_number %}, int. {{ address.interior_number }}{% endif %}</span></label>{% endfor %}</fieldset>
+        {% endif %}
+        <label class="order-agenda-replace"><input type="checkbox" name="replace_data"><span>Sustituir nombre, teléfono y domicilio del pedido con los de este cliente</span></label>
+        <button type="submit">Asociar a {{ customer.name }}</button>
+      </form>
+    {% endfor %}
+  {% else %}
+    <p>Este celular no está en la agenda.</p>
+  {% endif %}
+  <div class="action-group order-agenda-actions">
+    <form method="post" action="{% url 'orders:order_link_customer' order.id %}">{% csrf_token %}<input type="hidden" name="action" value="create"><button type="submit" class="secondary-action">Crear cliente nuevo con estos datos</button></form>
+    <a class="button-link secondary-action" href="{% url 'orders:internal_order_edit' order.id %}">Asociar a otro cliente (editor)</a>
+  </div>
+</section>

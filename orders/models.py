@@ -82,6 +82,25 @@ class CustomerAddress(models.Model):
         return f"{self.street} {self.exterior_number}"
 
 
+class DeliveryStreet(models.Model):
+    """Calle de la zona de reparto con su rango de números (la colonia no importa)."""
+
+    name = models.CharField("calle", max_length=120)
+    number_from = models.PositiveIntegerField("desde el número", null=True, blank=True)
+    number_to = models.PositiveIntegerField("hasta el número", null=True, blank=True)
+    is_active = models.BooleanField("activa", default=True)
+
+    class Meta:
+        ordering = ("name",)
+        verbose_name = "calle de reparto"
+        verbose_name_plural = "calles de reparto"
+
+    def __str__(self):
+        if self.number_from is None or self.number_to is None:
+            return f"{self.name} (toda la calle)"
+        return f"{self.name} ({self.number_from}–{self.number_to})"
+
+
 class Order(models.Model):
     class OrderType(models.TextChoices):
         PICKUP = "pickup", "Recoger en la fonda"
@@ -140,6 +159,10 @@ class Order(models.Model):
     interior_number = models.CharField(max_length=20, blank=True)
     neighborhood = models.CharField(max_length=150, blank=True)
     references = models.TextField(blank=True)
+    # Portal de clientes: el domicilio quedó fuera de las calles de reparto, o el cliente
+    # omitió su domicilio porque su celular ya está registrado (el personal lo confirma).
+    outside_delivery_zone = models.BooleanField("fuera de zona", default=False)
+    address_from_agenda = models.BooleanField("usar domicilio registrado", default=False)
     notes = models.TextField(blank=True)
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, blank=True)
     needs_change = models.BooleanField(default=False)

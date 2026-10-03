@@ -1,4 +1,4 @@
-{% load static %}<!doctype html>
+{% load static public_preview %}<!doctype html>
 <html lang="es-MX">
 <head>
   <meta charset="utf-8">
@@ -6,8 +6,11 @@
   <meta name="theme-color" content="#174735">
   <title>{% block title %}Pedir | Super Cocina del Valle{% endblock %}</title>
   {# app.css aporta el diálogo de Personalizar; public-portal.css da el diseño del portal de clientes. #}
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=375">
-  <link rel="stylesheet" href="{% static 'css/public-portal.css' %}?v=6">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=376">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600;1,700&display=swap">
+  <link rel="stylesheet" href="{% static 'css/public-portal.css' %}?v=23">
 </head>
 <body class="pp-body {% block body_class %}{% endblock %}">
   <header class="pp-topbar">
@@ -22,6 +25,9 @@
     {% block content %}{% endblock %}
   </main>
   {% block after_main %}{% endblock %}
+  {% public_preview_switch %}
+  {# Primera letra en mayúscula en nombres, domicilio y notas (mismo script que la app interna). #}
+  <script src="{% static 'js/text-autocapitalize.js' %}?v=2"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

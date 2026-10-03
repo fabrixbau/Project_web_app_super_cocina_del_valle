@@ -71,8 +71,9 @@ document.querySelectorAll("[data-package-form], [data-internal-package]").forEac
 
 // Los paquetes internos pueden cobrarse con dos tiempos sin cambiar su precio.
 // La marca viaja en el formulario para que cocina, edición y transferencias conserven
-// cuál de los dos primeros tiempos fue omitido.
-document.querySelectorAll("[data-package-form], [data-internal-package]").forEach((form) => {
+// cuál de los dos primeros tiempos fue omitido. El portal de clientes ([data-pp-package])
+// detecta 2 tiempos solo y tiene su propio contador (public-portal.js).
+document.querySelectorAll("[data-package-form]:not([data-pp-package]), [data-internal-package]").forEach((form) => {
   const firstInputs = [...form.querySelectorAll("input[name$='first_course']")];
   const secondInputs = [...form.querySelectorAll("input[name$='second_course']")];
   if (!firstInputs.length || !secondInputs.length) return;
@@ -230,7 +231,7 @@ document.querySelectorAll(".table-water-choice").forEach((control) => {
   paquete en curso y vuelve a cargar el anterior. Al enviar con paquetes guardados se
   agrega `package_batch` (JSON) y los paquetes idénticos viajan juntos con su cantidad.
 Borra esta nota después de probar Mesas y Pedidos. */
-document.querySelectorAll("form[data-package-form]:not([data-historical-edit-form]), form[data-internal-package]").forEach((form) => {
+document.querySelectorAll("form[data-package-form]:not([data-historical-edit-form]):not([data-pp-package]), form[data-internal-package]").forEach((form) => {
   const COURSE_FIELD = /(first_course|second_course|main_course)$/;
   const SKIPPED_FIELDS = ["csrfmiddlewaretoken", "package_batch"];
   const MAX_PACKAGES = 99;

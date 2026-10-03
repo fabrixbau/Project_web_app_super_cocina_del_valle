@@ -1,12 +1,61 @@
-<!-- NOTA TEMPORAL PARA APRENDIZAJE:
-La confirmación aclara que pickup define su pago al llegar; entrega conserva instrucciones.
-Esta página confirma que la base recibió el pedido. El estado inicial no promete todavía
-que la cocina lo aceptó: el personal debe confirmarlo en el siguiente módulo interno.
-Borra esta nota después de leerla. -->
-<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Pedido recibido | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css"></head>
-<body><main class="container package-builder"><section class="card confirmation-card"><p class="confirmation-mark">✓</p><h1>Recibimos tu pedido</h1>
-  <p>Tu folio de hoy es <strong class="order-number">{{ order.formatted_number }}</strong>.</p><p>Estado: <strong>{{ order.get_status_display }}</strong>. La fonda todavía debe confirmar el pedido.</p><p><strong>{{ order.get_order_type_display }}</strong> · {{ order.customer_name }} · {{ order.phone }}</p>
-  {% for item in order.items.all %}<div class="order-summary">{% if item.item_type == 'product' %}<h2>{{ item.quantity }} × {{ item.product_name_snapshot }}{% if item.customization_comment %} ({{ item.customization_comment }}){% endif %}</h2><p>${{ item.subtotal }}</p>{% else %}<h2>{{ item.quantity }} × {{ item.package_name_snapshot }}</h2><ol><li>{{ item.first_course_name_snapshot }}</li><li>{{ item.second_course_name_snapshot }}</li><li>{{ item.main_course_name_snapshot }}{% if item.chicken_piece %} · {{ item.get_chicken_piece_display }}{% endif %}</li></ol><p>Agua: {% if item.with_water %}{{ item.water_name_snapshot }}{% else %}Sin agua{% endif %} · Tortillas: {% if item.tortillas %}Sí{% else %}No{% endif %} · Frijoles: {% if item.beans %}Sí{% else %}No{% endif %}</p>{% endif %}</div>{% endfor %}
-  {% if order.order_type == 'delivery' %}<p><strong>Domicilio:</strong> {{ order.street }} {{ order.exterior_number }}{% if order.interior_number %}, interior {{ order.interior_number }}{% endif %}, {{ order.neighborhood }}.<br>{{ order.references }}</p>{% endif %}
-  <p class="package-total">Total: ${{ order.total }}</p>{% if order.order_type == 'pickup' %}<p>El método de pago se define al recoger.</p>{% else %}<p>Pago: {{ order.get_payment_method_display }}{% if order.payment_method == 'card' %} · Se llevará terminal{% elif order.needs_change %} · Paga con ${{ order.cash_tendered }} · Cambio: ${{ order.change_required }}{% elif order.payment_method == 'cash' %} · Pago exacto{% endif %}</p>{% endif %}<a class="button-link" href="{% url 'public_portal:menu' %}">Volver al menú</a>
-</section></main></body></html>
+{% extends "public_portal/base.html" %}
+{% block title %}Pedido recibido | Super Cocina del Valle{% endblock %}
+{% block body_class %}pp-confirm-page{% endblock %}
+{% block content %}
+{% comment %}
+Confirmación del pedido web. El pedido queda "Pendiente de confirmar": la fonda le escribe al
+cliente por WhatsApp para confirmarlo; si no recibe mensaje en 10 minutos, debe revisar sus datos.
+{% endcomment %}
+<div class="pp-confirmation">
+  <section class="pp-confirm-hero">
+    <div class="pp-confetti" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <svg class="pp-confirm-check" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="25"/><path d="M15 27l7.5 7.5L38 19"/></svg>
+    <h1>¡Recibimos tu pedido!</h1>
+    <p class="pp-confirm-folio">Tu folio de hoy es <strong>{{ order.formatted_number }}</strong></p>
+  </section>
+
+  <section class="pp-whatsapp-note" aria-label="Siguiente paso">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.3 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.5-4-4.6-4.2-.1-.2-1.1-1.5-1.1-2.8s.7-2 .9-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.4.6-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.7-.1l1.9.9c.3.1.5.2.5.3.1.2.1.7-.1 1.2Z"/></svg>
+    <div>
+      <strong>Estado: Pendiente de confirmar</strong>
+      <p>Super Cocina te enviará un WhatsApp al <b>{{ order.phone }}</b> para confirmar tu pedido.</p>
+      <p>Si no recibes mensaje en 10 minutos, revisa que tus datos estén correctos, en especial tu número celular. ¡Gracias por tu pedido!</p>
+    </div>
+  </section>
+
+  {% if order.outside_delivery_zone and not order.address_from_agenda %}
+  <section class="pp-zone-note" aria-label="Zona de reparto">
+    <strong>Tu domicilio queda lejos de donde habitualmente entregamos</strong>
+    <p>En breve nos comunicaremos contigo para avisarte si tu pedido procede o si tendremos que ofrecerte una disculpa por no llegar hasta tu domicilio.</p>
+  </section>
+  {% endif %}
+
+  <section class="pp-confirm-details">
+    <dl>
+      <dt>Nombre</dt><dd>{{ order.customer_name }}</dd>
+      <dt>Modalidad</dt><dd>{{ order.get_order_type_display }}</dd>
+      <dt>¿Cuándo?</dt><dd>{% if order.requested_time %}{% if order.order_type == 'pickup' %}Para recoger{% else %}Para entregar{% endif %} hoy a las {{ order.requested_time|time:"g:i a" }}{% else %}Lo antes posible{% endif %}</dd>
+      {% if order.order_type == 'delivery' %}
+        <dt>Domicilio</dt><dd>{% if order.address_from_agenda %}El que tienes registrado; te lo confirmaremos por WhatsApp.{% else %}{{ order.street }} {{ order.exterior_number }}{% if order.interior_number %}, int. {{ order.interior_number }}{% endif %}{% if order.references %}<br><small>{{ order.references }}</small>{% endif %}{% endif %}</dd>
+        <dt>Pago</dt><dd>{{ order.get_payment_method_display }}{% if order.payment_method == 'card' %} · llevamos terminal{% elif order.needs_change %} · pagas con ${{ order.cash_tendered }}, cambio ${{ order.change_required }}{% elif order.payment_method == 'cash' %} · pago exacto{% endif %}</dd>
+      {% else %}
+        <dt>Pago</dt><dd>Al recoger tu pedido</dd>
+      {% endif %}
+    </dl>
+  </section>
+
+  <section class="pp-checkout-summary">
+    <h2>Tu pedido</h2>
+    <ul>
+      {% for item in order.items.all %}
+        <li><span>
+          {% if item.item_type == 'product' %}<strong>{{ item.quantity }} × {{ item.product_name_snapshot }}</strong>{% if item.customization_comment %}<small>{{ item.customization_comment }}</small>{% endif %}
+          {% else %}<strong>{{ item.quantity }} × {{ item.package_name_snapshot }}</strong><small>{% if item.is_two_course %}2 tiempos · {% endif %}{% if item.first_course_name_snapshot %}{{ item.first_course_name_snapshot }} · {% endif %}{% if item.second_course_name_snapshot %}{{ item.second_course_name_snapshot }} · {% endif %}{{ item.main_course_name_snapshot }}{% if item.chicken_piece %} ({{ item.get_chicken_piece_display|lower }}){% endif %} · {% if item.with_water %}con agua{% else %}sin agua{% endif %} · {% if item.tortillas %}con tortillas{% else %}sin tortillas{% endif %} · {% if item.beans %}con frijoles{% else %}sin frijoles{% endif %}</small>{% endif %}
+        </span><b>${{ item.subtotal }}</b></li>
+      {% endfor %}
+    </ul>
+    <p class="pp-checkout-total"><span>Total</span><strong>${{ order.total }}</strong></p>
+    <a class="pp-primary-button" href="{% url 'public_portal:menu' %}">Volver al menú</a>
+  </section>
+</div>
+{% endblock %}

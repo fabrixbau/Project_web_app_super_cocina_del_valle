@@ -12,6 +12,7 @@ from . import views
 app_name = "public_portal"
 urlpatterns = [
     path("", views.home, name="home"),
+    path("vista-prueba/", views.preview_time, name="preview_time"),
     path("menu/", menu_views.public_menu, name="menu"),
     path("menu/paquete/<str:package_type>/", order_views.public_package_order, name="package_selection"),
     path("menu/producto/<int:product_id>/agregar/", order_views.public_product_add, name="product_add"),

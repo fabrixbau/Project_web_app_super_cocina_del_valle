@@ -1,35 +1,57 @@
 {% extends "public_portal/base.html" %}
 {% block body_class %}pp-home{% endblock %}
 {% block content %}
-<section class="pp-hero">
-  <p class="pp-eyebrow">Comida casera todos los días</p>
-  <h1>¿Cómo quieres tu pedido?</h1>
-  <p>Elige una opción para ver el menú disponible ahora.</p>
+{% comment %}
+Portada: saludo según la hora + vista previa del menú del día; luego la pizarra (verde y
+dorado) "¿Cómo quieres tu pedido hoy?" con dos botones dorados (cada uno abre el menú con su
+modalidad); al final horario, WhatsApp (sólo mensajes) y dirección con enlace a Google Maps.
+{% endcomment %}
+{% if daily_menu and daily_groups %}
+<section class="pp-home-menu" aria-label="Menú del día">
+  <p class="pp-today-date">{{ greeting }}</p>
+  <h2 class="pp-today-title"><span class="pp-today-rule" aria-hidden="true"></span>Hoy en el menú<span class="pp-today-rule" aria-hidden="true"></span></h2>
+  <div class="pp-home-menu-groups">
+    {% for group in daily_groups %}
+      <div><h3>{% if group.title == "Guisados" %}Guisados del día{% else %}{{ group.title }}{% endif %}</h3><p>{% for product in group.products %}{{ product.name }}{% if not forloop.last %} · {% endif %}{% endfor %}</p></div>
+    {% endfor %}
+  </div>
+  {% if daily_menu.water_product %}<p class="pp-today-water">Agua del día · <strong>{{ daily_menu.water_product.name }}</strong></p>{% endif %}
 </section>
-
-<div class="pp-mode-choices">
-  <a class="pp-mode-choice{% if current_mode == 'pickup' %} is-current{% endif %}" href="{% url 'public_portal:menu' %}?modalidad=pickup">
-    <span class="pp-mode-icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
-    </span>
-    <span class="pp-mode-copy"><strong>Recoger en la fonda</strong><small>Pasas por él cuando esté listo. Pagas al recoger.</small></span>
-    <span class="pp-mode-arrow" aria-hidden="true">→</span>
-  </a>
-  <a class="pp-mode-choice{% if current_mode == 'delivery' %} is-current{% endif %}" href="{% url 'public_portal:menu' %}?modalidad=delivery">
-    <span class="pp-mode-icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24"><circle cx="6" cy="17" r="2.5"/><circle cx="18" cy="17" r="2.5"/><path d="M8.5 17h7M3.5 17V9h8v8M11.5 11h4l3 4v2"/></svg>
-    </span>
-    <span class="pp-mode-copy"><strong>Entrega a domicilio</strong><small>Te lo llevamos. Pagas en efectivo, terminal o transferencia.</small></span>
-    <span class="pp-mode-arrow" aria-hidden="true">→</span>
-  </a>
-</div>
-
-{% if current_mode and cart_count %}
-  <a class="pp-resume" href="{% url 'public_portal:menu' %}">Tienes {{ cart_count }} artículo{{ cart_count|pluralize }} en tu pedido · <strong>Continuar</strong></a>
 {% endif %}
 
-<section class="pp-schedule" aria-label="Horario">
-  <div><strong>Desayunos</strong><span>Hasta las 12:30 p. m.</span></div>
-  <div><strong>Comida</strong><span>12:30 a 6:00 p. m.</span></div>
+<section class="pp-home-board">
+  <div class="pp-home-frame">
+    {% if not daily_menu or not daily_groups %}<p class="pp-today-date">{{ greeting }}</p>{% endif %}
+    <h1 class="pp-home-title">¿Cómo quieres tu pedido hoy?</h1>
+    <p class="pp-home-sub">Comida casera todos los días</p>
+    <div class="pp-home-choices">
+      <a class="pp-home-choice{% if current_mode == 'pickup' %} is-current{% endif %}" href="{% url 'public_portal:menu' %}?modalidad=pickup">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+        <span><strong>Recoger en la fonda</strong><small>Pagas al recoger</small></span>
+      </a>
+      <a class="pp-home-choice{% if current_mode == 'delivery' %} is-current{% endif %}" href="{% url 'public_portal:menu' %}?modalidad=delivery">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="17" r="2.5"/><circle cx="18" cy="17" r="2.5"/><path d="M8.5 17h7M3.5 17V9h8v8M11.5 11h4l3 4v2"/></svg>
+        <span><strong>Entrega a domicilio</strong><small>Efectivo, terminal o transferencia</small></span>
+      </a>
+    </div>
+    {% if current_mode and cart_count %}
+      <a class="pp-home-resume" href="{% url 'public_portal:menu' %}">Tienes {{ cart_count }} artículo{{ cart_count|pluralize }} en tu pedido · <strong>Continuar →</strong></a>
+    {% endif %}
+  </div>
+</section>
+
+<section class="pp-home-info" aria-label="Información">
+  <div class="pp-home-info-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+    <span><strong>Horario</strong><small>Desayunos hasta las 12:30 p. m.<br>Comida de 12:30 a 6:00 p. m.</small></span>
+  </div>
+  <a class="pp-home-info-item pp-home-whatsapp" href="{{ whatsapp_url }}" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.3 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.5-4-4.6-4.2-.1-.2-1.1-1.5-1.1-2.8s.7-2 .9-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.4.6-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.7-.1l1.9.9c.3.1.5.2.5.3.1.2.1.7-.1 1.2Z"/></svg>
+    <span><strong>WhatsApp</strong><small>{{ whatsapp_label }}</small><em>Sólo mensajes, no recibimos llamadas</em></span>
+  </a>
+  <a class="pp-home-info-item pp-home-map" href="{{ maps_url }}" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6.1-6.5-11a6.5 6.5 0 0 1 13 0c0 4.9-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.3"/></svg>
+    <span><strong>Dirección</strong><small>{{ address_label }}</small><em>Ver en Google Maps →</em></span>
+  </a>
 </section>
 {% endblock %}

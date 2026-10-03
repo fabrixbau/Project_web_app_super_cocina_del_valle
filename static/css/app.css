@@ -12603,3 +12603,33 @@ html[data-theme="dark"] .live-search-count { color: #edf4f0; }
   .stock-channel-form input { min-height: 34px; padding: .3rem .4rem; }
   .stock-prepared-form.stock-channel-form button { grid-column: 1 / -1; width: 100%; }
 }
+
+/* Portal de clientes, Finalizar pedido: "¿Para cuándo lo quieres?" con cada opción en un renglón. */
+.checkout-schedule-options { display: grid; gap: .45rem; margin-bottom: .6rem; }
+.checkout-schedule-options label { display: flex; align-items: center; gap: .55rem; margin: 0; font-weight: 600; cursor: pointer; }
+.checkout-schedule-options input { width: 1.1rem; height: 1.1rem; margin: 0; }
+
+/* Detalle de pedido web: marcas de zona/domicilio registrado y panel para asociarlo a la agenda. */
+.order-flag { margin: 0 0 .5rem; padding: .45rem .7rem; color: #174735; background: #e4efe8; border-radius: .6rem; font-size: .85rem; font-weight: 700; }
+.order-flag.is-warning { color: #7a4a00; background: #fff1cc; }
+/* Panel "Agenda de clientes" del detalle de pedido web: radios y casilla alineados a la izquierda
+   (los estilos generales de formulario les daban ancho completo). */
+.order-agenda-panel .order-agenda-match { display: grid; gap: .6rem; margin: .6rem 0; padding: .8rem; border: 1px solid #d8ddd7; border-radius: .7rem; }
+.order-agenda-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .6rem; margin: 0; }
+.order-agenda-who strong { font-size: 1.05rem; }
+.order-agenda-who span { color: #5f6964; font-size: .9rem; }
+.order-agenda-panel .order-agenda-addresses { display: grid; gap: .35rem; min-width: 0; margin: 0; padding: 0; border: 0; }
+.order-agenda-addresses legend { margin-bottom: .2rem; padding: 0; color: #5f6964; font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.order-agenda-panel .order-agenda-addresses label, .order-agenda-panel .order-agenda-replace {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: .5rem; margin: 0;
+  font-size: .9rem; font-weight: 500; line-height: 1.3; text-align: left; cursor: pointer;
+}
+.order-agenda-panel .order-agenda-addresses label { padding: .45rem .55rem; background: #f6f2ea; border: 2px solid transparent; border-radius: .55rem; }
+.order-agenda-panel .order-agenda-addresses label:has(input:checked) { background: #e4efe8; border-color: #1f5a43; }
+.order-agenda-panel .order-agenda-match input[type="radio"], .order-agenda-panel .order-agenda-match input[type="checkbox"] {
+  width: 1.05rem; height: 1.05rem; min-height: 0; margin: .1rem 0 0; padding: 0; accent-color: #1f5a43; flex: none;
+}
+.order-agenda-match button { justify-self: start; }
+.order-agenda-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.order-agenda-actions form { margin: 0; }
+.order-agenda-actions button, .order-agenda-actions .button-link { display: inline-flex; align-items: center; min-height: 2.6rem; margin: 0; font-size: .9rem; }

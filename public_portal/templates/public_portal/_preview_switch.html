@@ -1,0 +1,10 @@
+{# VISTA DE PRUEBA: sólo administradores. Simula la hora del portal para revisar desayuno/comida. #}
+{% if allowed %}
+<form method="post" action="{% url 'public_portal:preview_time' %}" class="pp-preview-switch" aria-label="Vista de prueba por horario">
+  <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+  <input type="hidden" name="next" value="{{ next }}">
+  <span>Vista de prueba</span>
+  <button type="submit" name="time" value=""{% if not current %} class="is-active"{% endif %}>Ahora</button>
+  {% for key, label, hour in options %}<button type="submit" name="time" value="{{ key }}"{% if current == key %} class="is-active"{% endif %}>{{ label }} <small>{{ hour }}</small></button>{% endfor %}
+</form>
+{% endif %}

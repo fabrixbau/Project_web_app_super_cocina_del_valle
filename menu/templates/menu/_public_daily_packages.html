@@ -1,7 +1,7 @@
 {# Paquetes Comida corrida/ejecutiva (tarjetas claras con botón Armar). #}
 {% if daily_menu and meal_packages %}
 <section class="pp-section pp-packages" id="pp-paquetes">
-  <h2>{% if public_menu_mode == 'breakfast' %}Comida del día{% else %}Paquetes del día{% endif %}</h2>
+  <h2>Paquetes del día</h2>
   <div class="pp-package-cards">
     {% for package in meal_packages %}
       <a class="pp-package-card" href="{% url 'public_portal:package_selection' package.package_type %}">

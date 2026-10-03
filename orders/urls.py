@@ -38,4 +38,5 @@ urlpatterns = [
     path("<int:order_id>/editar/paquetes/<int:package_id>/agregar/", views.internal_order_package_add, name="internal_order_package_add"),
     path("<int:order_id>/", views.order_detail, name="order_detail"),
     path("<int:order_id>/resolver/", views.order_resolve, name="order_resolve"),
+    path("<int:order_id>/cliente/", views.order_link_customer, name="order_link_customer"),
 ]

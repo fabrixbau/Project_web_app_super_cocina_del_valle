@@ -9,6 +9,7 @@
 # payload JSON validado por Django; los IDs existentes se conservan. Borra esta nota.
 
 import json
+import random
 from collections import defaultdict
 from io import BytesIO
 from calendar import monthrange
@@ -1199,7 +1200,9 @@ def public_menu(request):
         return redirect("public_portal:menu")
     if not get_order_mode(request.session):
         return redirect("public_portal:home")
-    current_time = timezone.localtime().time()
+    from public_portal.preview import public_time
+
+    current_time = public_time(request.session)
     public_mode = "breakfast" if current_time < time(12, 30) else "lunch"
     public_visibility_field = (
         "show_on_public_breakfast" if public_mode == "breakfast" else "show_on_public_lunch"
@@ -1231,7 +1234,6 @@ def public_menu(request):
     # La visibilidad pública de la categoría decide el catálogo; los periodos internos
     # no deben apagar comida a las 17:00 cuando el portal continúa hasta las 18:00.
     available_now = base_public_products.distinct().order_by("sort_order", "name")
-    advance_lunch_products = base_public_products.distinct().order_by("sort_order", "name")
 
     def visible_category_list(visibility_field, order_field, products):
         queryset = Category.objects.filter(**{visibility_field: True}).order_by(
@@ -1239,30 +1241,24 @@ def public_menu(request):
         ).prefetch_related(Prefetch("products", queryset=products, to_attr="available_products"))
         return [category for category in queryset if category.available_products]
 
-    breakfast_categories = visible_category_list(
-        "show_on_public_breakfast", "public_breakfast_order", available_now,
-    )
-    lunch_categories = visible_category_list(
-        "show_on_public_lunch", "public_lunch_order",
-        advance_lunch_products if public_mode == "breakfast" else available_now,
-    )
-    # Aunque una categoría esté habilitada en ambos modos, las familias llamadas
-    # “Comida …” pertenecen al bloque adelantado inferior durante desayuno.
-    breakfast_categories = [
-        category for category in breakfast_categories
-        if not category.name.casefold().startswith("comida ")
-    ]
-    visible_categories = breakfast_categories if public_mode == "breakfast" else lunch_categories
-    advance_lunch_categories = lunch_categories if public_mode == "breakfast" else []
-    daily_menu = (
-        DailyMenu.objects.filter(date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED)
-        .select_related(
-            "water_product", "chicken_consomme", "variable_first_course",
-            "second_course_one", "second_course_two", "chicken_stew", "beef_stew", "varied_stew",
-        )
-        .first()
-    )
-    from .catalog import limit_cold_drinks_to_daily_water
+    # Un solo menú a cualquier hora (el de comida): paquetes y productos de comida se pueden
+    # pedir desde la mañana (se entregan a partir de la 1:00 p. m.). Las categorías sólo de
+    # desayuno (visibles en desayuno pero no en comida) van primero hasta las 12:30 y
+    # después se ocultan.
+    lunch_categories = visible_category_list("show_on_public_lunch", "public_lunch_order", available_now)
+    breakfast_only_categories = []
+    if public_mode == "breakfast":
+        breakfast_only_categories = [
+            category for category in visible_category_list(
+                "show_on_public_breakfast", "public_breakfast_order", available_now,
+            )
+            if not category.show_on_public_lunch
+        ]
+    visible_categories = [*breakfast_only_categories, *lunch_categories]
+    advance_lunch_categories = []
+    from .catalog import limit_cold_drinks_to_daily_water, public_daily_menu
+
+    daily_menu, daily_groups = public_daily_menu()
 
     visible_categories = limit_cold_drinks_to_daily_water(
         visible_categories, daily_menu, "available_products",
@@ -1275,20 +1271,24 @@ def public_menu(request):
             category.available_products, daily_menu=daily_menu,
             channel=DailyProductStock.Channel.ORDERS,
         )
-    daily_groups = []
-    if daily_menu:
-        group_products = (
-            ("Primer tiempo", (daily_menu.chicken_consomme, daily_menu.variable_first_course)),
-            ("Segundo tiempo", (daily_menu.second_course_one, daily_menu.second_course_two)),
-            ("Guisados", (daily_menu.chicken_stew, daily_menu.beef_stew, daily_menu.varied_stew)),
+    # Pizarra con pestañas: el tercer tiempo de la Comida ejecutiva son los platillos de
+    # plancha elegibles. Se destacan 3 al azar, fijos durante todo el día (semilla = fecha),
+    # y el resto se muestra al tocar "+N opciones más".
+    meal_packages = list(MealPackage.objects.filter(is_active=True))
+    executive_featured, executive_more = [], []
+    if daily_menu and any(package.package_type == MealPackage.PackageType.EXECUTIVE for package in meal_packages):
+        grill_options = filter_products_by_stock(
+            list(Product.objects.filter(
+                component_type=Product.ComponentType.GRILL, eligible_for_executive_meal=True,
+                is_available=True, show_to_customers=True,
+            ).order_by("name")),
+            daily_menu=daily_menu, channel=DailyProductStock.Channel.ORDERS,
         )
-        for title, products in group_products:
-            visible_products = filter_products_by_stock(
-                [product for product in products if product and product.is_available and product.show_to_customers],
-                daily_menu=daily_menu, channel=DailyProductStock.Channel.ORDERS,
-            )
-            if visible_products:
-                daily_groups.append({"title": title, "products": visible_products})
+        featured_ids = {
+            product.pk for product in random.Random(daily_menu.date.toordinal()).sample(grill_options, min(3, len(grill_options)))
+        }
+        executive_featured = [product for product in grill_options if product.pk in featured_ids]
+        executive_more = [product for product in grill_options if product.pk not in featured_ids]
 
     all_rendered_categories = [*visible_categories, *advance_lunch_categories]
     selector_product_ids = {
@@ -1316,11 +1316,17 @@ def public_menu(request):
 
     return render(request, "menu/public_menu.html", {
         "categories": visible_categories,
+        "breakfast_only_categories": breakfast_only_categories,
+        "lunch_categories": lunch_categories,
         "advance_lunch_categories": advance_lunch_categories,
         "daily_menu": daily_menu,
         "daily_groups": daily_groups,
         "active_periods": active_periods,
-        "meal_packages": MealPackage.objects.filter(is_active=True),
+        "meal_packages": meal_packages,
+        "running_package": next((package for package in meal_packages if package.package_type == MealPackage.PackageType.RUNNING), None),
+        "executive_package": next((package for package in meal_packages if package.package_type == MealPackage.PackageType.EXECUTIVE), None),
+        "executive_featured": executive_featured,
+        "executive_more": executive_more,
         "advance_food_order": current_time < time(13, 0),
         "public_menu_mode_label": "Desayunos" if public_mode == "breakfast" else "Comida",
         "public_menu_mode": public_mode,

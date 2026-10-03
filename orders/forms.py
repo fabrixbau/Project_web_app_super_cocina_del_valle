@@ -7,7 +7,7 @@
 # orden. La dirección solo es obligatoria para entrega y los datos de cambio solo aplican
 # cuando el cliente pagará en efectivo. Borra esta nota después de leerla.
 
-from datetime import datetime
+from datetime import datetime, time, timedelta
 
 from django import forms
 from django.utils import timezone
@@ -32,11 +32,28 @@ class PackageCartForm(PackageSelectionForm):
             for name in ("first_course", "second_course", "main_course"):
                 self.fields[name].empty_label = None
                 self.fields[name].label_from_instance = lambda product: product.name
+            # El cliente puede armar 2 tiempos sin interruptor: primero + guisado o
+            # segundo + guisado. clean() lo detecta y marca `two_course`.
+            self.fields["first_course"].required = False
+            self.fields["second_course"].required = False
         for name in ("first_course", "second_course", "main_course", "chicken_piece", "tortillas", "beans"):
             choices = self.fields[name].choices
             if name == "chicken_piece":
                 choices = [choice for choice in choices if choice[0]]
             self.fields[name].widget = forms.RadioSelect(choices=choices)
+
+
+    def clean(self):
+        data = super().clean()
+        if self.customers_only:
+            has_first = bool(data.get("first_course"))
+            has_second = bool(data.get("second_course"))
+            if not has_first and not has_second:
+                raise forms.ValidationError(
+                    "Elige al menos el primer o el segundo tiempo, además del guisado."
+                )
+            data["two_course"] = has_first != has_second
+        return data
 
 
 class InternalPackageForm(PackageCartForm):
@@ -292,39 +309,165 @@ class PublicCheckoutForm(forms.Form):
     street = forms.CharField(label="Calle", max_length=150, required=False)
     exterior_number = forms.CharField(label="Número exterior", max_length=20, required=False)
     interior_number = forms.CharField(label="Número interior", max_length=20, required=False)
-    neighborhood = forms.CharField(label="Colonia", max_length=150, required=False)
     references = forms.CharField(label="Referencias para encontrar el domicilio", required=False, widget=forms.Textarea(attrs={"rows": 2}))
     notes = forms.CharField(label="Notas adicionales", required=False, widget=forms.Textarea(attrs={"rows": 2}))
-    payment_method = forms.ChoiceField(label="Forma de pago", choices=Order.PaymentMethod.choices)
+    # El cliente no puede pagar con "Saldo a favor": eso sólo lo aplica el personal.
+    payment_method = forms.ChoiceField(label="Forma de pago", widget=forms.RadioSelect, choices=(
+        (Order.PaymentMethod.CASH, "Efectivo"), (Order.PaymentMethod.CARD, "Terminal"),
+        (Order.PaymentMethod.TRANSFER, "Transferencia"),
+    ))
     cash_bill = forms.ChoiceField(
-        label="Billete con el que pagarás", required=False,
-        choices=(("", "Selecciona"), ("50", "$50"), ("100", "$100"), ("200", "$200"), ("500", "$500")),
+        label="Billete con el que pagarás", required=False, widget=forms.RadioSelect,
+        choices=(("50", "$50"), ("100", "$100"), ("200", "$200"), ("500", "$500")),
     )
     cash_custom_amount = forms.DecimalField(
         label="Otra cantidad", required=False, min_value=0, decimal_places=2, max_digits=10
     )
     pays_exact = forms.BooleanField(label="No requiero cambio (pago exacto)", required=False)
+    schedule = forms.ChoiceField(
+        label="¿Para cuándo lo quieres?", initial="asap", widget=forms.RadioSelect, required=False,
+        choices=(("asap", "Lo antes posible"), ("later", "Elegir hora")),
+    )
+    # Sin validación de opciones: la lista se valida en clean() sólo si eligió "Elegir hora".
+    requested_time = forms.CharField(label="Hora", required=False, widget=forms.Select())
 
-    def __init__(self, *args, cart_total, order_type, **kwargs):
+    SLOT_MINUTES = 15
+    OPENING_TIME = time(8, 30)
+    CLOSING_TIME = time(18, 0)
+
+    # Errores para el cliente: "qué hacer" (aquí) y "qué pasó" (el mensaje del error).
+    # Cada sección de la página se enmarca en rojo si alguno de sus campos falló.
+    FIELD_HELP = {
+        "customer_first_name": "Escribe tu nombre para saber de quién es el pedido.",
+        "phone": "Escribe tu número celular a 10 dígitos; ahí te enviaremos la confirmación por WhatsApp.",
+        "street": "Escribe la calle de tu domicilio. Si ya pediste antes con este celular, puedes dejar el domicilio en blanco.",
+        "exterior_number": "Escribe el número exterior de tu domicilio.",
+        "payment_method": "Elige cómo vas a pagar: efectivo, terminal o transferencia.",
+        "cash_bill": "Elige el billete con el que pagarás, escribe otra cantidad o marca pago exacto.",
+        "cash_custom_amount": "Escribe una cantidad igual o mayor al total de tu pedido.",
+        "requested_time": "Toca el reloj y elige una de las horas disponibles, o deja «Lo antes posible».",
+    }
+    SECTIONS = (
+        ("datos", "Tus datos", ("customer_first_name", "customer_last_name", "phone")),
+        ("domicilio", "Domicilio de entrega", ("street", "exterior_number", "interior_number", "references")),
+        ("horario", "¿Para cuándo lo quieres?", ("schedule", "requested_time")),
+        ("pago", "Pago", ("payment_method", "cash_bill", "cash_custom_amount", "pays_exact")),
+        ("notas", "Notas", ("notes",)),
+    )
+
+    def __init__(self, *args, cart_total, order_type, now=None, earliest=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.cart_total = cart_total
         self.order_type = order_type
+        # Horarios de hoy cada 15 minutos: desde 30 minutos después de ahora (o desde la
+        # 1:00 p. m. si el pedido trae comida) hasta las 6:00 p. m.
+        self.slots = self.available_slots(now or timezone.localtime().time(), earliest)
+        self.fields["requested_time"].widget.choices = [("", "Selecciona una hora")] + [
+            (slot.strftime("%H:%M"), self.slot_label(slot)) for slot in self.slots
+        ]
+        self.fields["requested_time"].label = "Hora para recoger" if order_type == Order.OrderType.PICKUP else "Hora de entrega"
+        for field in self.fields.values():
+            field.error_messages["required"] = "Este dato está vacío."
+            field.error_messages["invalid_choice"] = "La opción elegida no es válida."
+        # Etiquetas flotantes del portal: el campo necesita un placeholder (aunque sea un espacio).
+        for name in ("customer_first_name", "customer_last_name", "street", "exterior_number", "interior_number", "references", "notes", "cash_custom_amount"):
+            if name in self.fields:
+                self.fields[name].widget.attrs.setdefault("placeholder", " ")
+        if "street" in self.fields:
+            self.fields["street"].widget.attrs.update({"autocomplete": "off", "data-pp-street": ""})
+        if not self.slots:
+            self.fields["schedule"].choices = (("asap", "Lo antes posible"),)
         if order_type == Order.OrderType.PICKUP:
             for field_name in (
-                "street", "exterior_number", "interior_number", "neighborhood", "references",
+                "street", "exterior_number", "interior_number", "references",
                 "payment_method", "cash_bill", "cash_custom_amount", "pays_exact",
             ):
                 self.fields.pop(field_name)
 
+    @classmethod
+    def available_slots(cls, now, earliest=None):
+        start = datetime.combine(timezone.localdate(), now) + timedelta(minutes=30)
+        remainder = (start.minute % cls.SLOT_MINUTES) or cls.SLOT_MINUTES
+        if start.minute % cls.SLOT_MINUTES or start.second or start.microsecond:
+            start = start.replace(second=0, microsecond=0) + timedelta(minutes=cls.SLOT_MINUTES - remainder)
+        # Horario de atención 8:30 a. m.–6:00 p. m.; las horas que ya pasaron no se ofrecen.
+        # Con comida en el pedido (earliest) se ofrece desde la 1:00 p. m.
+        start = max(start, datetime.combine(start.date(), max(cls.OPENING_TIME, earliest or cls.OPENING_TIME)))
+        end = datetime.combine(start.date(), cls.CLOSING_TIME)
+        slots = []
+        while start <= end and start.date() == end.date():
+            slots.append(start.time())
+            start += timedelta(minutes=cls.SLOT_MINUTES)
+        return slots
+
+    @staticmethod
+    def slot_label(slot):
+        hour = slot.hour % 12 or 12
+        return f"{hour}:{slot.minute:02d} {'a. m.' if slot.hour < 12 else 'p. m.'}"
+
+    @staticmethod
+    def registered_with_address(phone):
+        from .models import Customer
+        return bool(phone) and Customer.objects.filter(phone_key=phone, addresses__isnull=False).exists()
+
+    def clean_phone(self):
+        digits = phone_key(self.cleaned_data["phone"])
+        if len(digits) != 10:
+            raise forms.ValidationError(f"El número que escribiste tiene {len(digits)} dígito{'s' if len(digits) != 1 else ''}.")
+        return digits
+
+    @property
+    def error_sections(self):
+        """{sección: [{campo, etiqueta, qué hacer, qué pasó}]} sólo con las secciones que fallaron."""
+        report = {}
+        for section_id, _title, field_names in self.SECTIONS:
+            items = [
+                {"field": name, "label": self.fields[name].label, "help": self.FIELD_HELP.get(name, ""), "error": error}
+                for name in field_names if name in self.fields
+                for error in self.errors.get(name, [])
+            ]
+            if items:
+                report[section_id] = items
+        return report
+
+    @property
+    def slot_values(self):
+        return [slot.strftime("%H:%M") for slot in self.slots]
+
+    @property
+    def error_summary(self):
+        titles = dict((section_id, title) for section_id, title, _fields in self.SECTIONS)
+        return [{"id": section_id, "title": titles[section_id], "items": items} for section_id, items in self.error_sections.items()]
+
     def clean(self):
         cleaned_data = super().clean()
         cleaned_data["order_type"] = self.order_type
-        if self.order_type == Order.OrderType.PICKUP and not cleaned_data.get("customer_last_name"):
-            self.add_error("customer_last_name", "El apellido es obligatorio para recoger.")
+        # Hora solicitada (sólo hoy). "Lo antes posible" deja el pedido sin hora.
+        cleaned_data.update({"requested_date": None, "requested_time": None, "requested_for": None})
+        if self.data.get("schedule") == "later":
+            chosen = self.data.get("requested_time", "")
+            slot = next((slot for slot in self.slots if slot.strftime("%H:%M") == chosen), None)
+            if not slot:
+                self.add_error("requested_time", "No elegiste hora o esa hora ya no está disponible.")
+            else:
+                today = timezone.localdate()
+                cleaned_data.update({
+                    "requested_date": today, "requested_time": slot,
+                    "requested_for": timezone.make_aware(datetime.combine(today, slot)),
+                })
+        cleaned_data["address_from_agenda"] = False
         if self.order_type == Order.OrderType.DELIVERY:
-            for field_name in ("street", "exterior_number", "neighborhood", "references"):
-                if not cleaned_data.get(field_name):
-                    self.add_error(field_name, "Este dato es obligatorio para entrega a domicilio.")
+            street = (cleaned_data.get("street") or "").strip()
+            number = (cleaned_data.get("exterior_number") or "").strip()
+            if not street and not number and self.registered_with_address(cleaned_data.get("phone")):
+                # Cliente que ya pidió antes: con su celular basta; el personal confirma el
+                # domicilio por WhatsApp. Nunca se le muestra el domicilio guardado.
+                cleaned_data["address_from_agenda"] = True
+            else:
+                if not street:
+                    self.add_error("street", "Este dato está vacío." if number else "No encontramos un domicilio registrado con este celular; escríbelo.")
+                if not number:
+                    self.add_error("exterior_number", "Este dato está vacío.")
         if self.order_type == Order.OrderType.PICKUP:
             cleaned_data.update({"payment_method": "", "needs_change": False, "cash_tendered": None})
             return cleaned_data
@@ -336,7 +479,7 @@ class PublicCheckoutForm(forms.Form):
 
         selected_values = sum(bool(cleaned_data.get(name)) for name in ("cash_bill", "cash_custom_amount", "pays_exact"))
         if selected_values != 1:
-            self.add_error("cash_bill", "Elige un billete, escribe otra cantidad o marca pago exacto.")
+            self.add_error("cash_bill", "No elegiste billete, cantidad ni pago exacto." if not selected_values else "Elegiste más de una opción de efectivo.")
             return cleaned_data
         if cleaned_data.get("pays_exact"):
             cleaned_data.update({"needs_change": False, "cash_tendered": self.cart_total})
@@ -345,6 +488,9 @@ class PublicCheckoutForm(forms.Form):
         if cleaned_data.get("cash_bill"):
             amount = int(cleaned_data["cash_bill"])
         if amount < self.cart_total:
-            self.add_error("cash_custom_amount", "La cantidad debe cubrir el total del pedido.")
+            self.add_error(
+                "cash_bill" if cleaned_data.get("cash_bill") else "cash_custom_amount",
+                f"${amount} no alcanza para el total de ${self.cart_total}.",
+            )
         cleaned_data.update({"needs_change": True, "cash_tendered": amount})
         return cleaned_data

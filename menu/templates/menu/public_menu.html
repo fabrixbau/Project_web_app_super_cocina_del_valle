@@ -12,35 +12,27 @@
 <div class="pp-menu-layout" data-public-workspace>
   <div class="pp-menu-catalog">
     <section class="pp-menu-intro">
-      <h1>{% if public_menu_mode == 'breakfast' %}Desayunos{% else %}Comida{% endif %}</h1>
-      <p>{% if public_menu_mode == 'breakfast' %}Menú disponible hasta las 12:30 p. m. También puedes adelantar tu comida.{% else %}Menú disponible hasta las 6:00 p. m.{% endif %}</p>
+      <h1>Nuestro menú</h1>
+      <p>{% if public_menu_mode == 'breakfast' %}Desayunos hasta las 12:30 p. m. · La comida se entrega a partir de la 1:00 p. m.{% else %}Menú disponible hasta las 6:00 p. m.{% endif %}</p>
     </section>
 
-    {# Orden en comida: menú del día, barra de categorías, paquetes y después los productos. #}
-    {% if public_menu_mode == 'lunch' %}{% include "menu/_public_daily_board.html" %}{% endif %}
+    {% comment %}
+    Un solo menú a cualquier hora: pizarra del día, barra de categorías, (Desayunos primero
+    hasta las 12:30), paquetes y el resto de categorías. Desde las 12:30 Desayunos se oculta.
+    {% endcomment %}
+    {% include "menu/_public_daily_board.html" %}
 
-    {# Navegación por categorías: fija arriba y desplazable horizontalmente. #}
     <nav class="pp-category-nav" aria-label="Categorías" data-pp-category-nav>
-      {% if daily_menu and meal_packages and public_menu_mode == 'lunch' %}<a href="#pp-paquetes">Paquetes del día</a>{% endif %}
-      {% for category in categories %}<a href="#pp-cat-{{ category.id }}">{{ category.name }}</a>{% endfor %}
-      {% if public_menu_mode == 'breakfast' and daily_menu %}<a href="#pp-adelanta">Comida del día</a>{% endif %}
-      {% for category in advance_lunch_categories %}<a href="#pp-cat-{{ category.id }}">{{ category.name }}</a>{% endfor %}
+      {% for category in breakfast_only_categories %}<a href="#pp-cat-{{ category.id }}">{{ category.name }}</a>{% endfor %}
+      {% if daily_menu and meal_packages %}<a href="#pp-paquetes">Paquetes del día</a>{% endif %}
+      {% for category in lunch_categories %}<a href="#pp-cat-{{ category.id }}">{{ category.name }}</a>{% endfor %}
     </nav>
 
-    {% if public_menu_mode == 'lunch' %}{% include "menu/_public_daily_packages.html" %}{% endif %}
+    {% for category in breakfast_only_categories %}{% include "menu/_public_category_catalog.html" with category=category %}{% endfor %}
+    {% include "menu/_public_daily_packages.html" %}
+    {% for category in lunch_categories %}{% include "menu/_public_category_catalog.html" with category=category %}{% endfor %}
 
-    {% for category in categories %}{% include "menu/_public_category_catalog.html" with category=category %}{% endfor %}
-
-    {% if public_menu_mode == 'breakfast' %}
-      {% if daily_menu or advance_lunch_categories %}
-        <div class="pp-section pp-advance-divider" id="pp-adelanta"><strong>Adelanta tu comida</strong><span>Las comidas se entregan o recogen a partir de la 1:00 p. m.</span></div>
-      {% endif %}
-      {% include "menu/_public_daily_board.html" %}
-      {% include "menu/_public_daily_packages.html" %}
-      {% for category in advance_lunch_categories %}{% include "menu/_public_category_catalog.html" with category=category %}{% endfor %}
-    {% endif %}
-
-    {% if not categories and not advance_lunch_categories and not daily_menu %}
+    {% if not categories and not daily_menu %}
       <p class="pp-empty">Por ahora no hay productos disponibles. Vuelve a intentarlo más tarde.</p>
     {% endif %}
   </div>
@@ -65,7 +57,7 @@
 {% block after_main %}
 <button type="button" class="pp-cart-bar" data-pp-cart-bar{% if not cart_controls.count %} hidden{% endif %}>
   <span class="pp-cart-bar-count" data-public-cart-count>{{ cart_controls.count }}</span>
-  <span>Ver pedido</span>
+  <span>Ver pedido y pago</span>
   <strong data-pp-cart-total>${{ cart_controls.total_display }}</strong>
 </button>
 <div class="pp-sheet-backdrop" data-pp-sheet-backdrop hidden></div>
@@ -77,5 +69,5 @@
 {% block scripts %}
 <script src="{% static 'js/product-selector.js' %}?v=7"></script>
 <script src="{% static 'js/public-menu-controls.js' %}?v=3"></script>
-<script src="{% static 'js/public-portal.js' %}?v=1"></script>
+<script src="{% static 'js/public-portal.js' %}?v=5"></script>
 {% endblock %}

@@ -1,13 +1,172 @@
-<!-- NOTA TEMPORAL PARA APRENDIZAJE:
-Recoger muestra identificación y notas. Entrega agrega domicilio y pago; JavaScript oculta
-opciones de efectivo cuando no corresponden, pero Django también valida. Borra esta nota. -->
-<!doctype html><html lang="es-MX"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Finalizar pedido | Super Cocina del Valle</title><link rel="stylesheet" href="/static/css/app.css"></head>
-<body><main class="container package-builder"><p><a href="{% url 'public_portal:cart' %}">← Carrito</a></p><section class="card"><h1>Finalizar pedido</h1><p>{{ cart.count }} producto(s) · <strong>${{ cart.total }}</strong></p><p><strong>{% if order_type == 'pickup' %}Recoger en la fonda{% else %}Entrega a domicilio{% endif %}</strong> · <a href="{% url 'public_portal:home' %}">Cambiar</a></p>
-  <form method="post">{% csrf_token %}{{ form.non_field_errors }}
-    <fieldset><legend>Identificación</legend><div class="package-fields">{% for field in form %}{% if field.name == 'customer_first_name' or field.name == 'customer_last_name' or field.name == 'phone' %}<p>{{ field.label_tag }} {{ field.errors }} {{ field }}</p>{% endif %}{% endfor %}</div></fieldset>
-    {% if order_type == 'delivery' %}<fieldset><legend>Domicilio de entrega</legend><div class="package-fields">{% for field in form %}{% if field.name == 'street' or field.name == 'exterior_number' or field.name == 'interior_number' or field.name == 'neighborhood' or field.name == 'references' %}<p>{{ field.label_tag }} {{ field.errors }} {{ field }}</p>{% endif %}{% endfor %}</div></fieldset>
-    <fieldset><legend>Pago</legend><div class="package-fields"><p>{{ form.payment_method.label_tag }} {{ form.payment_method.errors }} {{ form.payment_method }}</p><div id="cash-options"><p>{{ form.cash_bill.label_tag }} {{ form.cash_bill.errors }} {{ form.cash_bill }}</p><p>{{ form.cash_custom_amount.label_tag }} {{ form.cash_custom_amount.errors }} {{ form.cash_custom_amount }}</p><p>{{ form.pays_exact.label_tag }} {{ form.pays_exact.errors }} {{ form.pays_exact }}</p></div></div></fieldset>{% endif %}
-    <fieldset><legend>Notas</legend><p>{{ form.notes.label_tag }} {{ form.notes.errors }} {{ form.notes }}</p></fieldset>
-    <button type="submit">Enviar pedido completo</button>
+{% extends "public_portal/base.html" %}
+{% load static %}
+{% block title %}Finalizar pedido | Super Cocina del Valle{% endblock %}
+{% block body_class %}pp-checkout-page{% endblock %}
+{% block topbar_actions %}<a class="pp-back-link" href="{% url 'public_portal:menu' %}">← Menú</a>{% endblock %}
+{% block content %}
+{% comment %}
+Finalizar pedido por pasos: ① Tus datos (celular primero) → ② Domicilio (sólo entrega) →
+③ ¿Cuándo? → ④ Pago y envío (en Recoger: Revisar y enviar). public-checkout.js muestra un
+paso a la vez con transición, valida cada paso antes de avanzar (sección en rojo con "qué
+hacer" y "qué pasó") y sugiere calles de reparto. Django vuelve a validar todo.
+{% endcomment %}
+<div class="pp-checkout-layout">
+  <form method="post" novalidate class="pp-checkout-form" data-pp-checkout data-total="{{ cart.total }}" data-order-type="{{ order_type }}">
+    {% csrf_token %}
+    <header class="pp-checkout-head">
+      <h1>Finalizar pedido</h1>
+      <p><strong>{% if order_type == 'pickup' %}Recoger en la fonda{% else %}Entrega a domicilio{% endif %}</strong> · <a href="{% url 'public_portal:home' %}">Cambiar</a></p>
+    </header>
+
+    <ol class="pp-progress" data-pp-progress aria-label="Pasos">
+      <li data-pp-progress-step="datos"><span>1</span><b>Tus datos</b></li>
+      {% if order_type == 'delivery' %}<li data-pp-progress-step="domicilio"><span>2</span><b>Domicilio</b></li>{% endif %}
+      <li data-pp-progress-step="horario"><span>{% if order_type == 'delivery' %}3{% else %}2{% endif %}</span><b>¿Cuándo?</b></li>
+      <li data-pp-progress-step="pago"><span>{% if order_type == 'delivery' %}4{% else %}3{% endif %}</span><b>{% if order_type == 'delivery' %}Pago y envío{% else %}Revisar y enviar{% endif %}</b></li>
+    </ol>
+
+    <div class="pp-error-summary" data-pp-error-summary role="alert" tabindex="-1"{% if not form.errors %} hidden{% endif %}>
+      <strong>Revisa estos datos antes de continuar</strong>
+      <ul data-pp-error-list>
+        {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+        {% for section in form.error_summary %}{% for item in section.items %}<li data-field="{{ item.field }}"><a href="#sec-{{ section.id }}">{{ section.title }} · {{ item.label }}</a></li>{% endfor %}{% endfor %}
+      </ul>
+    </div>
+
+    {# ---------------------------------------------------------------- 1. Tus datos #}
+    <section class="pp-step pp-checkout-section pp-step-panel{% if form.error_sections.datos %} has-error{% endif %}" id="sec-datos" data-pp-section data-pp-step="datos">
+      <h2>Tus datos</h2>
+      <p class="pp-section-hint">¿Ya pediste antes con nosotros? Escribe el mismo número celular{% if order_type == 'delivery' %}: puedes dejar tu domicilio en blanco y te lo confirmaremos por WhatsApp{% endif %}.</p>
+      <div class="pp-section-errors" data-pp-section-errors>{% for item in form.error_sections.datos %}{% include "orders/_public_checkout_error.html" %}{% endfor %}</div>
+      <div class="pp-field-grid">
+        <div class="pp-field pp-float pp-field-wide{% if form.phone.errors %} is-invalid{% endif %}" data-pp-field="phone">
+          <input type="tel" name="phone" id="id_phone" value="{{ form.phone.value|default:'' }}" inputmode="numeric" autocomplete="tel" placeholder=" " maxlength="20" data-pp-phone>
+          <label for="id_phone">Número celular</label>
+          <svg class="pp-field-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M11 18h2"/></svg>
+          <small class="pp-field-note">10 dígitos · ahí te confirmamos por WhatsApp</small>
+        </div>
+        <div class="pp-field pp-float{% if form.customer_first_name.errors %} is-invalid{% endif %}" data-pp-field="customer_first_name">
+          {{ form.customer_first_name }}<label for="{{ form.customer_first_name.id_for_label }}">Nombre</label>
+          <svg class="pp-field-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c1.4-3.6 4.2-5.5 7.5-5.5s6.1 1.9 7.5 5.5"/></svg>
+        </div>
+        <div class="pp-field pp-float{% if form.customer_last_name.errors %} is-invalid{% endif %}" data-pp-field="customer_last_name">
+          {{ form.customer_last_name }}<label for="{{ form.customer_last_name.id_for_label }}">Apellido (opcional)</label>
+          <svg class="pp-field-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c1.4-3.6 4.2-5.5 7.5-5.5s6.1 1.9 7.5 5.5"/></svg>
+        </div>
+      </div>
+    </section>
+
+    {# ---------------------------------------------------------------- 2. Domicilio #}
+    {% if order_type == 'delivery' %}
+    <section class="pp-step pp-checkout-section pp-step-panel{% if form.error_sections.domicilio %} has-error{% endif %}" id="sec-domicilio" data-pp-section data-pp-step="domicilio">
+      <h2>Domicilio de entrega</h2>
+      <p class="pp-section-hint">Si ya pediste antes con este celular, puedes dejar tu domicilio en blanco: te lo confirmaremos por WhatsApp.</p>
+      <div class="pp-section-errors" data-pp-section-errors>{% for item in form.error_sections.domicilio %}{% include "orders/_public_checkout_error.html" %}{% endfor %}</div>
+      <div class="pp-field-grid">
+        <div class="pp-field pp-float pp-field-wide{% if form.street.errors %} is-invalid{% endif %}" data-pp-field="street">
+          {{ form.street }}<label for="{{ form.street.id_for_label }}">Calle</label>
+          <svg class="pp-field-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 4l8 7.5V20h-5v-5H9v5H4z"/></svg>
+        </div>
+        <div class="pp-field pp-float{% if form.exterior_number.errors %} is-invalid{% endif %}" data-pp-field="exterior_number">
+          {{ form.exterior_number }}<label for="{{ form.exterior_number.id_for_label }}">Número exterior</label>
+          <svg class="pp-field-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 7 20M17 4l-2 16M4.5 9h16M3.5 15h16"/></svg>
+        </div>
+        <div class="pp-field pp-float" data-pp-field="interior_number">
+          {{ form.interior_number }}<label for="{{ form.interior_number.id_for_label }}">Interior (opcional)</label>
+          <svg class="pp-field-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="1.5"/><circle cx="15" cy="12" r="1"/></svg>
+        </div>
+        <div class="pp-field pp-float pp-field-wide" data-pp-field="references">
+          {{ form.references }}<label for="{{ form.references.id_for_label }}">Referencias (opcional)</label>
+          <svg class="pp-field-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6.1-6.5-11a6.5 6.5 0 0 1 13 0c0 4.9-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.3"/></svg>
+          <small class="pp-field-note">Color de la fachada, entre qué calles, etc.</small>
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    {# ---------------------------------------------------------------- 3. ¿Cuándo? #}
+    <section class="pp-step pp-checkout-section pp-step-panel{% if form.error_sections.horario %} has-error{% endif %}" id="sec-horario" data-pp-section data-pp-step="horario">
+      <h2>¿Para cuándo lo quieres?</h2>
+      <div class="pp-section-errors" data-pp-section-errors>{% for item in form.error_sections.horario %}{% include "orders/_public_checkout_error.html" %}{% endfor %}</div>
+      {% with chosen=form.requested_time.value|default:'' later=form.schedule.value %}
+      <div class="pp-when" data-pp-schedule data-pickup="{% if order_type == 'pickup' %}true{% else %}false{% endif %}">
+        <input type="hidden" name="schedule" value="{% if later == 'later' and chosen %}later{% else %}asap{% endif %}" data-pp-schedule-mode>
+        <input type="hidden" name="requested_time" value="{% if later == 'later' %}{{ chosen }}{% endif %}" data-pp-schedule-time>
+        <button type="button" class="pp-schedule-option pp-tap" data-pp-schedule-asap aria-pressed="true">
+          <svg class="pp-option-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+          <span><strong>Lo antes posible</strong><small>{% if order_type == 'pickup' %}Te avisamos cuando esté listo para recoger.{% else %}Lo enviamos en cuanto esté listo.{% endif %}</small></span>
+        </button>
+        {% if form.slots %}
+          <button type="button" class="pp-schedule-option pp-tap" data-pp-schedule-open aria-pressed="false" aria-expanded="false">
+            <svg class="pp-option-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <span><strong data-pp-schedule-label>Elegir hora</strong><small>{% if order_type == 'pickup' %}Para recoger hoy a la hora que prefieras.{% else %}Para entregarlo hoy a la hora que prefieras.{% endif %}</small></span>
+          </button>
+          <div class="pp-clock-panel" data-pp-clock-panel hidden>
+            <p class="pp-clock-title">Elige la hora <small>(hoy)</small></p>
+            <div class="pp-clock-group"><span>Hora</span><div data-pp-clock-hours></div></div>
+            <div class="pp-clock-group"><span>Minutos</span><div data-pp-clock-minutes></div></div>
+            <div class="pp-clock-actions"><button type="button" class="pp-link-button" data-pp-schedule-reset>Mejor lo antes posible</button><button type="button" class="pp-primary-button" data-pp-clock-done>Listo</button></div>
+          </div>
+        {% else %}
+          <p class="pp-schedule-none">Ya no hay horarios disponibles hoy; lo prepararemos lo antes posible.</p>
+        {% endif %}
+      </div>
+      {% endwith %}
+    </section>
+
+    {# ---------------------------------------------------------------- 4. Pago y envío / Revisar #}
+    <section class="pp-step pp-checkout-section pp-step-panel{% if form.error_sections.pago %} has-error{% endif %}" id="sec-pago" data-pp-section data-pp-step="pago">
+      <h2>{% if order_type == 'delivery' %}Pago y envío{% else %}Revisar y enviar{% endif %}</h2>
+      <div class="pp-section-errors" data-pp-section-errors>{% for item in form.error_sections.pago %}{% include "orders/_public_checkout_error.html" %}{% endfor %}</div>
+      {% if order_type == 'delivery' %}
+        <div class="pp-field{% if form.payment_method.errors %} is-invalid{% endif %}" data-pp-field="payment_method">
+          <span class="pp-field-label">¿Cómo vas a pagar?</span>
+          <div class="pp-pay-options">{% for choice in form.payment_method %}<label class="pp-pay-card pp-tap">{{ choice.tag }}<span>{% if choice.data.value == 'cash' %}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/></svg>{% elif choice.data.value == 'card' %}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19M6 15h4"/></svg>{% else %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h13l-3-3M20 15H7l3 3"/></svg>{% endif %}{{ choice.choice_label }}</span></label>{% endfor %}</div>
+        </div>
+        <div class="pp-cash" data-pp-cash hidden>
+          <div class="pp-field{% if form.cash_bill.errors %} is-invalid{% endif %}" data-pp-field="cash_bill">
+            <span class="pp-field-label">¿Con qué billete pagarás? <small>Para llevarte el cambio</small></span>
+            <div class="pp-chip-group">{% for choice in form.cash_bill %}<label class="pp-chip pp-tap">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}</div>
+          </div>
+          <div class="pp-field-grid">
+            <div class="pp-field pp-float{% if form.cash_custom_amount.errors %} is-invalid{% endif %}" data-pp-field="cash_custom_amount">{{ form.cash_custom_amount }}<label for="{{ form.cash_custom_amount.id_for_label }}">Otra cantidad</label></div>
+            <label class="pp-check" data-pp-field="pays_exact">{{ form.pays_exact }}<span>Pago exacto, no necesito cambio</span></label>
+          </div>
+        </div>
+      {% else %}
+        <p class="pp-section-hint">Pagas al recoger tu pedido en la fonda.</p>
+      {% endif %}
+      <div class="pp-field pp-float pp-notes" data-pp-field="notes">
+        {{ form.notes }}<label for="{{ form.notes.id_for_label }}">Notas para tu pedido (opcional)</label>
+      </div>
+    </section>
+
+    <div class="pp-step-nav" data-pp-step-nav>
+      <button type="button" class="pp-secondary-button" data-pp-step-back hidden>← Atrás</button>
+      <button type="button" class="pp-primary-button" data-pp-step-next>Continuar</button>
+    </div>
+
+    <div class="pp-submit-bar pp-checkout-submit" data-pp-submit-bar>
+      <p class="pp-submit-total"><small>Total · {{ cart.count }} artículo{{ cart.count|pluralize }}</small><strong>${{ cart.total }}</strong></p>
+      <button type="submit" class="pp-primary-button" data-pp-send><span>Enviar pedido</span></button>
+    </div>
   </form>
-</section></main>{% if order_type == 'delivery' %}<script src="/static/js/checkout.js"></script>{% endif %}</body></html>
+
+  <aside class="pp-checkout-summary" aria-label="Tu pedido">
+    <details class="pp-summary-details" data-pp-summary-details>
+      <summary><span>Tu pedido · {{ cart.count }} artículo{{ cart.count|pluralize }}</span><strong>${{ cart.total }}</strong></summary>
+      <ul>
+        {% for item in summary.items %}<li><span><strong>{{ item.quantity }} × {{ item.name }}</strong>{% if item.detail %}<small>{{ item.detail }}</small>{% endif %}</span><b>${{ item.subtotal }}</b></li>{% endfor %}
+      </ul>
+      {% if summary.note %}<p class="pp-checkout-note">Nota: {{ summary.note }}</p>{% endif %}
+      <p class="pp-checkout-total"><span>Total</span><strong>${{ cart.total }}</strong></p>
+      <a class="pp-link-button" href="{% url 'public_portal:menu' %}">Agregar o cambiar productos</a>
+    </details>
+  </aside>
+</div>
+<div class="pp-street-list" data-pp-street-list role="listbox" hidden></div>
+{{ form.slot_values|json_script:"pp-schedule-slots" }}
+{{ form.FIELD_HELP|json_script:"pp-field-help" }}
+{{ delivery_streets|json_script:"pp-delivery-streets" }}
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/public-checkout.js' %}?v=4"></script>{% endblock %}

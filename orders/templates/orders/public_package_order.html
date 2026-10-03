@@ -4,13 +4,17 @@
 {% block body_class %}pp-package-page{% endblock %}
 {% block topbar_actions %}<a class="pp-back-link" href="{% url 'public_portal:menu' %}">← Menú</a>{% endblock %}
 {% block content %}
-{% comment %} Arma un paquete de tres tiempos. Cada paso es un grupo de tarjetas tocables (radios reales del
-   formulario); package-selection.js pide pierna/muslo al elegir el guisado de pollo y
-   public-portal.js mueve la cantidad y el total del botón. {% endcomment %}
+{% comment %}
+Arma comidas (Comida corrida / ejecutiva). Los tiempos son radios reales del formulario; si el
+cliente deja vacío el primer o el segundo tiempo, es un paquete de 2 tiempos (se le pide
+confirmar). El contador − # + guarda la comida en curso y limpia la plantilla (public-portal.js);
+package-selection.js sólo aporta la ventanita de pierna/muslo.
+{% endcomment %}
 <section class="pp-package-hero">
-  <p class="pp-eyebrow">Paquete de tres tiempos</p>
-  <h1>{{ package.name }}</h1>
-  {% if package.description %}<p>{{ package.description }}</p>{% endif %}
+  <div class="pp-package-hero-copy">
+    <p class="pp-eyebrow">Paquete de tres tiempos</p>
+    <h1>{{ package.name }}</h1>
+  </div>
   <div class="pp-price-pills">
     <span><small>Sin agua</small><strong>${{ package.price_without_water }}</strong></span>
     <span><small>Con agua</small><strong>${{ package.price_with_water }}</strong></span>
@@ -24,15 +28,23 @@
   {% csrf_token %}
   {% if form.non_field_errors %}<div class="pp-form-error">{{ form.non_field_errors }}</div>{% endif %}
 
-  {% for field in form %}{% if field.name == "first_course" or field.name == "second_course" or field.name == "main_course" %}
-    <fieldset class="pp-step">
-      <legend><span class="pp-step-number">{{ forloop.counter }}</span>{% if field.name == "first_course" %}Primer tiempo{% elif field.name == "second_course" %}Segundo tiempo{% elif package.package_type == "running" %}Guisado{% else %}Plancha{% endif %}</legend>
-      {% if field.errors %}<p class="pp-field-error">Elige una opción.</p>{% endif %}
-      <div class="pp-choice-grid">
-        {% for choice in field %}<label class="pp-choice">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}
-      </div>
-    </fieldset>
-  {% endif %}{% endfor %}
+  <fieldset class="pp-step">
+    <legend><span class="pp-step-number">1</span>Elige tus tiempos</legend>
+    <p class="pp-step-hint">Toca de nuevo un tiempo para quitarlo.</p>
+    <div class="pp-course-row{% if package.package_type != "running" %} is-grill{% endif %}">
+      {% for field in form %}{% if field.name == "first_course" or field.name == "second_course" or field.name == "main_course" %}
+        <div class="pp-course{% if field.name == "main_course" and package.package_type != "running" %} pp-course-wide{% endif %}" data-pp-course="{{ field.name }}">
+          <header>
+            <h3>{% if field.name == "first_course" %}Primer tiempo{% elif field.name == "second_course" %}Segundo tiempo{% elif package.package_type == "running" %}Guisado{% else %}Plancha{% endif %}</h3>
+          </header>
+          {% if field.errors %}<p class="pp-field-error">Elige una opción.</p>{% endif %}
+          <div class="pp-choice-list">
+            {% for choice in field %}<label class="pp-choice">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}
+          </div>
+        </div>
+      {% endif %}{% endfor %}
+    </div>
+  </fieldset>
 
   {# Pierna/muslo: package-selection.js lo pregunta en una ventanita al elegir el guisado de pollo. #}
   <fieldset class="pp-step" data-chicken-piece-field hidden>
@@ -42,39 +54,62 @@
   </fieldset>
 
   <fieldset class="pp-step">
-    <legend><span class="pp-step-number">4</span>Completa tu comida</legend>
-    <div class="pp-extras">
-      <label class="pp-switch-row">
-        <span><strong>Agua del día</strong><small>{% if daily_menu.water_product %}{{ daily_menu.water_product.name }}{% else %}Agua fresca{% endif %} · el paquete con agua cuesta ${{ package.price_with_water }}</small></span>
-        {{ form.with_water }}<span class="pp-switch" aria-hidden="true"></span>
+    <legend><span class="pp-step-number">2</span>Completa tu comida</legend>
+    <div class="pp-extras-row">
+      <label class="pp-extra pp-extra-water">
+        <strong>Agua del día</strong>
+        <small>{% if daily_menu.water_product %}{{ daily_menu.water_product.name }}{% else %}Agua fresca{% endif %}</small>
+        <span class="pp-extra-control">{{ form.with_water }}<span class="pp-switch" aria-hidden="true"></span></span>
       </label>
-      <div class="pp-yes-no">
-        <strong>¿Lleva tortillas?</strong>
+      <div class="pp-extra">
+        <strong>¿Tortillas?</strong>
         {% if form.tortillas.errors %}<p class="pp-field-error">Elige Sí o No.</p>{% endif %}
         <div class="pp-segmented">{% for choice in form.tortillas %}<label>{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}</div>
       </div>
-      <div class="pp-yes-no">
-        <strong>¿Lleva frijoles?</strong>
+      <div class="pp-extra">
+        <strong>¿Frijoles?</strong>
         {% if form.beans.errors %}<p class="pp-field-error">Elige Sí o No.</p>{% endif %}
         <div class="pp-segmented">{% for choice in form.beans %}<label>{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}</div>
       </div>
     </div>
+    <p class="pp-extras-note">Tortillas y frijoles no tienen costo extra. Con agua, el paquete cuesta ${{ package.price_with_water }}.</p>
   </fieldset>
 
+  {# Comidas guardadas con + (cada una con el detalle de cómo quedó armada). #}
+  <section class="pp-built" data-pp-built hidden aria-live="polite">
+    <h2>Comidas armadas</h2>
+    <ol data-pp-built-list></ol>
+  </section>
+
   <div class="pp-submit-bar">
-    <div class="pp-quantity" role="group" aria-label="Cantidad">
-      <button type="button" data-pp-quantity-step="-1" aria-label="Quitar uno">−</button>
-      <input type="number" name="quantity" min="1" max="99" value="{{ form.quantity.value|default:1 }}" inputmode="numeric" data-pp-quantity aria-label="Cantidad">
-      <button type="button" data-pp-quantity-step="1" aria-label="Agregar uno">+</button>
+    <div class="pp-counter-block">
+      <div class="pp-quantity" role="group" aria-label="Comidas por agregar">
+        <button type="button" data-pp-meal-decrease aria-label="Descartar esta comida y regresar a la anterior">−</button>
+        <strong data-pp-meal-count aria-live="polite">1</strong>
+        <button type="button" data-pp-meal-increase aria-label="Guardar esta comida y armar otra">+</button>
+      </div>
+      <p class="pp-counter-help">¿Vas a pedir más de una comida? Pulsa <b>+</b> para guardar esta y armar la siguiente.</p>
     </div>
     <p class="pp-submit-total"><small>Total</small><strong data-pp-package-total>${{ package.price_without_water }}</strong></p>
     {# package-selection.js reescribe el texto de este botón; por eso el total vive afuera. #}
-    <button type="submit" class="pp-primary-button">Agregar al pedido</button>
+    <button type="submit" class="pp-primary-button" data-pp-submit>Agregar al pedido</button>
   </div>
-  {{ form.quantity.errors }}
+  <input type="hidden" name="quantity" value="1">
 </form>
+
+<dialog class="pp-confirm-dialog" data-pp-two-course-dialog>
+  <form method="dialog">
+    <h2>Comida de 2 tiempos</h2>
+    <p data-pp-two-course-text>Armaste esta comida con sólo dos tiempos.</p>
+    <p>El precio del paquete sigue siendo el mismo.</p>
+    <div class="pp-confirm-actions">
+      <button type="submit" value="cancel" class="pp-secondary-button">Elegir otro tiempo</button>
+      <button type="submit" value="ok" class="pp-primary-button">Sí, continuar</button>
+    </div>
+  </form>
+</dialog>
 {% endblock %}
 {% block scripts %}
-<script src="{% static 'js/package-selection.js' %}?v=9"></script>
-<script src="{% static 'js/public-portal.js' %}?v=1"></script>
+<script src="{% static 'js/package-selection.js' %}?v=10"></script>
+<script src="{% static 'js/public-portal.js' %}?v=5"></script>
 {% endblock %}

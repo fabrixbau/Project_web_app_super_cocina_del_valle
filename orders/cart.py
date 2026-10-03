@@ -33,9 +33,11 @@ def add_package(session, *, package, daily_menu, cleaned_data):
         "kind": "package",
         "package_id": package.pk,
         "daily_menu_id": daily_menu.pk,
-        "first_course_id": cleaned_data["first_course"].pk,
-        "second_course_id": cleaned_data["second_course"].pk,
+        # En 2 tiempos el primer o el segundo tiempo llega vacío (None).
+        "first_course_id": cleaned_data["first_course"].pk if cleaned_data.get("first_course") else None,
+        "second_course_id": cleaned_data["second_course"].pk if cleaned_data.get("second_course") else None,
         "main_course_id": cleaned_data["main_course"].pk,
+        "is_two_course": bool(cleaned_data.get("two_course")),
         "chicken_piece": cleaned_data["chicken_piece"],
         "with_water": cleaned_data["with_water"],
         "tortillas": cleaned_data["tortillas"] == "yes",
@@ -106,8 +108,14 @@ def cart_control_summary(session):
             customizable = bool(item["product"].option_groups.all())
             product_id = item["product_id"]
         else:
+            # Cómo quedó armada la comida: tiempos, pieza, agua, tortillas y frijoles.
             detail = " · ".join(filter(None, (
-                item["first_course"].name, item["second_course"].name, item["main_course"].name,
+                "2 tiempos" if item.get("is_two_course") else "",
+                *(course.name for course in (item["first_course"], item["second_course"]) if course),
+                f"{item['main_course'].name} ({item['chicken_piece_label'].lower()})" if item.get("chicken_piece_label") else item["main_course"].name,
+                "con agua" if item.get("with_water") else "sin agua",
+                "con tortillas" if item.get("tortillas") else "sin tortillas",
+                "con frijoles" if item.get("beans") else "sin frijoles",
                 item.get("item_note", ""),
             )))
             customizable = False
@@ -192,7 +200,7 @@ def set_order_mode(session, mode):
     session.modified = True
 
 
-def product_is_orderable(product):
+def product_is_orderable(product, now=None):
     if not product.is_available or not product.is_sold_individually or not product.show_to_customers:
         return False
     daily_types = {
@@ -210,14 +218,37 @@ def product_is_orderable(product):
             *(item.pk for item in menu.stew_options if item),
         }:
             return False
-    current_time = timezone.localtime().time()
+    current_time = now or timezone.localtime().time()
     if current_time < time(12, 31):
         return product.category.show_on_public_breakfast or product.category.show_on_public_lunch
     return current_time <= time(18, 0) and product.category.show_on_public_lunch
 
 
+def cart_has_lunch_items(cart_data):
+    """True si el pedido trae comida (paquetes o productos de comida): sólo sale desde la 1 p. m."""
+    daily_types = {
+        Product.ComponentType.CHICKEN_CONSOMME, Product.ComponentType.VARIABLE_FIRST_COURSE,
+        Product.ComponentType.SECOND_COURSE, Product.ComponentType.CHICKEN_STEW,
+        Product.ComponentType.BEEF_STEW, Product.ComponentType.VARIED_STEW,
+    }
+    for item in cart_data["items"]:
+        if item["kind"] == "package":
+            return True
+        product = item["product"]
+        category = product.category
+        if (
+            product.component_type in daily_types
+            or category.name.casefold().startswith("comida")
+            or not category.show_on_public_breakfast
+        ):
+            return True
+    return False
+
+
 def resolve_cart(session):
     raw_items = _cart(session)
+    from public_portal.preview import public_time
+    now = public_time(session)
     package_ids = {item["package_id"] for item in raw_items if item.get("kind") == "package"}
     product_ids = {item["product_id"] for item in raw_items if item.get("kind") == "product"}
     packages = {item.pk: item for item in MealPackage.objects.filter(pk__in=package_ids, is_active=True)}
@@ -231,7 +262,7 @@ def resolve_cart(session):
             continue
         if raw.get("kind") == "product":
             product = products.get(raw["product_id"])
-            if not product or not product_is_orderable(product):
+            if not product or not product_is_orderable(product, now=now):
                 continue
             try:
                 selection = resolve_product_selection(
@@ -251,19 +282,21 @@ def resolve_cart(session):
             daily_menu = DailyMenu.objects.filter(
                 pk=raw.get("daily_menu_id"), date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED
             ).select_related("water_product").first()
-            selected = Product.objects.in_bulk([
+            first_id, second_id, main_id = (
                 raw.get("first_course_id"), raw.get("second_course_id"), raw.get("main_course_id")
-            ])
-            if not package or not daily_menu or len(selected) != 3 or any(
+            )
+            course_ids = [course_id for course_id in (first_id, second_id, main_id) if course_id]
+            selected = Product.objects.in_bulk(course_ids)
+            # 3 tiempos, o 2 tiempos válidos (primero + guisado o segundo + guisado).
+            if not package or not daily_menu or not main_id or not (first_id or second_id):
+                continue
+            if len(selected) != len(course_ids) or any(
                 not product.is_available or not product.show_to_customers for product in selected.values()
             ):
                 continue
-            first_id, second_id, main_id = (
-                raw["first_course_id"], raw["second_course_id"], raw["main_course_id"]
-            )
-            if first_id not in {item.pk for item in daily_menu.first_course_options if item}:
+            if first_id and first_id not in {item.pk for item in daily_menu.first_course_options if item}:
                 continue
-            if second_id not in {item.pk for item in daily_menu.second_course_options if item}:
+            if second_id and second_id not in {item.pk for item in daily_menu.second_course_options if item}:
                 continue
             if package.package_type == MealPackage.PackageType.RUNNING:
                 if main_id not in {item.pk for item in daily_menu.stew_options if item}:
@@ -281,9 +314,9 @@ def resolve_cart(session):
             unit_price = package.price_with_water if raw.get("with_water") else package.price_without_water
             item = {
                 **raw, "package": package, "daily_menu": daily_menu, "name": package.name,
-                "first_course": selected[raw["first_course_id"]],
-                "second_course": selected[raw["second_course_id"]],
-                "main_course": selected[raw["main_course_id"]], "unit_price": unit_price,
+                "first_course": selected.get(first_id), "second_course": selected.get(second_id),
+                "main_course": selected[main_id], "unit_price": unit_price,
+                "is_two_course": not (first_id and second_id),
                 "chicken_piece_label": {"leg": "Pierna", "thigh": "Muslo"}.get(chicken_piece, ""),
             }
         item["subtotal"] = unit_price * quantity
