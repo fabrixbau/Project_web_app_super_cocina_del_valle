@@ -40,6 +40,11 @@ INSTALLED_APPS = [
     "print_station.apps.PrintStationConfig",
 ]
 
+# Portal de clientes: si el código de seguridad del formulario ya no es válido (página abierta
+# mucho tiempo, o se inició/cerró sesión en otra pestaña) se regresa a la página con un aviso y
+# los datos escritos. En /app/ se conserva la respuesta normal de Django.
+CSRF_FAILURE_VIEW = "public_portal.views.csrf_failure"
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",

@@ -162,6 +162,9 @@ class Order(models.Model):
     # Portal de clientes: el domicilio quedó fuera de las calles de reparto, o el cliente
     # omitió su domicilio porque su celular ya está registrado (el personal lo confirma).
     outside_delivery_zone = models.BooleanField("fuera de zona", default=False)
+    # Pedido web asociado a la agenda: el nombre principal pasa a ser el del cliente registrado
+    # y aquí se conserva el nombre con el que llegó el pedido (p. ej. "Hija de Tello").
+    web_customer_name = models.CharField("nombre con el que pidió", max_length=150, blank=True)
     address_from_agenda = models.BooleanField("usar domicilio registrado", default=False)
     notes = models.TextField(blank=True)
     payment_method = models.CharField(max_length=20, choices=PaymentMethod.choices, blank=True)

@@ -81,6 +81,8 @@ package-selection.js sólo aporta la ventanita de pierna/muslo.
     <ol data-pp-built-list></ol>
   </section>
 
+  {# En celular la leyenda va fuera de la barra fija, para que la barra no tape la pantalla. #}
+  <p class="pp-counter-help pp-counter-help-page">¿Vas a pedir más de una comida? Pulsa <b>+</b> para guardar esta y armar la siguiente.</p>
   <div class="pp-submit-bar">
     <div class="pp-counter-block">
       <div class="pp-quantity" role="group" aria-label="Comidas por agregar">
@@ -92,7 +94,10 @@ package-selection.js sólo aporta la ventanita de pierna/muslo.
     </div>
     <p class="pp-submit-total"><small>Total</small><strong data-pp-package-total>${{ package.price_without_water }}</strong></p>
     {# package-selection.js reescribe el texto de este botón; por eso el total vive afuera. #}
-    <button type="submit" class="pp-primary-button" data-pp-submit>Agregar al pedido</button>
+    <div class="pp-submit-actions">
+      <button type="submit" name="next" value="menu" class="pp-primary-button" data-pp-submit>Agregar y seguir pidiendo</button>
+      <button type="submit" name="next" value="checkout" class="pp-secondary-button" data-pp-submit-pay>Agregar e ir a pagar&nbsp;→</button>
+    </div>
   </div>
   <input type="hidden" name="quantity" value="1">
 </form>
@@ -111,5 +116,5 @@ package-selection.js sólo aporta la ventanita de pierna/muslo.
 {% endblock %}
 {% block scripts %}
 <script src="{% static 'js/package-selection.js' %}?v=10"></script>
-<script src="{% static 'js/public-portal.js' %}?v=5"></script>
+<script src="{% static 'js/public-portal.js' %}?v=6"></script>
 {% endblock %}

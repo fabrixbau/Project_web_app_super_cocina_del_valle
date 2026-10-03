@@ -12612,6 +12612,29 @@ html[data-theme="dark"] .live-search-count { color: #edf4f0; }
 /* Detalle de pedido web: marcas de zona/domicilio registrado y panel para asociarlo a la agenda. */
 .order-flag { margin: 0 0 .5rem; padding: .45rem .7rem; color: #174735; background: #e4efe8; border-radius: .6rem; font-size: .85rem; font-weight: 700; }
 .order-flag.is-warning { color: #7a4a00; background: #fff1cc; }
+.order-flag.is-linked { color: #fff; background: #1f5a43; }
+.order-flag.is-linked a { color: #fff; }
+/* Pedidos web en Pedidos, Repartos y Caja: asociado a la agenda (verde) o pendiente (amarillo). */
+.agenda-badge { display: inline-block; justify-self: start; align-self: start; width: fit-content; max-width: 100%; margin-top: .2rem; padding: .12rem .5rem; overflow: hidden; border-radius: 999px; font-size: .74rem; font-weight: 700; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.agenda-badge.is-linked { color: #174735; background: #dcefe3; }
+.agenda-badge.is-pending { color: #7a4a00; background: #fff1cc; }
+/* Alerta de pedidos web: marco amarillo parpadeando en toda la pantalla (no bloquea nada). */
+.order-alert-frame { position: fixed; inset: 0; z-index: 2147483000; display: none; pointer-events: none; box-shadow: inset 0 0 0 7px #f4bd45, inset 0 0 26px 10px rgb(244 189 69 / 55%); }
+.has-order-alert .order-alert-frame { display: block; animation: order-alert-blink 1s ease-in-out infinite; }
+@keyframes order-alert-blink { 0%, 100% { opacity: 1; } 50% { opacity: .15; } }
+@media (prefers-reduced-motion: reduce) { .has-order-alert .order-alert-frame { animation: none; } }
+[data-notification-count][hidden], [data-notification-dot][hidden] { display: none !important; }
+.pp-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.pending-attention-badge { display: inline-block; width: fit-content; margin-top: .2rem; padding: .1rem .45rem; color: #8a2a1d; background: #fde3dd; border-radius: 999px; font-size: .72rem; font-weight: 800; letter-spacing: 0; text-transform: none; white-space: nowrap; }
+.notification-old { color: #8a2a1d; }
+.notification-agenda { margin: .35rem 0 0; }
+/* Pantalla del pedido en celular: avisos compactos; Cliente a todo lo ancho y abajo Pago +
+   Historial de estados en una misma fila. */
+@media (max-width: 600px) {
+  main.internal-panel:has(.order-detail-grid) .message { margin: 0 0 .35rem; padding: .3rem .55rem; border-radius: .45rem; font-size: .72rem; line-height: 1.25; }
+  main.internal-panel .order-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  main.internal-panel .order-detail-grid > .card:first-child { grid-column: 1 / -1; }
+}
 /* Panel "Agenda de clientes" del detalle de pedido web: radios y casilla alineados a la izquierda
    (los estilos generales de formulario les daban ancho completo). */
 .order-agenda-panel .order-agenda-match { display: grid; gap: .6rem; margin: .6rem 0; padding: .8rem; border: 1px solid #d8ddd7; border-radius: .7rem; }
@@ -12620,7 +12643,25 @@ html[data-theme="dark"] .live-search-count { color: #edf4f0; }
 .order-agenda-who span { color: #5f6964; font-size: .9rem; }
 .order-agenda-panel .order-agenda-addresses { display: grid; gap: .35rem; min-width: 0; margin: 0; padding: 0; border: 0; }
 .order-agenda-addresses legend { margin-bottom: .2rem; padding: 0; color: #5f6964; font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.order-agenda-panel .order-agenda-addresses label, .order-agenda-panel .order-agenda-replace {
+/* Agenda de clientes: botón +52 pegado al campo de teléfono. */
+.phone-prefix-block { display: grid; gap: .35rem; }
+.phone-prefix-block > label { font-weight: 700; }
+.phone-prefix-field { display: flex; align-items: stretch; }
+.phone-prefix-field > input { flex: 1 1 auto; min-width: 0; margin: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.phone-prefix-toggle { position: relative; display: flex; flex: 0 0 auto; margin: 0; cursor: pointer; }
+.phone-prefix-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.phone-prefix-toggle span {
+  display: inline-flex; align-items: center; gap: .3rem; height: 100%; padding: 0 .9rem;
+  color: #5f6964; background: #f1eee8; border: 1px solid #b9b2a6; border-right: 0; border-radius: .5rem 0 0 .5rem;
+  font-weight: 800; letter-spacing: .02em; transition: background .15s ease, color .15s ease;
+}
+.phone-prefix-toggle input:checked + span { color: #fff; background: #1f5a43; border-color: #1f5a43; }
+.phone-prefix-toggle input:checked + span::before { content: "✓"; }
+.phone-prefix-toggle input:focus-visible + span { outline: 3px solid rgb(31 90 67 / 35%); outline-offset: 1px; }
+.phone-prefix-help { color: #5f6964; font-size: .8rem; }
+.order-agenda-note { margin: 0 0 .5rem; padding: .5rem .7rem; color: #174735; background: #e4efe8; border-radius: .6rem; font-size: .85rem; }
+.agenda-asked-as { display: block; color: #5f6964; font-size: .76rem; font-style: italic; }
+.order-agenda-panel .order-agenda-addresses label {
   display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: .5rem; margin: 0;
   font-size: .9rem; font-weight: 500; line-height: 1.3; text-align: left; cursor: pointer;
 }

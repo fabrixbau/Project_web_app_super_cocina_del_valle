@@ -731,7 +731,12 @@ def autosave_internal_order_customer(*, order, form_data, actor=None):
     order.order_type = form_data["order_type"]
     if old_type != order.order_type:
         _move_order_stock_channel(order=order, old_type=old_type, actor=actor)
-    order.customer_name = " ".join(form_data.get("customer_name", "").split())
+    new_name = " ".join(form_data.get("customer_name", "").split())
+    # Pedido web: si el personal cambia el nombre (p. ej. al asociarlo desde el editor), se
+    # conserva el nombre con el que llegó el pedido.
+    if order.source == Order.Source.PUBLIC_WEB and not order.web_customer_name and order.customer_name and new_name != order.customer_name:
+        order.web_customer_name = order.customer_name
+    order.customer_name = new_name
     order.phone = form_data.get("phone", "").strip()
     order.requested_date = form_data.get("requested_date")
     order.requested_time = form_data.get("requested_time")
@@ -753,7 +758,7 @@ def autosave_internal_order_customer(*, order, form_data, actor=None):
         order.delivery_tip_updated_by = None
         order.delivery_tip_updated_at = None
     order.save(update_fields=(
-        "order_type", "customer_name", "phone", "requested_date", "requested_time",
+        "order_type", "customer_name", "web_customer_name", "phone", "requested_date", "requested_time",
         "requested_for", "street", "exterior_number", "interior_number",
         "neighborhood", "references", "notes", "payment_method", "needs_change", "cash_tendered",
         "delivery_tip_amount", "delivery_tip_recipient", "delivery_tip_updated_by",
@@ -1836,14 +1841,16 @@ def transfer_table_to_order(*, table_account, actor):
 
 
 @transaction.atomic
-def link_public_order_customer(*, order, actor, customer=None, address=None, replace_data=False):
+def link_public_order_customer(*, order, actor, customer=None, address=None):
     """El personal asocia un pedido web a la agenda (o crea la ficha) al confirmarlo.
 
     - customer: cliente registrado elegido (puede no coincidir con el celular, p. ej. la
-      mamá que pide a nombre del hijo). replace_data copia nombre y teléfono del cliente.
-    - address: domicilio de esa ficha; se copia al pedido si el cliente no escribió uno
-      (usó "domicilio registrado") o si se pidió sustituir los datos.
-    - Sin customer: crea la ficha con los datos que mandó el cliente.
+      mamá que pide a nombre del hijo). El pedido toma su nombre como principal y conserva
+      en `web_customer_name` el nombre con el que llegó. El celular NO cambia: es el de quien
+      pidió (ahí se confirma por WhatsApp y le habla el repartidor).
+    - address: domicilio elegido de esa ficha; en entregas siempre se copia al pedido y se
+      vuelve a revisar la zona de reparto.
+    - Sin customer: crea la ficha con los datos que mandó el cliente (no cambia el pedido).
     """
     from .delivery_zone import is_in_delivery_zone
 
@@ -1858,10 +1865,12 @@ def link_public_order_customer(*, order, actor, customer=None, address=None, rep
     fields = ["agenda_customer", "agenda_address", "updated_at"]
     order.agenda_customer = customer
     order.agenda_address = address
-    if replace_data:
-        order.customer_name, order.phone = customer.name, customer.phone
-        fields += ["customer_name", "phone"]
-    if address and order.order_type == Order.OrderType.DELIVERY and (order.address_from_agenda or replace_data or not order.street):
+    if customer.name and customer.name != order.customer_name:
+        if not order.web_customer_name:
+            order.web_customer_name = order.customer_name
+        order.customer_name = customer.name
+        fields += ["customer_name", "web_customer_name"]
+    if address and order.order_type == Order.OrderType.DELIVERY:
         order.street, order.exterior_number = address.street, address.exterior_number
         order.interior_number, order.references = address.interior_number, address.references
         order.outside_delivery_zone = not is_in_delivery_zone(address.street, address.exterior_number)

@@ -5,6 +5,7 @@ o crear la ficha con los datos que mandó el cliente.
 {% endcomment %}
 <section class="card spaced-card order-agenda-panel">
   <h2>Agenda de clientes</h2>
+  <p class="order-agenda-note">Al asociar, el pedido toma el nombre{% if order.order_type == 'delivery' %} y el domicilio elegido{% endif %} del cliente registrado; se conserva el celular desde el que se pidió y el nombre con el que llegó. Confírmalo antes por WhatsApp.</p>
   {% if agenda_matches %}
     <p>Este celular coincide con {{ agenda_matches|length }} cliente{{ agenda_matches|length|pluralize }} registrado{{ agenda_matches|length|pluralize }}:</p>
     {% for customer in agenda_matches %}
@@ -14,7 +15,6 @@ o crear la ficha con los datos que mandó el cliente.
         {% if order.order_type == 'delivery' and customer.addresses.all %}
           <fieldset class="order-agenda-addresses"><legend>Domicilio</legend>{% for address in customer.addresses.all %}<label><input type="radio" name="address_id" value="{{ address.id }}"{% if forloop.first %} checked{% endif %}><span>{{ address.street }} {{ address.exterior_number }}{% if address.interior_number %}, int. {{ address.interior_number }}{% endif %}</span></label>{% endfor %}</fieldset>
         {% endif %}
-        <label class="order-agenda-replace"><input type="checkbox" name="replace_data"><span>Sustituir nombre, teléfono y domicilio del pedido con los de este cliente</span></label>
         <button type="submit">Asociar a {{ customer.name }}</button>
       </form>
     {% endfor %}

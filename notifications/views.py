@@ -2,6 +2,10 @@
 # Abrir una alerta registra también quién inició la atención del pedido. Se retiró la
 # acción masiva para que cada alerta tenga un responsable explícito. Borra esta nota.
 
+from datetime import timedelta
+
+from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -18,9 +22,11 @@ def notification_list(request):
     # está operando — una alerta de un pedido de hace una semana ya no tiene sentido
     # aquí. El filtro de leída/no leída sigue funcionando dentro de hoy. Borra esta
     # nota después de leerla.
+    # Se muestran las de hoy y, además, las que sigan sin leer de días anteriores (con su
+    # fecha), para que el contador siempre coincida con lo que se ve en la lista.
     notifications = InternalNotification.objects.filter(
-        created_at__date=timezone.localdate(),
-    ).select_related("order", "read_by")
+        Q(created_at__date=timezone.localdate()) | Q(is_read=False),
+    ).select_related("order", "order__agenda_customer", "read_by").order_by("is_read", "-created_at")
     if not user_has_any_role(request.user, (ADMIN, ORDER_TAKER)):
         notifications = notifications.none()
     if show != "all":
@@ -31,7 +37,21 @@ def notification_list(request):
         stock_alerts = stock_alerts.exclude(dismissals__user=request.user)
     return render(request, "notifications/notification_list.html", {
         "notifications": notifications, "stock_alerts": stock_alerts, "show": show,
+        # Fechas locales como texto para marcar "De ayer" / "Del dd/mm/aaaa".
+        "today_key": timezone.localdate().isoformat(),
+        "yesterday_key": (timezone.localdate() - timedelta(days=1)).isoformat(),
     })
+
+
+@role_required(ADMIN, ORDER_TAKER)
+def notification_pending(request):
+    """Estado para la alerta de pedidos (order-alert.js): pedidos web sin atender, total del
+    contador y la notificación más reciente (para sonar sólo cuando llega una nueva)."""
+    from .context_processors import notification_counts
+
+    orders, total = notification_counts(request.user)
+    latest = InternalNotification.objects.order_by("-pk").values_list("pk", flat=True).first() or 0
+    return JsonResponse({"pending": orders, "total": total, "latest": latest})
 
 
 @require_POST

@@ -200,6 +200,29 @@ class PublicPackageBuilderTests(TestCase):
         self.assertEqual(two_course.second_course, self.rice)
         self.assertEqual(items.get(is_two_course=False).quantity, 2)
 
+    def test_stale_csrf_on_checkout_returns_with_data(self):
+        from django.test import Client
+        self.client.get(reverse("public_portal:menu") + "?modalidad=pickup")
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.cookies = self.client.cookies
+        response = csrf_client.post(reverse("public_portal:checkout"), {
+            "csrfmiddlewaretoken": "viejo", "customer_first_name": "Ana", "phone": "5512345678",
+        })
+        self.assertRedirects(response, reverse("public_portal:checkout"), fetch_redirect_response=False)
+        self.assertEqual(csrf_client.session["public_checkout_draft"]["customer_first_name"], "Ana")
+        self.assertNotIn("csrfmiddlewaretoken", csrf_client.session["public_checkout_draft"])
+        internal = Client(enforce_csrf_checks=True).post("/app/pedidos/clientes/nuevo/", {"name": "x"})
+        self.assertEqual(internal.status_code, 403)
+
+    def test_add_and_go_to_checkout(self):
+        batch = [{"fields": [["first_course", str(self.consomme.pk)], ["main_course", str(self.stew.pk)], ["tortillas", "yes"], ["beans", "no"], ["quantity", "1"]], "quantity": 1}]
+        response = self.client.post(
+            reverse("public_portal:package_selection", args=("running",)),
+            {"package_batch": json.dumps(batch), "next": "checkout"},
+        )
+        self.assertRedirects(response, reverse("public_portal:checkout"), fetch_redirect_response=False)
+        self.assertEqual(cart_control_summary(self.client.session)["count"], 1)
+
     def test_invalid_meal_in_batch_adds_nothing(self):
         batch = [{"fields": [["main_course", str(self.stew.pk)], ["tortillas", "yes"], ["beans", "no"], ["quantity", "1"]], "quantity": 1}]
         response = self.client.post(
@@ -404,14 +427,47 @@ class DeliveryZoneAndAgendaTests(TestCase):
         self.assertEqual(order.agenda_customer, self.customer)
         self.assertEqual((order.street, order.exterior_number), ("Adolfo Prieto", "1047"))
         self.assertFalse(order.outside_delivery_zone)
-        self.assertEqual(order.customer_name, "Mamá")  # sin "sustituir" se conserva el nombre
+        # Nombre principal: el del cliente registrado; se conserva con el que pidió y su celular.
+        self.assertEqual((order.customer_name, order.web_customer_name), ("Hijo Registrado", "Mamá"))
+        self.assertEqual(order.phone, "5511112222")
+        page = self.client.get(reverse("orders:order_detail", args=(order.pk,)))
+        self.assertContains(page, "Pidió como: Mamá")
 
-    def test_staff_can_replace_data_or_create_new_customer(self):
+    def test_unattended_web_order_opens_detail_until_notification_is_opened(self):
+        from datetime import timedelta
+        from notifications.models import InternalNotification
+        admin = get_user_model().objects.create_superuser(username="agenda_admin3", password="x")
+        self.client.force_login(admin)
+        order = self.make_order(street="Amores", exterior_number="900")
+        notification = InternalNotification.objects.create(
+            notification_type="new_public_order", order=order, title="Nuevo pedido web", message="x",
+        )
+        detail_url = reverse("orders:order_detail", args=(order.pk,))
+        listing = self.client.get(reverse("orders:order_list"))
+        self.assertContains(listing, f'data-order-row-url="{detail_url}"')
+        self.assertContains(listing, "Sin atender")
+        # Una notificación sin leer de ayer sigue apareciendo (el contador ya la contaba).
+        InternalNotification.objects.filter(pk=notification.pk).update(created_at=timezone.now() - timedelta(days=1))
+        inbox = self.client.get(reverse("notifications:notification_list"))
+        self.assertContains(inbox, "De ayer")
+        self.assertContains(inbox, "Sin asociar")
+        # Alerta de pantalla: el estado reporta el pedido sin atender y la base marca el body.
+        state = self.client.get(reverse("notifications:notification_pending")).json()
+        self.assertEqual((state["pending"], state["latest"]), (1, notification.pk))
+        self.assertContains(listing, 'class="has-order-alert"')
+        self.client.post(reverse("notifications:notification_open", args=(notification.pk,)))
+        self.assertEqual(self.client.get(reverse("notifications:notification_pending")).json()["pending"], 0)
+        listing = self.client.get(reverse("orders:order_list"))
+        self.assertNotContains(listing, 'class="has-order-alert"')
+        self.assertNotContains(listing, "Sin atender")
+        self.assertContains(listing, reverse("orders:internal_order_edit", args=(order.pk,)))
+
+    def test_typed_address_is_replaced_or_new_customer_is_created(self):
         from orders.models import Customer
         admin = get_user_model().objects.create_superuser(username="agenda_admin2", password="x")
         self.client.force_login(admin)
         order = self.make_order(street="Amores", exterior_number="900")
-        self.client.post(reverse("orders:order_link_customer", args=(order.pk,)), {"customer_id": self.customer.pk, "replace_data": "on"})
+        self.client.post(reverse("orders:order_link_customer", args=(order.pk,)), {"customer_id": self.customer.pk})
         order.refresh_from_db()
         self.assertEqual((order.customer_name, order.street), ("Hijo Registrado", "Adolfo Prieto"))
         new_order = self.make_order(daily_number=2, phone="5577776666", customer_name="Nueva Clienta", street="Amores", exterior_number="900")
@@ -419,4 +475,5 @@ class DeliveryZoneAndAgendaTests(TestCase):
         new_order.refresh_from_db()
         created = Customer.objects.get(phone_key="5577776666")
         self.assertEqual(new_order.agenda_customer, created)
+        self.assertEqual((new_order.customer_name, new_order.web_customer_name), ("Nueva Clienta", ""))
         self.assertEqual(created.addresses.get().street, "Amores")

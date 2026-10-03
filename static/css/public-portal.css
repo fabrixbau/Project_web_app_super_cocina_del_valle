@@ -337,7 +337,7 @@ body.pp-sheet-open { overflow: hidden; }
 .pp-course-row { clear: both; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .pp-course { display: grid; align-content: start; gap: 8px; min-width: 0; }
 .pp-course header { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 28px; padding-bottom: 6px; border-bottom: 2px solid var(--pp-green-soft); }
-.pp-course h3 { font-size: .95rem; font-weight: 700; color: var(--pp-green); }
+.pp-course h3 { min-width: 0; font-size: .95rem; font-weight: 700; color: var(--pp-green); overflow-wrap: anywhere; hyphens: auto; }
 .pp-step-hint { clear: both; margin: -6px 0 10px; color: var(--pp-muted); font-size: .86rem; }
 .pp-choice-list { display: grid; gap: 6px; }
 /* Comida ejecutiva: primer y segundo tiempo lado a lado; la plancha (lista larga) debajo a
@@ -348,11 +348,12 @@ body.pp-sheet-open { overflow: hidden; }
 @media (min-width: 640px) { .pp-course-wide .pp-choice-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (min-width: 900px) { .pp-course-wide .pp-choice-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .pp-choice-grid { clear: both; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-.pp-choice { position: relative; display: block; margin: 0; cursor: pointer; }
+.pp-choice { position: relative; display: block; min-width: 0; margin: 0; cursor: pointer; }
 .pp-choice input { position: absolute; opacity: 0; pointer-events: none; }
 .pp-choice span {
   display: flex; align-items: center; min-height: 52px; padding: 8px 12px 8px 38px;
   background: var(--pp-cream); border: 2px solid transparent; border-radius: 12px; font-size: .94rem; font-weight: 500; line-height: 1.2;
+  overflow-wrap: anywhere; hyphens: auto;
 }
 .pp-choice span::before {
   content: ""; position: absolute; left: 13px; top: 50%; width: 15px; height: 15px; transform: translateY(-50%);
@@ -402,7 +403,10 @@ body.pp-sheet-open { overflow: hidden; }
 }
 .pp-counter-block { grid-area: counter; display: flex; align-items: center; gap: 10px; min-width: 0; }
 .pp-counter-help { color: var(--pp-muted); font-size: .78rem; line-height: 1.25; }
-.pp-submit-bar .pp-primary-button { grid-area: button; }
+.pp-counter-help-page { display: none; }
+.pp-submit-bar > .pp-primary-button, .pp-submit-actions { grid-area: button; }
+.pp-submit-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.pp-body .pp-submit-actions button { min-height: 50px; padding: 0 12px; font-size: .95rem; line-height: 1.15; }
 .pp-submit-total { grid-area: total; display: grid; justify-items: end; line-height: 1.1; }
 .pp-submit-total small { color: var(--pp-muted); font-size: .78rem; }
 .pp-submit-total strong { font-size: 1.3rem; }
@@ -426,7 +430,7 @@ body.pp-sheet-open { overflow: hidden; }
 @media (max-width: 600px) {
   .pp-step { padding: 12px; }
   .pp-course-row, .pp-extras-row { gap: 6px; }
-  .pp-course header { min-height: 36px; align-items: flex-end; }
+  .pp-course header { min-height: 2.6em; align-items: flex-end; }
   .pp-course h3 { font-size: .78rem; line-height: 1.15; }
   .pp-choice span { min-height: 46px; padding: 6px 6px 6px 26px; font-size: .78rem; }
   .pp-choice span::before { left: 7px; width: 13px; height: 13px; }
@@ -436,9 +440,17 @@ body.pp-sheet-open { overflow: hidden; }
   .pp-extra > small { font-size: .7rem; }
   .pp-segmented span { min-width: 38px; padding: 7px 8px; font-size: .82rem; }
   .pp-counter-help { font-size: .7rem; }
+  /* La barra fija sólo lleva contador, total y botones; la leyenda queda arriba, en la página. */
+  .pp-submit-bar .pp-counter-help { display: none; }
+  .pp-counter-help-page { display: block; margin: 4px 4px 0; font-size: .82rem; text-align: center; }
+  .pp-submit-bar { gap: 8px; padding: 8px 10px; }
+  .pp-body .pp-quantity button { width: 36px; height: 38px; }
+  .pp-submit-total strong { font-size: 1.2rem; }
+  .pp-body .pp-submit-actions button { min-height: 46px; padding: 0 8px; font-size: .88rem; }
 }
 @media (min-width: 700px) {
   .pp-submit-bar { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "counter total button"; }
+  .pp-submit-actions { grid-template-columns: auto auto; }
 }
 
 /* ---------------------------------------------------------------- finalizar pedido */

@@ -99,6 +99,7 @@
     const decrease = packageForm.querySelector("[data-pp-meal-decrease]");
     const increase = packageForm.querySelector("[data-pp-meal-increase]");
     const submit = packageForm.querySelector("[data-pp-submit]");
+    const payButton = packageForm.querySelector("[data-pp-submit-pay]");
     const built = packageForm.querySelector("[data-pp-built]");
     const builtList = packageForm.querySelector("[data-pp-built-list]");
     const dialog = document.querySelector("[data-pp-two-course-dialog]");
@@ -173,7 +174,7 @@
       const current = hasAnyCourse() || !saved.length ? currentPrice() : 0;
       totalNode.textContent = money(saved.reduce((sum, meal) => sum + meal.price, 0) + current);
       const meals = saved.length + (hasAnyCourse() ? 1 : 0);
-      submit.textContent = meals > 1 ? `Agregar ${meals} comidas al pedido` : "Agregar al pedido";
+      submit.textContent = meals > 1 ? `Agregar ${meals} y seguir pidiendo` : "Agregar y seguir pidiendo";
     };
 
     // `reset` también lo escucha package-selection.js (pieza de pollo); se repinta después.
@@ -236,7 +237,15 @@
       batch.name = "package_batch";
       batch.value = JSON.stringify([...groups.values()]);
       packageForm.append(batch);
+      // form.submit() no manda el botón pulsado: el destino (menú o pago) va en un campo oculto.
+      packageForm.querySelectorAll("input[name='next']").forEach((input) => input.remove());
+      const next = document.createElement("input");
+      next.type = "hidden";
+      next.name = "next";
+      next.value = event.submitter?.value === "checkout" ? "checkout" : "menu";
+      packageForm.append(next);
       submit.disabled = true;
+      if (payButton) payButton.disabled = true;
       packageForm.submit();
     });
     render();

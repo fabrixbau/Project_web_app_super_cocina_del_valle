@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Super Cocina del Valle{% endblock %}</title>
   <script src="/static/js/yeemovil-x20.js?v=2"></script>
-  <link rel="stylesheet" href="/static/css/app.css?v=379">
+  <link rel="stylesheet" href="/static/css/app.css?v=383">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 </head>
-<body>
+<body{% if can_receive_order_alerts and pending_order_notification_count %} class="has-order-alert"{% endif %}>
+  {% if can_receive_order_alerts %}<div class="order-alert-frame" aria-hidden="true"></div><span class="pp-visually-hidden" role="status" data-order-alert-status></span>{% endif %}
   <header class="topbar{% if request.resolver_match.namespace == 'tables' %} is-tables-module{% endif %}">
     <a class="topbar-brand" href="{% url 'internal_portal:dashboard' %}">
       <span class="topbar-brand-mark" aria-hidden="true">SC</span>
@@ -19,7 +20,7 @@
     {% if user.is_authenticated %}
       <button class="mobile-menu-toggle" type="button" aria-label="Abrir menú de cuenta" aria-expanded="false" aria-controls="mobile-account-panel" data-mobile-menu-toggle>
         <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
-        {% if unread_notification_count %}<i aria-hidden="true"></i>{% endif %}
+        <i aria-hidden="true" data-notification-dot{% if not unread_notification_count %} hidden{% endif %}></i>
       </button>
       <nav class="topbar-navigation" aria-label="Módulos permitidos">{% for section in internal_navigation_sections %}<a href="{{ section.url }}" {% if section.is_active %}class="is-active" aria-current="page"{% endif %}>{{ section.title }}</a>{% endfor %}</nav>
       {% if request.resolver_match.namespace == 'tables' %}<div class="tables-mobile-session">
@@ -29,7 +30,7 @@
       <div class="mobile-menu-backdrop" data-mobile-menu-backdrop hidden></div>
       <div class="topbar-account" id="mobile-account-panel" aria-label="Cuenta y notificaciones">
         <div class="mobile-account-brand"><span class="topbar-brand-mark" aria-hidden="true">SC</span><strong>Super Cocina del Valle</strong></div>
-        {% if can_view_notifications %}<a class="notification-link" href="{% url 'notifications:notification_list' %}">Notificaciones{% if unread_notification_count %}<span>{{ unread_notification_count }}</span>{% endif %}</a>{% endif %}
+        {% if can_view_notifications %}<a class="notification-link" href="{% url 'notifications:notification_list' %}">Notificaciones<span data-notification-count{% if not unread_notification_count %} hidden{% endif %}>{{ unread_notification_count }}</span></a>{% endif %}
         <div class="session-user active-operator"><small>Operando como</small><strong>{{ user.get_full_name|default:user.username }}</strong></div>
         {% if quick_switch_available %}<details class="quick-switch-dropdown" data-quick-switch-dropdown><summary>Cambiar mesero</summary><form method="post" action="{% url 'accounts:quick_switch' %}">{% csrf_token %}<input type="hidden" name="inline" value="1"><input type="hidden" name="next" value="{{ request.get_full_path }}">{% if quick_switch_single_target %}<input type="hidden" name="waiter_id" value="{{ quick_switch_single_target.id }}">{% if quick_switch_single_target.id in quick_switch_today_ids %}<button type="submit" data-quick-switch-submit>Cambiar a {{ quick_switch_single_target.get_full_name|default:quick_switch_single_target.username }}</button>{% else %}<label>Contraseña de {{ quick_switch_single_target.get_full_name|default:quick_switch_single_target.username }} (primera vez hoy)<input type="password" name="password" autocomplete="current-password" data-quick-switch-pin required></label><button type="submit" data-quick-switch-submit>Cambiar perfil</button>{% endif %}{% elif quick_switch_waiters %}<label>Mesero<select name="waiter_id" data-quick-switch-select required><option value="" selected disabled>Selecciona un mesero</option>{% for waiter in quick_switch_waiters %}<option value="{{ waiter.id }}">{{ waiter.get_full_name|default:waiter.username }}</option>{% endfor %}</select></label><label>Contraseña (sólo la primera vez del día)<input type="password" name="password" autocomplete="current-password"></label><button type="submit" data-quick-switch-submit>Cambiar perfil</button>{% else %}<p>No hay otro mesero activo.</p>{% endif %}</form></details><form method="post" action="{% url 'accounts:quick_lock' %}" data-quick-lock-form>{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button type="submit">Bloquear tablet</button></form>{% endif %}
         <form class="topbar-logout-form" method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Cerrar sesión</button></form>
@@ -47,5 +48,6 @@
   {% block extra_js %}{% endblock %}
   <script src="/static/js/search-dismiss.js?v=6"></script>
   <script src="/static/js/live-search.js?v=3"></script>
+  {% if can_receive_order_alerts %}<script src="/static/js/order-alert.js?v=1" data-order-alert-url="{% url 'notifications:notification_pending' %}" data-order-alert-pending="{{ pending_order_notification_count }}"></script>{% endif %}
 </body>
 </html>

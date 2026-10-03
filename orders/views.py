@@ -16,7 +16,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
-from django.db.models import Case, DateTimeField, F, IntegerField, Prefetch, Q, Value, When
+from django.db.models import Case, DateTimeField, Exists, F, IntegerField, OuterRef, Prefetch, Q, Value, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -373,7 +373,8 @@ def public_package_order(request, package_type):
                 request,
                 "La comida fue agregada al pedido." if total_meals == 1 else f"Se agregaron {total_meals} comidas al pedido.",
             )
-            return redirect("public_portal:menu")
+            # Dos botones: "Agregar y seguir pidiendo" (menú) o "Agregar e ir a pagar" (finalizar).
+            return redirect("public_portal:checkout" if request.POST.get("next") == "checkout" else "public_portal:menu")
         if invalid:
             form = invalid
     return render(request, "orders/public_package_order.html", {
@@ -533,9 +534,11 @@ def public_checkout(request):
     if not cart_data["items"]:
         messages.error(request, "Agrega al menos un producto antes de finalizar.")
         return redirect("public_portal:cart")
+    # Si un envío anterior se rechazó por el código de seguridad, se recuperan sus datos.
+    draft = request.session.pop("public_checkout_draft", None) if request.method == "GET" else None
     form = PublicCheckoutForm(
         request.POST or None, cart_total=cart_data["total"], order_type=order_type,
-        initial={"notes": request.session.get("public_order_note", "")},
+        initial={"notes": request.session.get("public_order_note", ""), **(draft or {})},
         now=public_time(request.session),
         earliest=time(13, 0) if cart_has_lunch_items(cart_data) else None,
     )
@@ -563,6 +566,17 @@ def public_order_confirmation(request, public_token):
         source=Order.Source.PUBLIC_WEB,
     )
     return render(request, "orders/public_order_confirmation.html", {"order": order})
+
+
+def _pending_notification():
+    """Pedido web cuya notificación nadie ha abierto desde Notificaciones ("Atender y abrir").
+
+    En Pedidos y Caja esos pedidos abren la pantalla del pedido (no el editor) y llevan la
+    marca "Sin atender"; la notificación sólo se apaga al abrirla desde Notificaciones.
+    """
+    from notifications.models import InternalNotification
+
+    return Exists(InternalNotification.objects.filter(order=OuterRef("pk"), is_read=False))
 
 
 def _folio_search_query(search):
@@ -632,7 +646,7 @@ def order_list(request):
     # consulta adicional por cada fila. Borra esta nota después de leerla.
     orders = Order.objects.select_related(
         "delivery_person", "agenda_customer", "customer_debt",
-    ).prefetch_related("items", "agenda_customer__debts")
+    ).prefetch_related("items", "agenda_customer__debts").annotate(has_pending_notification=_pending_notification())
     today = timezone.localdate()
     date_from = _report_date(request.GET.get("date_from"), today)
     date_to = _report_date(request.GET.get("date_to"), today)
@@ -1639,10 +1653,7 @@ def order_link_customer(request, order_id):
         customer = get_object_or_404(Customer, pk=request.POST.get("customer_id"))
         address_id = request.POST.get("address_id")
         address = customer.addresses.filter(pk=address_id).first() if address_id else customer.addresses.order_by("-updated_at").first()
-    order = link_public_order_customer(
-        order=order, actor=request.user, customer=customer, address=address,
-        replace_data=request.POST.get("replace_data") == "on",
-    )
+    order = link_public_order_customer(order=order, actor=request.user, customer=customer, address=address)
     messages.success(request, f"{order.formatted_number} quedó asociado a {order.agenda_customer.name}.")
     return redirect("orders:order_detail", order_id=order.pk)
 
@@ -2429,7 +2440,7 @@ def cashier_board(request):
             queryset = queryset.filter(status__in=active_statuses, cashier_released_at__isnull=True)
     queryset = queryset.select_related(
         "delivery_person", "cash_settlement_by", "customer_debt", "agenda_customer",
-    ).prefetch_related("items", "agenda_customer__debts__order")
+    ).prefetch_related("items", "agenda_customer__debts__order").annotate(has_pending_notification=_pending_notification())
     queryset = _operational_board_ordering(queryset)
     order_type = request.GET.get("type", "").strip()
     delivery_person = request.GET.get("delivery_person", "").strip()

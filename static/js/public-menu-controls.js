@@ -89,6 +89,8 @@ Borra esta nota cuando termines de revisar el flujo. */
           headers: {"X-Requested-With": "XMLHttpRequest", "X-CSRFToken": csrfToken},
         });
         const data = await response.json();
+        // Código de seguridad vencido (página abierta mucho tiempo): recargar con uno nuevo.
+        if (data.reload) { window.location.reload(); return; }
         if (!response.ok || !data.ok) throw new Error(data.error || "No fue posible actualizar el carrito.");
         render(data.cart);
       } catch (error) {

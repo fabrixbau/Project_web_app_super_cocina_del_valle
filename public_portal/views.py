@@ -1,6 +1,9 @@
 from datetime import time
 
+from django.contrib import messages
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.views.csrf import csrf_failure as django_csrf_failure
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
@@ -8,6 +11,36 @@ from accounts.roles import ADMIN, role_required
 from orders.cart import cart_control_summary, get_order_mode
 
 from .preview import PREVIEW_SESSION_KEY, PREVIEW_TIMES
+
+CHECKOUT_DRAFT_SESSION_KEY = "public_checkout_draft"
+# Datos de Finalizar pedido que se conservan si el envío se rechaza por el código de seguridad.
+CHECKOUT_DRAFT_FIELDS = (
+    "customer_first_name", "customer_last_name", "phone", "street", "exterior_number",
+    "interior_number", "references", "notes", "schedule", "requested_time",
+    "payment_method", "cash_bill", "cash_custom_amount", "pays_exact",
+)
+STALE_PAGE_MESSAGE = "La página estuvo abierta mucho tiempo; revisa tus datos y vuelve a enviar."
+
+
+def csrf_failure(request, reason=""):
+    """Código de seguridad vencido en /pedir/: regresar a la página con un aviso amable.
+
+    En Finalizar pedido se guardan en la sesión los datos escritos (nunca el código) para
+    volver a llenar el formulario. Fuera de /pedir/ se usa la página normal de Django.
+    """
+    if not request.path.startswith("/pedir/"):
+        return django_csrf_failure(request, reason=reason)
+    if request.headers.get("x-requested-with") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", ""):
+        # El JS recarga la página (con un código nuevo) y ahí se ve el aviso.
+        messages.warning(request, STALE_PAGE_MESSAGE)
+        return JsonResponse({"ok": False, "error": STALE_PAGE_MESSAGE, "reload": True}, status=403)
+    if request.path.rstrip("/").endswith("/finalizar"):
+        request.session[CHECKOUT_DRAFT_SESSION_KEY] = {
+            name: request.POST.get(name, "") for name in CHECKOUT_DRAFT_FIELDS if request.POST.get(name)
+        }
+    messages.warning(request, STALE_PAGE_MESSAGE)
+    return redirect(request.path if url_has_allowed_host_and_scheme(request.path, allowed_hosts={request.get_host()}) else "/pedir/")
+
 
 WHATSAPP_URL = "https://wa.me/525619048431"
 WHATSAPP_LABEL = "+52 56 1904 8431"
