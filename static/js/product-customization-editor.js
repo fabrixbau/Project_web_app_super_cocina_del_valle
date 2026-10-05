@@ -21,7 +21,7 @@ Django vuelve a validar todo el contenido en el servidor. Borra esta nota cuando
     id: group.id || null,
     shared_key: group.shared_key || null,
     name: group.name || "",
-    selection_type: group.selection_type === "single" ? "single" : "multiple",
+    selection_type: "multiple",  // siempre se pueden elegir varias opciones
     is_required: group.is_required === true,
     options: (group.options || []).map(normalizeOption),
   });
@@ -86,9 +86,6 @@ Django vuelve a validar todo el contenido en el servidor. Borra esta nota cuando
     const charge = textInput(option.price_adjustment, (value) => { option.price_adjustment = value; }, {type: "number", min: "0", step: "0.50"});
     const replacementPair = textInput(option.replacement_pair, (value) => { option.replacement_pair = value; }, {placeholder: "Ej. Aderezo"});
     const standard = checkbox("Estándar", option.is_default, (checked) => {
-      if (checked && group.selection_type === "single") {
-        group.options.forEach((candidate) => { candidate.is_default = false; });
-      }
       if (checked && option.replacement_pair.trim()) {
         group.options.forEach((candidate) => {
           if (candidate !== option && candidate.replacement_pair.trim().toLocaleLowerCase("es-MX") === option.replacement_pair.trim().toLocaleLowerCase("es-MX")) {
@@ -134,25 +131,7 @@ Django vuelve a validar todo el contenido en el servidor. Borra esta nota cuando
 
     const settings = element("div", "integrated-group-settings");
     const name = textInput(group.name, (value) => { group.name = value; }, {placeholder: "Ej. Ingredientes del sándwich"});
-    const selection = document.createElement("select");
-    [["multiple", "Elegir varias opciones"], ["single", "Elegir una opción"]].forEach(([value, label]) => {
-      const option = element("option", "", label);
-      option.value = value;
-      option.selected = group.selection_type === value;
-      selection.append(option);
-    });
-    selection.addEventListener("change", () => {
-      group.selection_type = selection.value;
-      if (selection.value === "single") {
-        let foundDefault = false;
-        group.options.forEach((option) => {
-          if (option.is_default && !foundDefault) foundDefault = true;
-          else if (option.is_default) option.is_default = false;
-        });
-      }
-      render();
-    });
-    settings.append(field("Nombre del grupo", name), field("Forma de elegir", selection));
+    settings.append(field("Nombre del grupo", name));
     settings.append(checkbox("Debe conservar al menos una opción", group.is_required, (checked) => { group.is_required = checked; }));
 
     const options = element("div", "integrated-option-list");

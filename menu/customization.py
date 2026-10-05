@@ -65,9 +65,8 @@ def parse_customization_payload(raw_payload):
         if normalized_name in group_names:
             raise ValidationError(f"El grupo {name} está repetido.")
         group_names.add(normalized_name)
-        selection_type = raw_group.get("selection_type")
-        if selection_type not in ProductOptionGroup.SelectionType.values:
-            raise ValidationError(f"Selecciona una forma de elegir válida para {name}.")
+        # Siempre "Elegir varias opciones" (aunque una pantalla vieja mande "single").
+        selection_type = ProductOptionGroup.SelectionType.MULTIPLE
         raw_options = raw_group.get("options", [])
         if not isinstance(raw_options, list) or not raw_options:
             raise ValidationError(f"Agrega al menos un ingrediente al grupo {name}.")
@@ -124,8 +123,6 @@ def parse_customization_payload(raw_payload):
         incomplete_pair = next((pair for pair, count in pair_counts.items() if count < 2), None)
         if incomplete_pair:
             raise ValidationError(f"El par {incomplete_pair} debe estar escrito en por lo menos dos opciones.")
-        if selection_type == ProductOptionGroup.SelectionType.SINGLE and default_count > 1:
-            raise ValidationError(f"El grupo {name} solo puede tener una opción estándar.")
         is_required = raw_group.get("is_required") is True
         if is_required and default_count == 0:
             raise ValidationError(f"El grupo obligatorio {name} necesita una opción estándar.")

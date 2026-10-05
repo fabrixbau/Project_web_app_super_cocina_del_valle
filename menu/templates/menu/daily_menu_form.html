@@ -1,4 +1,5 @@
 {% extends "base_internal.html" %}
+{% load static %}
 <!-- NOTA TEMPORAL PARA APRENDIZAJE:
 La orden de frijoles es opcional, se vende aparte y no cuenta como tiempo del paquete.
 Borra esta nota después de leerla. -->
@@ -6,7 +7,8 @@ Borra esta nota después de leerla. -->
 {% block content %}
   <p><a class="menu-back-link" href="{% url 'menu:daily_menu_list' %}">Menús diarios</a></p>
   <section class="card daily-menu-editor"><header><div><span>Publicación del día</span><h1>{{ title }}</h1></div><strong>{{ daily_menu.get_status_display|default:"Borrador" }}</strong></header>
-    <form method="post">{% csrf_token %}{{ form.non_field_errors }}
+    <p class="daily-menu-draft-note" data-daily-draft-note hidden>Recuperamos lo que llevabas capturado. <button type="button" class="secondary" data-daily-draft-discard>Descartar borrador</button></p>
+    <form method="post" data-daily-menu-draft="{{ request.path }}">{% csrf_token %}{{ form.non_field_errors }}
       <div class="daily-menu-fields">
         <fieldset class="daily-menu-general"><legend>Información general</legend><p>{{ form.date.label_tag }} {{ form.date.errors }} {{ form.date }}</p><p>{{ form.water_product.label_tag }} {{ form.water_product.errors }} {{ form.water_product }}</p></fieldset>
         <fieldset class="daily-menu-course"><legend><b>1</b> Primer tiempo</legend><small>El consomé se propone automáticamente, pero puedes sustituirlo por otra sopa.</small><p>{{ form.chicken_consomme.label_tag }} {{ form.chicken_consomme.errors }} {{ form.chicken_consomme }}</p><p>{{ form.variable_first_course.label_tag }} {{ form.variable_first_course.errors }} {{ form.variable_first_course }}</p></fieldset>
@@ -31,3 +33,4 @@ Borra esta nota después de leerla. -->
     </form>
   </section>
 {% endblock %}
+{% block extra_js %}<script src="{% static 'js/daily-menu-draft.js' %}?v=1"></script>{% endblock %}

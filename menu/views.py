@@ -948,7 +948,7 @@ def option_group_copy(request, product_id):
                     product=product,
                     shared_key=source.shared_key,
                     name=source.name,
-                    selection_type=source.selection_type,
+                    selection_type=ProductOptionGroup.SelectionType.MULTIPLE,
                     is_required=source.is_required,
                     sort_order=source.sort_order,
                 )

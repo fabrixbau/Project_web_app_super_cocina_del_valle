@@ -491,3 +491,17 @@ class ProductDeleteViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["blocked"])
         self.assertContains(response, "inventario diario")
+
+
+class OptionGroupsAlwaysMultipleTests(TestCase):
+    def test_single_choice_is_saved_as_multiple(self):
+        import json
+        from menu.customization import parse_customization_payload
+        groups = parse_customization_payload(json.dumps([{
+            "name": "Leche", "selection_type": "single", "is_required": False,
+            "options": [
+                {"name": "Entera", "price_adjustment": "0", "is_default": True, "is_available": True},
+                {"name": "Deslactosada", "price_adjustment": "0", "is_default": True, "is_available": True},
+            ],
+        }]))
+        self.assertEqual(groups[0]["selection_type"], "multiple")

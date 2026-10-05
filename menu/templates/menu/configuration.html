@@ -23,9 +23,11 @@
       <label>Categoría <select name="category"><option value="">Todas</option>{% for category in categories %}<option value="{{ category.id }}" {% if selected_category == category.id|stringformat:'s' %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></label>
       <label>Disponibilidad <select name="availability"><option value="">Todas</option><option value="available" {% if availability == 'available' %}selected{% endif %}>Disponible</option><option value="unavailable" {% if availability == 'unavailable' %}selected{% endif %}>No disponible</option></select></label>
       <button type="submit">Aplicar filtros</button>
+      {# Tablet horizontal y computadora: muestra u oculta las categorías (recuerda la última elección). #}
+      <button type="button" class="secondary menu-categories-desktop-toggle" data-menu-categories-desktop aria-expanded="false" aria-controls="menu-category-panel">Categorías ({{ categories|length }}) <span aria-hidden="true">⌄</span></button>
     </form>
   </section>
-  <section class="card spaced-card menu-category-panel">
+  <section class="card spaced-card menu-category-panel is-desktop-collapsed" id="menu-category-panel">
     <header class="menu-section-heading" data-menu-category-toggle><div><span>Estructura del catálogo</span><h2>Categorías</h2><p data-menu-category-content>Edita el nombre o elimina las categorías que ya no utilices.</p></div><strong>{{ categories|length }} categorías</strong><button type="button" aria-expanded="false" aria-label="Mostrar categorías"><span aria-hidden="true">⌄</span></button></header>
     <div class="menu-category-grid" data-menu-category-content>
       {% for category in categories %}
@@ -54,4 +56,4 @@
     </div>
   </section>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/menu-configuration.js' %}?v=2"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/menu-configuration.js' %}?v=4"></script>{% endblock %}

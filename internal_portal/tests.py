@@ -64,6 +64,15 @@ class InternalPortalAccessTests(TestCase):
             self.assertEqual(response.status_code, 200)
         self.assertEqual(self.client.get(reverse("internal_portal:reports")).status_code, 403)
 
+    def test_order_taker_can_manage_menu_but_waiter_cannot(self):
+        self.login_as(ORDER_TAKER)
+        for url_name in ("menu:configuration", "menu:product_create", "menu:category_create"):
+            self.assertEqual(self.client.get(reverse(url_name)).status_code, 200, url_name)
+        self.assertContains(self.client.get(reverse("internal_portal:dashboard")), reverse("menu:configuration"))
+        self.client.logout()
+        self.login_as(WAITER)
+        self.assertEqual(self.client.get(reverse("menu:configuration")).status_code, 403)
+
     def test_delivery_user_can_only_open_deliveries(self):
         self.login_as(DELIVERY)
         self.assertEqual(self.client.get(reverse("internal_portal:deliveries")).status_code, 200)

@@ -23,6 +23,41 @@
     toggleCategories();
   });
 
+  // Tablet horizontal y computadora: el botón "Categorías (N)" de la fila de filtros muestra u
+  // oculta el panel y se recuerda la última elección en este navegador.
+  const desktopToggle = document.querySelector("[data-menu-categories-desktop]");
+  const CATEGORIES_KEY = "sc-menu-categories-open";
+  // Tablet horizontal (≤900px): el panel usa el modo compacto; abrirlo muestra su contenido.
+  const landscapeTablet = window.matchMedia("(min-width: 700px) and (max-width: 900px) and (orientation: landscape)");
+  const setDesktopCategories = (open, remember) => {
+    categoryPanel?.classList.toggle("is-desktop-collapsed", !open);
+    if (landscapeTablet.matches) {
+      categoryPanel?.classList.toggle("is-mobile-expanded", open);
+      categoryButton?.setAttribute("aria-expanded", String(open));
+    }
+    desktopToggle?.setAttribute("aria-expanded", String(open));
+    if (remember) { try { localStorage.setItem(CATEGORIES_KEY, open ? "1" : "0"); } catch (_) { /* sin almacenamiento */ } }
+  };
+  let rememberedOpen = false;
+  try { rememberedOpen = localStorage.getItem(CATEGORIES_KEY) === "1"; } catch (_) { /* sin almacenamiento */ }
+  setDesktopCategories(rememberedOpen, false);
+  desktopToggle?.addEventListener("click", () => {
+    setDesktopCategories(desktopToggle.getAttribute("aria-expanded") !== "true", true);
+  });
+
+  // Buscar / filtrar recarga la página: se conserva la posición del scroll.
+  const SCROLL_KEY = "sc-menu-filter-scroll";
+  document.querySelector("[data-menu-filters]")?.addEventListener("submit", () => {
+    try { sessionStorage.setItem(SCROLL_KEY, String(window.scrollY)); } catch (_) { /* sin almacenamiento */ }
+  });
+  let savedScroll = null;
+  try { savedScroll = sessionStorage.getItem(SCROLL_KEY); sessionStorage.removeItem(SCROLL_KEY); } catch (_) { /* sin almacenamiento */ }
+  if (savedScroll !== null) {
+    const restore = () => window.scrollTo({top: Math.min(Number(savedScroll) || 0, document.documentElement.scrollHeight), behavior: "instant"});
+    restore();
+    window.addEventListener("load", restore, {once: true});
+  }
+
   const search = document.querySelector("[data-menu-search]");
   const searchOpen = search?.querySelector("[data-menu-search-open]");
   const searchInput = search?.querySelector("[data-menu-search-input]");

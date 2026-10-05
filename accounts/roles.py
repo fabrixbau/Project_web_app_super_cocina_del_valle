@@ -23,7 +23,8 @@ SECTION_ROLE_MATRIX = {
     "deliveries": (ADMIN, ORDER_TAKER, DELIVERY),
     "cashier": (ADMIN,),
     "reports": (ADMIN,),
-    "menu": (ADMIN,),
+    # Telefonista también administra el menú (productos, categorías, menú del día, paquetes).
+    "menu": (ADMIN, ORDER_TAKER),
     "inventory_tracking": OPERATIONAL_ROLES,
 }
 

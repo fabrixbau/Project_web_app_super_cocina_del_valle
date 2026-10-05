@@ -136,15 +136,14 @@ class ProductForm(forms.ModelForm):
 class ProductOptionGroupForm(forms.ModelForm):
     class Meta:
         model = ProductOptionGroup
-        fields = ("name", "selection_type", "is_required", "sort_order")
+        # Ya no se elige la forma: todos los grupos permiten elegir varias opciones.
+        fields = ("name", "is_required", "sort_order")
         labels = {
             "name": "Nombre del grupo",
-            "selection_type": "Forma de elegir",
             "is_required": "El cliente o mesero debe conservar al menos una opción",
             "sort_order": "Orden visual",
         }
         help_texts = {
-            "selection_type": "Usa varias para ingredientes que pueden quitarse; una para elegir entre alternativas.",
             "is_required": "Por ejemplo, una proteína obligatoria. Déjalo apagado si puede pedirse sin esos ingredientes.",
             "sort_order": "Los grupos con números menores aparecen primero.",
         }
@@ -160,15 +159,7 @@ class ProductOptionGroupForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        if (
-            self.instance.pk
-            and cleaned_data.get("selection_type") == ProductOptionGroup.SelectionType.SINGLE
-            and self.instance.options.filter(is_default=True).count() > 1
-        ):
-            self.add_error(
-                "selection_type",
-                "Antes de cambiar a una opción, deja un solo ingrediente marcado como estándar.",
-            )
+        self.instance.selection_type = ProductOptionGroup.SelectionType.MULTIPLE
         return cleaned_data
 
 
@@ -203,16 +194,6 @@ class ProductOptionForm(forms.ModelForm):
             raise forms.ValidationError("Este grupo ya contiene una opción con ese nombre.")
         return name
 
-    def clean_is_default(self):
-        is_default = self.cleaned_data["is_default"]
-        group = self.instance.group
-        if (
-            is_default
-            and group.selection_type == ProductOptionGroup.SelectionType.SINGLE
-            and group.options.filter(is_default=True).exclude(pk=self.instance.pk).exists()
-        ):
-            raise forms.ValidationError("Un grupo de elección única solo puede tener una opción estándar.")
-        return is_default
 
     def clean(self):
         cleaned_data = super().clean()
