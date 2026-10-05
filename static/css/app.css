@@ -12634,6 +12634,27 @@ html[data-theme="dark"] .live-search-count { color: #edf4f0; }
   main.internal-panel:has(.order-detail-grid) .message { margin: 0 0 .35rem; padding: .3rem .55rem; border-radius: .45rem; font-size: .72rem; line-height: 1.25; }
   main.internal-panel .order-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   main.internal-panel .order-detail-grid > .card:first-child { grid-column: 1 / -1; }
+  /* Abajo: producto(s) y Siguiente acción en una fila; Agenda de clientes a todo lo ancho. */
+  .order-summary-action-grid { align-items: start; }
+  .order-summary-action-grid > [data-order-detail-actions] { order: 1; }
+  main.internal-panel .order-summary-action-grid > .order-agenda-panel { order: 2; grid-column: 1 / -1; }
+  main.internal-panel .order-agenda-panel .order-agenda-note, main.internal-panel .order-agenda-panel .order-agenda-addresses legend { display: none; }
+  main.internal-panel .order-agenda-panel > p { margin: 0 0 .3rem; }
+  main.internal-panel .order-agenda-panel .order-agenda-match {
+    grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .35rem .5rem; margin: .3rem 0; padding: .45rem .5rem;
+  }
+  main.internal-panel .order-agenda-panel .order-agenda-who { grid-column: 1 / -1; gap: 0 .4rem; }
+  main.internal-panel .order-agenda-panel .order-agenda-who strong { font-size: .8rem; }
+  main.internal-panel .order-agenda-panel .order-agenda-who span { font-size: .68rem; }
+  main.internal-panel .order-agenda-panel .order-agenda-addresses { gap: .2rem; }
+  main.internal-panel .order-agenda-panel .order-agenda-addresses label { gap: .3rem; padding: .25rem .4rem; border-width: 1px; font-size: .68rem; }
+  main.internal-panel .order-agenda-panel .order-agenda-match input[type="radio"] { width: .8rem; height: .8rem; margin-top: .05rem; }
+  main.internal-panel .order-agenda-panel button, main.internal-panel .order-agenda-panel .button-link {
+    width: auto; min-height: 1.9rem; padding: .25rem .55rem; border-radius: .45rem; font-size: .66rem; line-height: 1.15;
+  }
+  main.internal-panel .order-agenda-panel .order-agenda-match button { align-self: center; justify-self: end; max-width: 9rem; }
+  main.internal-panel .order-agenda-panel .order-agenda-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; }
+  main.internal-panel .order-agenda-panel .order-agenda-actions form, main.internal-panel .order-agenda-panel .order-agenda-actions button, main.internal-panel .order-agenda-panel .order-agenda-actions .button-link { width: 100%; justify-content: center; text-align: center; }
 }
 /* Panel "Agenda de clientes" del detalle de pedido web: radios y casilla alineados a la izquierda
    (los estilos generales de formulario les daban ancho completo). */

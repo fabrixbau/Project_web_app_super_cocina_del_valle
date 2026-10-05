@@ -322,9 +322,11 @@ body.pp-sheet-open { overflow: hidden; }
 .pp-package-hero-copy { display: grid; gap: 2px; }
 .pp-package-hero .pp-eyebrow { color: var(--pp-yellow); }
 .pp-package-hero h1 { font-size: clamp(1.5rem, 4.5vw, 2rem); letter-spacing: -.02em; line-height: 1.1; }
-.pp-price-pills { display: flex; gap: 8px; }
-.pp-price-pills span { display: grid; padding: 7px 14px; color: var(--pp-ink); background: #fff; border-radius: 12px; }
-.pp-price-pills small { color: var(--pp-muted); font-size: .74rem; }
+/* Precios como texto (no cajas) para que no parezcan botones. */
+.pp-price-pills { display: flex; justify-content: center; }
+.pp-price-pills span { display: flex; align-items: baseline; gap: 6px; padding: 2px 14px; color: #fff; }
+.pp-price-pills span + span { border-left: 1px solid rgb(255 255 255 / 35%); }
+.pp-price-pills small { color: #e6d6b0; font-size: .82rem; }
 .pp-price-pills strong { font-size: 1.08rem; }
 .pp-notice { margin-top: 12px; padding: 12px 14px; background: #fff6df; border: 1px solid #f0d58a; border-radius: 12px; font-size: .92rem; }
 .pp-package-form { display: grid; gap: 14px; margin-top: 14px; }
