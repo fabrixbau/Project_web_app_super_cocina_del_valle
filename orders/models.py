@@ -53,6 +53,15 @@ class Customer(models.Model):
 
     class Meta:
         ordering = ("name", "id")
+        constraints = [
+            # Un celular = un cliente (con o sin +52). Se agregó cuando producción quedó
+            # sin duplicados (ver Clientes › Duplicados). Los clientes sin teléfono no cuentan.
+            models.UniqueConstraint(
+                fields=("phone_key",), condition=~models.Q(phone_key=""),
+                name="unique_customer_phone_key",
+                violation_error_message="Este celular ya pertenece a otro cliente.",
+            ),
+        ]
 
     def __str__(self):
         return self.name

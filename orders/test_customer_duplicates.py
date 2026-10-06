@@ -36,7 +36,9 @@ class CustomerDuplicateTests(TestCase):
 
     def test_merge_moves_history_and_deletes_others(self):
         keep = Customer.objects.create(name="Juan Pérez", phone="+52 55 1234 5678")
-        dup = Customer.objects.create(name="Juan P.", phone="5512345678", notes="Timbre roto", credit_balance=Decimal("50"))
+        # Con el candado de la base ya no puede haber dos clientes con el mismo celular;
+        # la unión se prueba con otro número (el procedimiento es el mismo).
+        dup = Customer.objects.create(name="Juan P.", phone="5512340000", notes="Timbre roto", credit_balance=Decimal("50"))
         CustomerAddress.objects.create(customer=keep, street="Amores", exterior_number="900")
         same = CustomerAddress.objects.create(customer=dup, street="amores", exterior_number="900")
         other = CustomerAddress.objects.create(customer=dup, street="Pilares", exterior_number="10")
@@ -59,17 +61,15 @@ class CustomerDuplicateTests(TestCase):
         self.assertFalse(CustomerAddress.objects.filter(pk=same.pk).exists())
         self.assertTrue(CustomerAddress.objects.filter(pk=other.pk, customer=keep).exists())
 
-    def test_duplicates_panel_lists_and_merges_for_order_taker(self):
+    def test_database_rejects_repeated_phone_and_panel_is_clean(self):
+        from django.db import IntegrityError, transaction
         self.client.force_login(self.user("dup_phone", ORDER_TAKER))
-        first = Customer.objects.create(name="Ana", phone="5511112222")
-        Customer.objects.create(name="Ana R.", phone="+52 55 1111 2222")
-        Customer.objects.create(name="Otro", phone="5599990000")
-        self.assertContains(self.client.get(reverse("orders:customer_list")), "Duplicados (1)")
-        page = self.client.get(reverse("orders:customer_duplicates"))
-        self.assertContains(page, "Ana R.")
-        self.assertNotContains(page, "Otro")
-        self.client.post(reverse("orders:customer_duplicates"), {"keep_id": first.pk})
-        self.assertEqual(Customer.objects.filter(phone_key="5511112222").count(), 1)
+        Customer.objects.create(name="Ana", phone="5511112222")
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Customer.objects.create(name="Ana R.", phone="+52 55 1111 2222")
+        Customer.objects.create(name="Sin teléfono 1", phone="")
+        Customer.objects.create(name="Sin teléfono 2", phone="")  # sin celular no cuenta
+        self.assertNotContains(self.client.get(reverse("orders:customer_list")), "Duplicados (")
         self.assertContains(self.client.get(reverse("orders:customer_duplicates")), "No hay clientes con el celular repetido")
 
     def test_web_order_cannot_create_a_second_customer_with_same_phone(self):
