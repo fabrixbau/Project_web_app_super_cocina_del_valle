@@ -2309,6 +2309,33 @@ cierre con el repartidor presente. Borra esta nota después de leerla. */
 .change-money.important { color: #702f12; background: #ffe3bd; }
 .change-row form { margin: 0 0 .4rem; }
 .change-row form button { width: 100%; font-weight: 900; }
+.change-list-count { margin: .2rem 0 .45rem; color: #173c2f; font-weight: 700; }
+.change-list-count strong { display: inline-grid; min-width: 1.8rem; padding: .05rem .5rem; place-items: center; color: #fff; background: #c67622; border-radius: 999px; }
+/* Tablet horizontal y celular: tarjetas compactas en dos columnas (lo menos alto posible). */
+@media (max-width: 900px) {
+  main.internal-panel .change-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; align-items: start; }
+  main.internal-panel .change-list > p.card { grid-column: 1 / -1; }
+  main.internal-panel .change-row { grid-template-columns: minmax(0, 1fr); gap: .3rem; align-items: stretch; margin: 0; padding: .5rem .55rem; border-left-width: 4px; }
+  .change-row .change-head { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem .35rem; min-width: 0; }
+  .change-row .change-head .change-order-link { padding: .1rem .4rem; font-size: .66rem; }
+  .change-row .change-head h3 { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
+  .change-row .change-head small { flex-basis: 100%; overflow: hidden; color: #5f6964; font-size: .64rem; text-overflow: ellipsis; white-space: nowrap; }
+  .change-row .change-courier strong { display: none; }
+  .change-row .change-courier p { margin: 0; overflow: hidden; font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
+  .change-row .change-courier p::before { content: "🛵 "; }
+  .change-row .change-pay { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .3rem; padding: 0; background: none; text-align: left; }
+  .change-row .change-pay > span { display: none; }
+  .change-row .change-pay strong { display: inline; font-size: .7rem; }
+  .change-row .change-pay small { font-size: .66rem; color: #5f6964; }
+  .change-row .change-pay small::before { content: "· "; }
+  .change-row .change-return { display: flex; align-items: center; justify-content: space-between; gap: .3rem; padding: .25rem .45rem; text-align: left; }
+  .change-row .change-return > span { min-width: 0; font-size: .6rem; line-height: 1.15; }
+  .change-row .change-return strong { flex: 0 0 auto; font-size: .95rem; }
+  .change-row .change-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem; }
+  .change-row .change-actions > :not(form) { grid-column: 1 / -1; font-size: .6rem; }
+  .change-row .change-actions form { margin: 0; }
+  .change-row .change-actions button, .change-row .change-actions .button-link { width: 100%; min-height: 2rem; padding: .2rem .3rem; font-size: .64rem; line-height: 1.1; }
+}
 @media (max-width: 900px) { .change-overview { grid-template-columns: 1fr; } .change-filters form, .change-summary-grid { grid-template-columns: 1fr 1fr; } .change-row { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 560px) {
   .change-filters form, .change-row { grid-template-columns: 1fr; }

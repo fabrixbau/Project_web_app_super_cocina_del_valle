@@ -63,6 +63,14 @@ document.addEventListener("click", (event) => {
   if (!event.target.closest("[data-change-order-search]")) closeChangeSearch();
 });
 const settlementFeedback = document.querySelector("[data-settlement-feedback]");
+// Contador de la lista: se recalcula cuando una tarjeta sale (devolución confirmada) o cambia.
+const changeList = document.querySelector("[data-change-list]");
+const changeCount = document.querySelector("[data-change-count]");
+if (changeList && changeCount) {
+  new MutationObserver(() => {
+    changeCount.textContent = String(changeList.querySelectorAll("[data-change-row]").length);
+  }).observe(changeList, {childList: true});
+}
 const moneyValue = (element) => Number((element?.textContent || "0").replace(/[^0-9.-]/g, ""));
 const paintMoney = (element, amount) => { if (element) element.textContent = new Intl.NumberFormat("es-MX", {style: "currency", currency: "MXN"}).format(Math.max(0, amount)); };
 
