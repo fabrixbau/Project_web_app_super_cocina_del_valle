@@ -1,0 +1,26 @@
+{% extends "base_internal.html" %}
+{% comment %}
+Depuración de clientes con el mismo celular. En cada grupo se elige el cliente que se queda;
+los demás se eliminan después de pasarle su historial (pedidos, domicilios sin repetir,
+adeudos, abonos y saldo a favor). Ver orders.services.merge_customers.
+{% endcomment %}
+{% block title %}Clientes duplicados{% endblock %}
+{% block content %}
+  <div class="page-heading"><div><a href="{% url 'orders:customer_list' %}">← Agenda</a><h1>Clientes duplicados</h1><p>Clientes que comparten el mismo celular. Elige cuál se queda: los demás se eliminan y todo su historial pasa al que se queda.</p></div></div>
+  {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+  {% for group in groups %}
+    <form method="post" class="card duplicate-group" onsubmit="return confirm('Se quedará el cliente marcado. Los demás de este celular se eliminarán y su historial pasará a él. ¿Continuar?');">{% csrf_token %}
+      <header><h2>{{ group.phone_key }}</h2><span>{{ group.customers|length }} clientes</span></header>
+      {% for customer in group.customers %}
+        <label class="duplicate-option"><input type="radio" name="keep_id" value="{{ customer.id }}" required{% if forloop.first %} checked{% endif %}>
+          <span><strong>{{ customer.name }}</strong><small>{{ customer.phone|default:"Sin teléfono" }} · registrado {{ customer.created_at|date:"d/m/Y" }}</small>
+          <small>{{ customer.address_count }} domicilio{{ customer.address_count|pluralize }} · {{ customer.order_count }} pedido{{ customer.order_count|pluralize }}{% if customer.open_debt_total %} · adeudo ${{ customer.open_debt_total|floatformat:2 }}{% endif %}{% if customer.credit_balance %} · saldo a favor ${{ customer.credit_balance|floatformat:2 }}{% endif %}</small></span>
+          <a href="{% url 'orders:customer_edit' customer.id %}" target="_blank" rel="noopener">Ver ficha</a>
+        </label>
+      {% endfor %}
+      <button type="submit">Quedarme con el marcado y unir los demás</button>
+    </form>
+  {% empty %}
+    <section class="card"><p>✓ No hay clientes con el celular repetido.</p></section>
+  {% endfor %}
+{% endblock %}

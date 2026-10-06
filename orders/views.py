@@ -41,7 +41,7 @@ from .coffee_report import coffee_sales_for_date
 from .phones import phone_key as normalize_customer_phone
 from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm
 from .models import CashRegisterCut, CashRegisterExpense, CoffeeSettlement, Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
-from .services import ACTION_LABELS, link_public_order_customer, add_cash_register_expense, add_customer_credit, apply_credit_to_debts, open_customer_debts, suggested_credit_allocation, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, settle_selected_debts_from_cashier, start_internal_order, transfer_order_to_table, transition_order, update_cash_register_cut, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
+from .services import ACTION_LABELS, customer_with_phone, duplicate_customer_groups, merge_customers, link_public_order_customer, add_cash_register_expense, add_customer_credit, apply_credit_to_debts, open_customer_debts, suggested_credit_allocation, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, settle_selected_debts_from_cashier, start_internal_order, transfer_order_to_table, transition_order, update_cash_register_cut, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
 
 
 INTERNAL_MENU_MODE_KEY = "internal_order_menu_mode"
@@ -858,6 +858,7 @@ def customer_list(request):
             | Q(addresses__neighborhood__icontains=query)
         ).distinct()
     return render(request, "orders/customer_list.html", {
+        "duplicate_group_count": len(duplicate_customer_groups()),
         "customers": customers, "query": query,
         "can_delete_customers": user_has_any_role(request.user, (ADMIN,)),
     })
@@ -1653,7 +1654,11 @@ def order_link_customer(request, order_id):
         customer = get_object_or_404(Customer, pk=request.POST.get("customer_id"))
         address_id = request.POST.get("address_id")
         address = customer.addresses.filter(pk=address_id).first() if address_id else customer.addresses.order_by("-updated_at").first()
-    order = link_public_order_customer(order=order, actor=request.user, customer=customer, address=address)
+    try:
+        order = link_public_order_customer(order=order, actor=request.user, customer=customer, address=address)
+    except ValidationError as error:
+        messages.error(request, error.message)
+        return redirect("orders:order_detail", order_id=order.pk)
     messages.success(request, f"{order.formatted_number} quedó asociado a {order.agenda_customer.name}.")
     return redirect("orders:order_detail", order_id=order.pk)
 
@@ -2142,6 +2147,33 @@ def cashier_debt_create(request):
     return redirect(board_url)
 
 
+def _debt_customer_from_request(request):
+    customer_id = request.POST.get("customer_id", "")
+    if customer_id.isdigit():
+        return get_object_or_404(Customer, pk=customer_id)
+    name = " ".join(request.POST.get("new_customer_name", "").split())
+    phone = request.POST.get("new_customer_phone", "").strip()
+    if not name:
+        return None
+    existing = customer_with_phone(phone)
+    if existing:
+        raise ValidationError(f"El celular {phone} ya pertenece a {existing.name}. Elígelo en el buscador.")
+    return Customer.objects.create(name=name, phone=phone)
+
+
+@role_required(ADMIN, ORDER_TAKER)
+def customer_duplicates(request):
+    """Depuración: clientes que comparten celular. Se elige cuál se queda; los demás se
+    eliminan pasando antes su historial al que se queda."""
+    if request.method == "POST":
+        keep = get_object_or_404(Customer, pk=request.POST.get("keep_id") or 0)
+        others = list(Customer.objects.filter(phone_key=keep.phone_key).exclude(pk=keep.pk)) if keep.phone_key else []
+        removed = merge_customers(keep=keep, others=others)
+        messages.success(request, f"Quedó {keep.name}; se unieron y eliminaron {removed} cliente{'s' if removed != 1 else ''} con el mismo celular.")
+        return redirect("orders:customer_duplicates")
+    return render(request, "orders/customer_duplicates.html", {"groups": duplicate_customer_groups()})
+
+
 @require_POST
 @role_required(ADMIN)
 def cashier_order_debt_create(request, order_id):
@@ -2151,10 +2183,18 @@ def cashier_order_debt_create(request, order_id):
     # Borra esta nota después de leerla.
     order = get_object_or_404(Order, pk=order_id)
     try:
-        debt = create_customer_debt(
-            order=order, actor=request.user,
-            note=request.POST.get("note", "Pedido reportado como no pagado."),
-        )
+        # Pedido sin cliente de la agenda: el panel de "No pagó" manda el cliente elegido
+        # (customer_id) o los datos de uno nuevo (new_customer_name / new_customer_phone).
+        with transaction.atomic():
+            if not order.agenda_customer_id:
+                customer = _debt_customer_from_request(request)
+                if customer:
+                    order.agenda_customer = customer
+                    order.save(update_fields=("agenda_customer", "updated_at"))
+            debt = create_customer_debt(
+                order=order, actor=request.user,
+                note=request.POST.get("note", "Pedido reportado como no pagado."),
+            )
     except ValidationError as error:
         messages.error(request, error.message)
         debt = None

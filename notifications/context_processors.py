@@ -31,5 +31,7 @@ def notification_counter(request):
         # Administrador y Telefonista: marco amarillo parpadeando mientras haya pedidos web
         # sin atender (static/js/order-alert.js revisa cada 15 s).
         "can_receive_order_alerts": user_has_any_role(request.user, (ADMIN, ORDER_TAKER)),
+        # Sólo Administrador registra "No pagó"; la base incluye su panel de cliente.
+        "user_is_admin": user_has_any_role(request.user, (ADMIN,)),
         "pending_order_notification_count": orders,
     }

@@ -14,6 +14,7 @@ urlpatterns = [
     path("clientes/", views.customer_list, name="customer_list"),
     path("clientes/nuevo/", views.customer_create, name="customer_create"),
     path("clientes/buscar/", views.customer_lookup, name="customer_lookup"),
+    path("clientes/duplicados/", views.customer_duplicates, name="customer_duplicates"),
     path("clientes/<int:customer_id>/editar/", views.customer_edit, name="customer_edit"),
     path("clientes/<int:customer_id>/eliminar/", views.customer_delete, name="customer_delete"),
     path("nuevo/", views.internal_order_create, name="internal_order_create"),

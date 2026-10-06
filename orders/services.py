@@ -1856,6 +1856,9 @@ def link_public_order_customer(*, order, actor, customer=None, address=None):
 
     order = Order.objects.select_for_update().get(pk=order.pk)
     if customer is None:
+        existing = customer_with_phone(order.phone)
+        if existing:
+            raise ValidationError(f"El celular {order.phone} ya pertenece a {existing.name}. Asocia el pedido a ese cliente.")
         customer = Customer.objects.create(name=order.customer_name or order.phone, phone=order.phone)
         if order.order_type == Order.OrderType.DELIVERY and order.street:
             address = CustomerAddress.objects.create(
@@ -1877,3 +1880,72 @@ def link_public_order_customer(*, order, actor, customer=None, address=None):
         fields += ["street", "exterior_number", "interior_number", "references", "outside_delivery_zone"]
     order.save(update_fields=fields)
     return order
+
+
+# ---------------------------------------------------------------- clientes sin celular repetido
+# El celular identifica al cliente: "+52 55 1234 5678", "5512345678" y "55-1234-5678" son el
+# mismo número (`phone_key`). No se crean clientes con un celular que ya existe y los
+# duplicados que ya había se depuran uniéndolos al que se queda (`merge_customers`).
+
+def customer_with_phone(phone, *, exclude_pk=None):
+    key = phone_key(phone)
+    if not key:
+        return None
+    queryset = Customer.objects.filter(phone_key=key)
+    if exclude_pk:
+        queryset = queryset.exclude(pk=exclude_pk)
+    return queryset.order_by("id").first()
+
+
+def duplicate_customer_groups():
+    """Grupos de clientes que comparten celular, del más numeroso al menor."""
+    from django.db.models import Count
+    keys = list(
+        Customer.objects.exclude(phone_key="").values("phone_key").annotate(total=Count("id"))
+        .filter(total__gt=1).order_by("-total", "phone_key").values_list("phone_key", flat=True)
+    )
+    customers = Customer.objects.filter(phone_key__in=keys).annotate(
+        order_count=Count("orders", distinct=True),
+        address_count=Count("addresses", distinct=True),
+    ).prefetch_related("debts").order_by("created_at", "id")
+    groups = {key: [] for key in keys}
+    for customer in customers:
+        customer.open_debt_total = sum(
+            (debt.balance for debt in customer.debts.all() if debt.status in {CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL}),
+            Decimal("0"),
+        )
+        groups[customer.phone_key].append(customer)
+    return [{"phone_key": key, "customers": members} for key, members in groups.items() if len(members) > 1]
+
+
+@transaction.atomic
+def merge_customers(*, keep, others):
+    """Pasa todo el historial de `others` a `keep` y elimina `others`.
+
+    Pedidos, domicilios (sin repetir), adeudos, abonos y saldo a favor quedan en el cliente
+    que se conserva; las indicaciones se suman. Devuelve cuántos clientes se eliminaron.
+    """
+    keep = Customer.objects.select_for_update().get(pk=keep.pk)
+    others = list(Customer.objects.select_for_update().filter(pk__in=[other.pk for other in others]).exclude(pk=keep.pk))
+    for other in others:
+        for address in list(other.addresses.all()):
+            match = keep.addresses.filter(
+                street__iexact=address.street.strip(), exterior_number__iexact=address.exterior_number.strip(),
+                interior_number__iexact=address.interior_number.strip(),
+            ).first()
+            if match:
+                Order.objects.filter(agenda_address=address).update(agenda_address=match)
+                address.delete()
+            else:
+                address.customer = keep
+                address.save(update_fields=["customer"])
+        Order.objects.filter(agenda_customer=other).update(agenda_customer=keep)
+        CustomerDebt.objects.filter(customer=other).update(customer=keep)
+        CustomerCreditMovement.objects.filter(customer=other).update(customer=keep)
+        keep.credit_balance += other.credit_balance
+        extra_notes = other.notes.strip()
+        if extra_notes and extra_notes not in keep.notes:
+            keep.notes = f"{keep.notes.strip()}\n{extra_notes}".strip()
+        other.delete()
+    keep.save(update_fields=["credit_balance", "notes", "updated_at"])
+    return len(others)

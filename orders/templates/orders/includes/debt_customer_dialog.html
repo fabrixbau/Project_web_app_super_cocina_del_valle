@@ -1,0 +1,18 @@
+{% comment %}
+"No pagó" en un pedido sin cliente de la agenda: elegir el cliente (mismo buscador por nombre
+o celular) o crear uno nuevo. static/js/debt-customer-dialog.js lo abre y completa el formulario.
+{% endcomment %}
+<dialog class="debt-customer-dialog" data-debt-customer-dialog data-customer-lookup-url="{% url 'orders:customer_lookup' %}">
+  <form method="dialog" data-debt-customer-form>
+    <header><div><h2>¿A qué cliente se le registra el adeudo?</h2><p data-debt-customer-order></p></div><button type="button" data-debt-customer-close aria-label="Cerrar">×</button></header>
+    <label>Buscar cliente<input type="search" data-debt-customer-search placeholder="Nombre o celular" autocomplete="off"></label>
+    <div class="debt-customer-results" data-debt-customer-results></div>
+    <p class="debt-customer-chosen" data-debt-customer-chosen hidden></p>
+    <details class="debt-customer-new" data-debt-customer-new><summary>Crear cliente nuevo</summary>
+      <label>Nombre<input type="text" data-debt-new-name maxlength="150" autocomplete="off"></label>
+      <label>Celular<input type="tel" data-debt-new-phone maxlength="30" autocomplete="off"></label>
+    </details>
+    <p class="cashier-error" data-debt-customer-error hidden></p>
+    <button type="button" data-debt-customer-confirm>Asociar y registrar no pagado</button>
+  </form>
+</dialog>
