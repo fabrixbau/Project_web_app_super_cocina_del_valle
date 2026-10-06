@@ -37,4 +37,10 @@ urlpatterns = [
     path("cuentas/<int:account_id>/pasar-a-pedido/", views.table_transfer_to_order, name="table_transfer_to_order"),
     path("cuentas/<int:account_id>/registrar-no-pagada/", views.table_register_unpaid, name="table_register_unpaid"),
     path("cuentas/<int:account_id>/dividir/", views.table_split_close, name="table_split_close"),
+    path("cuentas/<int:account_id>/dejar-pendiente/", views.table_park, name="table_park"),
+    path("cuentas/<int:account_id>/traer/", views.table_resume, name="table_resume"),
+    # Cuentas separadas mientras el ticket sigue abierto.
+    path("cuentas/<int:account_id>/cuentas-separadas/", views.table_split_update, name="table_split_update"),
+    path("cuentas/<int:account_id>/cuentas-separadas/mover/", views.table_split_move, name="table_split_move"),
+    path("cuentas/<int:account_id>/cuentas-separadas/<int:slot>/cobrar/", views.table_split_pay, name="table_split_pay"),
 ]

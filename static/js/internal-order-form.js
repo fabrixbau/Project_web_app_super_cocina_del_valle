@@ -113,10 +113,7 @@
     } else if (field) {
       field.checked = true;
     }
-    // NOTA TEMPORAL PARA APRENDIZAJE: al pasar al pago cerramos Cliente para que
-    // ambos paneles no compitan por espacio. Efectivo muestra sus billetes mediante
-    // refresh() en la siguiente línea. Borra esta nota después de leerla.
-    customerPanel.hidden = true;
+    // "Datos del cliente" ya no se cierra solo: sólo con su X o con el botón del panel.
     refresh();
     window.clearTimeout(autosaveTimer);
     await autosaveCustomer();
@@ -311,9 +308,15 @@
       setFieldValue("references", address.references);
     }
     agendaResults.hidden = true;
-    customerPanel.hidden = true;
-    // Cierra el teclado del campo que se estaba llenando.
-    document.activeElement?.blur?.();
+    // El panel se queda abierto al elegir un cliente (se cierra con la X o con el botón)
+    // y el cursor pasa a "Hora de entrega", listo para capturarla.
+    const timeField = form.querySelector("input[name='requested_time']");
+    if (timeField && !timeField.closest("[hidden]")) {
+      timeField.focus({preventScroll: false});
+      timeField.select?.();
+    } else {
+      document.activeElement?.blur?.();
+    }
     if (duplicatePhoneWarning) duplicatePhoneWarning.hidden = true;
     const creditBalance = Number(customer.credit_balance || 0);
     const currentTotal = Number(form.dataset.orderTotal || 0);

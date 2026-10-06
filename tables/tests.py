@@ -729,3 +729,138 @@ class TicketModificationLinesTests(TestCase):
         self.assertEqual(summary["meal_quantities"][str(self.main_product.pk)], 1)
         self.assertNotIn(str(self.main_product.pk), summary["candidate_quantities"])
 
+
+
+class TableLiveSplitTests(TestCase):
+    """Cuentas separadas mientras el ticket sigue abierto (Cuenta 1, 2…)."""
+
+    def setUp(self):
+        self.waiter = get_user_model().objects.create_user(username="live_split_waiter")
+        self.waiter.groups.add(Group.objects.get_or_create(name=WAITER)[0])
+        self.table = DiningTable.objects.create(name="Mesa separada", display_order=150)
+        self.account = TableAccount.objects.create(table=self.table, assigned_waiter=self.waiter, opened_by=self.waiter)
+        self.soup = TableAccountItem.objects.create(
+            account=self.account, product_name_snapshot="Consomé", unit_price=50, quantity=2, subtotal=100, added_by=self.waiter,
+        )
+        self.soda = TableAccountItem.objects.create(
+            account=self.account, product_name_snapshot="Refresco", unit_price=30, subtotal=30, added_by=self.waiter,
+        )
+        self.client.force_login(self.waiter)
+        self.split_url = reverse("tables:table_split_update", args=(self.account.pk,))
+        self.move_url = reverse("tables:table_split_move", args=(self.account.pk,))
+
+    def post_split(self, **data):
+        response = self.client.post(self.split_url, data, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(response.status_code, 200, response.content)
+        return response.json()["ticket"]
+
+    def test_mode_toggle_keeps_assignments_and_moves_one_unit(self):
+        ticket = self.post_split(action="mode_on")
+        self.assertTrue(ticket["split"]["enabled"])
+        self.assertEqual([slot["number"] for slot in ticket["split"]["slots"]], [1, 2])
+        # Mover una de las dos sopas a la Cuenta 2 separa la partida.
+        self.client.post(self.move_url, {"item_id": self.soup.pk, "slot": 2}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.client.post(self.move_url, {"item_id": self.soda.pk, "slot": 1}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.soup.refresh_from_db()
+        self.assertEqual((self.soup.quantity, self.soup.split_slot), (1, None))
+        self.assertTrue(TableAccountItem.objects.filter(account=self.account, split_slot=2, quantity=1, product_name_snapshot="Consomé").exists())
+        # "Una sola cuenta" no borra el reparto; al volver sigue igual.
+        single = self.post_split(action="mode_off")
+        self.assertFalse(single["split"]["enabled"])
+        self.assertEqual(single["count"], 3)
+        again = self.post_split(action="mode_on")
+        totals = {slot["number"]: slot["total_display"] for slot in again["split"]["slots"]}
+        self.assertEqual(totals, {1: "30.00", 2: "50.00"})
+        self.assertEqual(again["split"]["unassigned_count"], 1)
+
+    def test_paying_one_account_keeps_table_open_and_last_one_closes_it(self):
+        self.post_split(action="mode_on")
+        self.client.post(self.move_url, {"item_id": self.soda.pk, "slot": 1}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.client.post(self.move_url, {"item_id": self.soup.pk, "slot": 2}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.client.post(self.move_url, {"item_id": self.soup.pk, "slot": 2}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        pay = lambda slot, **data: self.client.post(reverse("tables:table_split_pay", args=(self.account.pk, slot)), {
+            "payment_method": "card", "tip_amount": "0", "responsible_waiter": self.waiter.pk, **data,
+        })
+        pay(1)
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.status, TableAccount.Status.OPEN)
+        child = self.account.split_children.get()
+        self.assertEqual((child.status, child.split_number, child.subtotal_closed), (TableAccount.Status.CLOSED, 1, Decimal("30")))
+        self.assertEqual(ticket_summary(self.account)["total"], Decimal("100"))
+        self.assertEqual([slot["number"] for slot in ticket_summary(self.account)["split"]["slots"]], [2])
+        # Cuenta 2 es lo último que queda: se cierra la cuenta principal y se libera la mesa.
+        pay(2)
+        self.account.refresh_from_db()
+        self.assertEqual((self.account.status, self.account.split_number, self.account.subtotal_closed), (TableAccount.Status.CLOSED, 2, Decimal("100")))
+
+    def test_new_products_go_to_active_account(self):
+        category = Category.objects.create(name="Bebidas separadas")
+        product = Product.objects.create(category=category, name="Agua separada", price=Decimal("20"))
+        self.post_split(action="mode_on")
+        self.post_split(action="select", slot=2)
+        add_product_to_table(account=self.account, product=product, added_by=self.waiter)
+        add_product_to_table(account=self.account, product=product, added_by=self.waiter)
+        self.post_split(action="select", slot=1)
+        add_product_to_table(account=self.account, product=product, added_by=self.waiter)
+        rows = TableAccountItem.objects.filter(account=self.account, product=product)
+        self.assertEqual({row.split_slot: row.quantity for row in rows}, {2: 2, 1: 1})
+
+    def test_pre_account_print_only_shows_that_account(self):
+        self.post_split(action="mode_on")
+        self.client.post(self.move_url, {"item_id": self.soda.pk, "slot": 2}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        response = self.client.get(reverse("tables:table_payment_print", args=(self.account.pk,)) + "?cuenta=2")
+        self.assertContains(response, "CUENTA 2")
+        self.assertContains(response, "Refresco")
+        self.assertNotContains(response, "Consomé")
+
+
+class TableParkedAccountTests(TestCase):
+    """Dejar pendiente una mesa y traer su cuenta a cualquier mesa."""
+
+    def setUp(self):
+        self.waiter = get_user_model().objects.create_user(username="park_waiter")
+        self.waiter.groups.add(Group.objects.get_or_create(name=WAITER)[0])
+        self.table_a = DiningTable.objects.create(name="Mesa A park", display_order=160)
+        self.table_b = DiningTable.objects.create(name="Mesa B park", display_order=161)
+        self.account = TableAccount.objects.create(table=self.table_a, assigned_waiter=self.waiter, opened_by=self.waiter)
+        TableAccountItem.objects.create(account=self.account, product_name_snapshot="Consomé", unit_price=50, subtotal=50, added_by=self.waiter)
+        self.client.force_login(self.waiter)
+
+    def open_account(self, table, with_item=True):
+        account = TableAccount.objects.create(table=table, assigned_waiter=self.waiter, opened_by=self.waiter)
+        if with_item:
+            TableAccountItem.objects.create(account=account, product_name_snapshot="Refresco", unit_price=30, subtotal=30, added_by=self.waiter)
+        return account
+
+    def test_park_frees_table_and_resume_into_free_table(self):
+        self.client.post(reverse("tables:table_park", args=(self.account.pk,)))
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.status, TableAccount.Status.PARKED)
+        self.assertFalse(self.table_a.accounts.filter(status=TableAccount.Status.OPEN).exists())
+        self.assertContains(self.client.get(reverse("tables:table_map")), "Cuentas pendientes")
+        # La mesa queda libre para otra cuenta.
+        self.open_account(self.table_a, with_item=False)
+        self.client.post(reverse("tables:table_resume", args=(self.account.pk,)), {"table_id": self.table_b.pk})
+        self.account.refresh_from_db()
+        self.assertEqual((self.account.status, self.account.table_id), (TableAccount.Status.OPEN, self.table_b.pk))
+
+    def test_resume_parks_busy_account_and_discards_empty_one(self):
+        self.client.post(reverse("tables:table_park", args=(self.account.pk,)))
+        busy = self.open_account(self.table_a)
+        self.client.post(reverse("tables:table_resume", args=(self.account.pk,)), {"table_id": self.table_a.pk})
+        busy.refresh_from_db()
+        self.account.refresh_from_db()
+        self.assertEqual(busy.status, TableAccount.Status.PARKED)
+        self.assertEqual((self.account.status, self.account.table_id), (TableAccount.Status.OPEN, self.table_a.pk))
+        # Traer la otra a una mesa abierta pero vacía: esa cuenta vacía se descarta.
+        empty = self.open_account(self.table_b, with_item=False)
+        self.client.post(reverse("tables:table_resume", args=(busy.pk,)), {"table_id": self.table_b.pk})
+        self.assertFalse(TableAccount.objects.filter(pk=empty.pk).exists())
+        busy.refresh_from_db()
+        self.assertEqual((busy.status, busy.table_id), (TableAccount.Status.OPEN, self.table_b.pk))
+
+    def test_cannot_park_empty_table(self):
+        empty = self.open_account(self.table_b, with_item=False)
+        self.client.post(reverse("tables:table_park", args=(empty.pk,)))
+        empty.refresh_from_db()
+        self.assertEqual(empty.status, TableAccount.Status.OPEN)

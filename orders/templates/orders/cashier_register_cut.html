@@ -16,6 +16,7 @@ después de leerla. -->
   {% include "orders/includes/cashier_tools_nav.html" with current="register_cut" is_admin=True %}
 </header>
 {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+{% if parked_table_accounts %}<p class="message warning parked-cut-warning">⚠ Hay {{ parked_table_accounts|length }} cuenta{{ parked_table_accounts|length|pluralize }} de mesa pendiente{{ parked_table_accounts|length|pluralize }} sin cobrar ({% for parked in parked_table_accounts %}{{ parked.table.name }}{% if parked.customer_name %} · {{ parked.customer_name }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}). <a href="{% url 'tables:table_map' %}">Ir al mapa de mesas</a></p>{% endif %}
 
 <section class="card coffee-report-panel">
   <form method="get" class="coffee-report-filter"><label>Corte del día <input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" required onchange="this.form.requestSubmit()"></label>{% if selected_date != today %}<a class="button-link" href="?date={{ today|date:'Y-m-d' }}">Ir a hoy</a>{% endif %}</form>

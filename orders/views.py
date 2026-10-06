@@ -2681,7 +2681,10 @@ def cashier_register_cut(request):
         bucket["total_expenses"] += daily_cut.total_expenses
     weekly_cuts = sorted(weekly_totals.values(), key=lambda week: week["week_start"], reverse=True)
 
+    from tables.models import TableAccount
+    parked_table_accounts = list(TableAccount.objects.filter(status=TableAccount.Status.PARKED).select_related("table"))
     return render(request, "orders/cashier_register_cut.html", {
+        "parked_table_accounts": parked_table_accounts,
         "cut": cut, "selected_date": selected_date, "today": today,
         "unpaid_orders": unpaid_orders, "pending_orders": pending_orders,
         "expenses": expenses, "total_expenses": total_expenses,

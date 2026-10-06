@@ -70,6 +70,7 @@
           source_type: match[2] ? "order" : "table",
           source_id: Number(match[2] || match[3]),
           ticket_type: match[4] === "cocina" ? "kitchen" : "payment",
+          ...(link.dataset.splitSlot ? {split_slot: Number(link.dataset.splitSlot)} : {}),
         }),
       });
       const result = await response.json();

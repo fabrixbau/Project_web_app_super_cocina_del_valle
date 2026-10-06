@@ -46,6 +46,8 @@ class TableAccount(models.Model):
         OPEN = "open", "Abierta"
         CLOSED = "closed", "Cerrada"
         TRANSFERRED = "transferred", "Transferida a pedido"
+        # "Dejar pendiente": la cuenta se guarda con todo y la mesa queda libre.
+        PARKED = "parked", "Pendiente"
 
     class PaymentMethod(models.TextChoices):
         CASH = "cash", "Efectivo"
@@ -79,6 +81,27 @@ class TableAccount(models.Model):
     total_paid = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     cash_tendered = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     change_given = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Cuentas separadas mientras el ticket sigue abierto: cada partida lleva su número de
+    # cuenta (`TableAccountItem.split_slot`). `split_mode` sólo cambia la vista: al volver a
+    # "Una sola cuenta" el reparto se conserva. `split_count` = cuentas creadas (Cuenta 1…N)
+    # y `split_active` = cuenta donde caen los productos nuevos. Al cobrar una cuenta antes
+    # que las demás se crea una cuenta cerrada hija (`split_parent`) con `split_number`.
+    split_mode = models.BooleanField("cuentas separadas", default=False)
+    split_count = models.PositiveSmallIntegerField(default=0)
+    split_active = models.PositiveSmallIntegerField(null=True, blank=True)
+    split_parent = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="split_children",
+    )
+    split_number = models.PositiveSmallIntegerField(null=True, blank=True)
+    parked_at = models.DateTimeField(null=True, blank=True)
+    parked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="parked_table_accounts",
+    )
+
+    @property
+    def split_label(self):
+        return f"Cuenta {self.split_number}" if self.split_number else ""
 
     class Meta:
         ordering = ("-opened_at",)
@@ -111,6 +134,8 @@ class TableActivity(models.Model):
         REASSIGN = "reassign", "Cambió responsable"
         CUSTOMER = "customer", "Actualizó cliente"
         CLOSE = "close", "Cobró y cerró"
+        PARK = "park", "Dejó pendiente"
+        RESUME = "resume", "Retomó la cuenta"
 
     account = models.ForeignKey(TableAccount, on_delete=models.CASCADE, related_name="activities")
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="table_activities")
@@ -214,6 +239,8 @@ class TableAccountItem(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="table_items_added",
     )
     added_at = models.DateTimeField(auto_now_add=True)
+    # Número de cuenta separada (Cuenta 1, 2…); vacío = sin asignar.
+    split_slot = models.PositiveSmallIntegerField(null=True, blank=True)
 
     class Meta:
         ordering = ("added_at", "id")

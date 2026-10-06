@@ -406,7 +406,119 @@ function renderTicket(ticket) {
   renderStockWarnings(ticket.stock_warnings || []);
   window.__tableTicketItems = ticket.items;
   ticketItems.replaceChildren();
-  ticket.items.forEach((item) => {
+  const split = ticket.split || {enabled: false, slots: [], paid: []};
+  if (split.enabled) renderSplitSections(ticket.items, split);
+  else ticket.items.forEach((item) => ticketItems.append(buildTicketRow(item, null)));
+  renderSplitControls(split);
+  ticketCount.textContent = ticket.count;
+  ticketTotal.textContent = currency.format(Number(ticket.total_display));
+  const closeForm = document.querySelector("[data-close-account-form]");
+  if (closeForm) { closeForm.dataset.accountSubtotal = ticket.total_display; closeForm.dataset.ticketTotal = ticket.total_display; }
+  const hasItems = ticket.items.length > 0;
+  ticketPanel.hidden = !hasItems;
+  pos.classList.toggle("has-ticket", hasItems);
+  renderStandardQuantities(ticket.standard_quantities || {});
+  renderCandidateQuantities(ticket.candidate_quantities || {}, ticket.meal_quantities || {});
+}
+
+// ---------------------------------------------------------------- cuentas separadas
+// Con "Separar cuentas" el ticket se agrupa en Cuenta 1, 2… (y "Sin asignar"). Tocar la
+// cabecera de una cuenta la vuelve activa: lo que se agregue cae ahí. "⇄" mueve una pieza
+// a otra cuenta; "Pre-cuenta" imprime sólo esa cuenta y "Cobrar" la cobra por separado.
+const splitBar = document.querySelector("[data-split-bar]");
+
+function splitButton(label, data, className = "") {
+  const button = document.createElement("button");
+  button.type = "button";
+  if (className) button.className = className;
+  button.textContent = label;
+  Object.entries(data).forEach(([key, value]) => { button.dataset[key] = value; });
+  return button;
+}
+
+function renderSplitSections(items, split) {
+  const bySlot = new Map();
+  items.forEach((item) => {
+    const slot = item.split_slot || 0;
+    if (!bySlot.has(slot)) bySlot.set(slot, []);
+    bySlot.get(slot).push(item);
+  });
+  split.slots.forEach((slot) => {
+    const section = document.createElement("section");
+    section.className = `ticket-split-section${split.active === slot.number ? " is-active" : ""}`;
+    const header = document.createElement("header");
+    const select = splitButton("", {splitAction: "select", slot: slot.number}, "ticket-split-select");
+    const title = document.createElement("strong");
+    title.textContent = slot.label;
+    const total = document.createElement("span");
+    total.textContent = currency.format(Number(slot.total_display));
+    select.append(title, total);
+    if (split.active === slot.number) {
+      const badge = document.createElement("small");
+      badge.textContent = "Agregando aquí";
+      select.append(badge);
+    }
+    const actions = document.createElement("div");
+    actions.className = "ticket-split-actions";
+    const print = document.createElement("a");
+    print.href = splitBar.dataset.paymentPrintUrl + `?cuenta=${slot.number}`;
+    print.dataset.directPrint = "";
+    print.dataset.splitSlot = slot.number;
+    print.textContent = "Pre-cuenta";
+    if (!slot.count) print.setAttribute("aria-disabled", "true");
+    const pay = splitButton("Cobrar", {splitPay: slot.number, payUrl: slot.pay_url, payTotal: slot.total_display}, "ticket-split-pay");
+    pay.disabled = !slot.count;
+    actions.append(print, pay);
+    if (slot.removable) actions.append(splitButton("×", {splitAction: "remove", slot: slot.number}, "danger ticket-split-remove"));
+    header.append(select, actions);
+    section.append(header);
+    const rows = bySlot.get(slot.number) || [];
+    if (rows.length) rows.forEach((item) => section.append(buildTicketRow(item, split)));
+    else {
+      const empty = document.createElement("p");
+      empty.className = "ticket-split-empty";
+      empty.textContent = "Sin productos. Toca la cuenta y agrega desde el menú, o usa ⇄ en otra cuenta.";
+      section.append(empty);
+    }
+    ticketItems.append(section);
+  });
+  const unassigned = bySlot.get(0) || [];
+  if (unassigned.length) {
+    const section = document.createElement("section");
+    section.className = "ticket-split-section is-unassigned";
+    const header = document.createElement("header");
+    const title = document.createElement("strong");
+    title.textContent = `Sin asignar · ${currency.format(Number(split.unassigned_total_display))}`;
+    header.append(title);
+    section.append(header);
+    unassigned.forEach((item) => section.append(buildTicketRow(item, split)));
+    ticketItems.append(section);
+  }
+  ticketItems.append(splitButton("+ Agregar cuenta", {splitAction: "add"}, "ticket-split-add"));
+}
+
+function renderSplitControls(split) {
+  if (!splitBar) return;
+  splitBar.querySelectorAll("[data-split-action^='mode_']").forEach((button) => {
+    button.setAttribute("aria-pressed", String((button.dataset.splitAction === "mode_on") === Boolean(split.enabled)));
+  });
+  ticketPanel.classList.toggle("is-split", Boolean(split.enabled));
+  const closeLauncher = document.querySelector("[data-close-account-open]");
+  if (closeLauncher) closeLauncher.hidden = Boolean(split.enabled);
+  const paid = document.querySelector("[data-split-paid]");
+  if (paid) {
+    paid.replaceChildren();
+    (split.paid || []).forEach((entry) => {
+      const link = document.createElement("a");
+      link.href = entry.url;
+      link.textContent = `✓ ${entry.label} cobrada · ${currency.format(Number(entry.total_display))} · ${entry.method}`;
+      paid.append(link);
+    });
+    paid.hidden = !(split.paid || []).length;
+  }
+}
+
+function buildTicketRow(item, split) {
     const row = document.createElement("article");
     row.className = "table-ticket-item";
     const information = document.createElement("div");
@@ -446,18 +558,22 @@ function renderTicket(ticket) {
       ticketButton(item, "increase", "+"),
       ticketButton(item, "remove", "×", "danger"),
     );
+    let moveMenu = null;
+    if (split?.enabled) {
+      controls.prepend(splitButton("⇄", {splitMoveOpen: ""}, "ticket-split-move-open"));
+      const menu = document.createElement("div");
+      menu.className = "ticket-split-move-menu";
+      menu.hidden = true;
+      split.slots.filter((slot) => slot.number !== item.split_slot).forEach((slot) => {
+        menu.append(splitButton(`→ ${slot.label}`, {splitMove: item.item_id, slot: slot.number}));
+      });
+      if (item.split_slot) menu.append(splitButton("→ Sin asignar", {splitMove: item.item_id, slot: 0}));
+      moveMenu = menu;
+    }
     row.append(information, subtotal, controls);
-    ticketItems.append(row);
-  });
-  ticketCount.textContent = ticket.count;
-  ticketTotal.textContent = currency.format(Number(ticket.total_display));
-  const closeForm = document.querySelector("[data-close-account-form]");
-  if (closeForm) closeForm.dataset.accountSubtotal = ticket.total_display;
-  const hasItems = ticket.items.length > 0;
-  ticketPanel.hidden = !hasItems;
-  pos.classList.toggle("has-ticket", hasItems);
-  renderStandardQuantities(ticket.standard_quantities || {});
-  renderCandidateQuantities(ticket.candidate_quantities || {}, ticket.meal_quantities || {});
+    // El menú "mover a…" se abre dentro del renglón (no flota sobre el catálogo).
+    if (moveMenu) row.append(moveMenu);
+    return row;
 }
 
 function renderStockWarnings(warnings) {
@@ -664,6 +780,45 @@ document.addEventListener("click", (event) => {
   const body = new URLSearchParams({action: button.dataset.ticketAction});
   enqueueRequest({url: button.dataset.ticketUrl, body, source: button});
 });
+
+document.addEventListener("click", (event) => {
+  if (!splitBar) return;
+  const action = event.target.closest("[data-split-action]");
+  if (action) {
+    event.preventDefault();
+    const body = new URLSearchParams({action: action.dataset.splitAction});
+    if (action.dataset.slot) body.set("slot", action.dataset.slot);
+    enqueueRequest({url: splitBar.dataset.splitUrl, body, source: action});
+    return;
+  }
+  const opener = event.target.closest("[data-split-move-open]");
+  if (opener) {
+    const menu = opener.closest(".table-ticket-item")?.querySelector(".ticket-split-move-menu");
+    if (!menu) return;
+    document.querySelectorAll(".ticket-split-move-menu").forEach((other) => { if (other !== menu) other.hidden = true; });
+    menu.hidden = !menu.hidden;
+    return;
+  }
+  const move = event.target.closest("[data-split-move]");
+  if (move) {
+    const body = new URLSearchParams({item_id: move.dataset.splitMove, slot: move.dataset.slot});
+    enqueueRequest({url: splitBar.dataset.splitMoveUrl, body, source: move});
+    return;
+  }
+  const pay = event.target.closest("[data-split-pay]");
+  if (pay) {
+    window.__openTablePayment?.({action: pay.dataset.payUrl, subtotal: pay.dataset.payTotal, title: `Cobrar Cuenta ${pay.dataset.splitPay}`});
+  }
+});
+
+// Al cargar: con cuentas separadas el ticket se dibuja agrupado; si no, sólo se pintan
+// los controles (y las cuentas ya cobradas por separado).
+const initialTicketNode = document.querySelector("#table-ticket-data");
+if (initialTicketNode) {
+  const initialTicket = JSON.parse(initialTicketNode.textContent);
+  if (initialTicket.split?.enabled) renderTicket(initialTicket);
+  else renderSplitControls(initialTicket.split || {enabled: false, paid: []});
+}
 
 if (standardQuantitiesNode) {
   renderStandardQuantities(JSON.parse(standardQuantitiesNode.textContent || "{}"));

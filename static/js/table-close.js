@@ -118,7 +118,27 @@ adicional del navegador. Borra esta nota al terminar. */
     calculate();
   };
 
-  openButton.addEventListener("click", () => { calculate(); dialog.showModal(); });
+  // El mismo diálogo cobra el ticket completo o sólo una cuenta separada (Cuenta N).
+  const titleNode = dialog.querySelector(".dialog-heading h2");
+  const defaultTitle = titleNode?.textContent || "";
+  const defaultAction = form.getAttribute("action");
+  const splitLauncher = form.querySelector("[data-split-account-open]");
+  openButton.addEventListener("click", () => {
+    form.setAttribute("action", defaultAction);
+    if (titleNode) titleNode.textContent = defaultTitle;
+    if (splitLauncher) splitLauncher.hidden = false;
+    if (form.dataset.ticketTotal) form.dataset.accountSubtotal = form.dataset.ticketTotal;
+    calculate();
+    dialog.showModal();
+  });
+  window.__openTablePayment = ({action, subtotal, title}) => {
+    form.setAttribute("action", action);
+    form.dataset.accountSubtotal = subtotal;
+    if (titleNode) titleNode.textContent = title;
+    if (splitLauncher) splitLauncher.hidden = true;
+    calculate();
+    dialog.showModal();
+  };
   dismissButton.addEventListener("click", () => dialog.close());
   methodInputs.forEach((input) => input.addEventListener("change", updatePaymentFields));
   exactInput.addEventListener("change", updatePaymentFields);

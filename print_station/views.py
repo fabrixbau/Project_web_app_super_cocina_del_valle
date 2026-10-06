@@ -1,6 +1,7 @@
 import json
 import re
 import secrets
+from decimal import Decimal
 from datetime import timedelta
 
 from django.conf import settings
@@ -39,7 +40,7 @@ def _snapshot(template, context):
     )
 
 
-def queue_ticket(*, source_type, source, ticket_type, items, user):
+def queue_ticket(*, source_type, source, ticket_type, items, user, extra_context=None):
     # NOTA TEMPORAL PARA APRENDIZAJE: si la estación no reporta un latido reciente
     # con la impresora conectada, no creamos el PrintJob. Antes cualquier intento
     # de imprimir se guardaba en la cola aunque nadie estuviera escuchando, y esos
@@ -59,6 +60,9 @@ def queue_ticket(*, source_type, source, ticket_type, items, user):
         context = table_print_context(source)
         label = f"Mesa {source.table.name}"
     context["items"] = items
+    context.update(extra_context or {})
+    if context.get("split_label"):
+        label = f"{label} · {context['split_label']}"
     template = "printing/kitchen_ticket.html" if ticket_type == "kitchen" else "printing/payment_ticket.html"
     return PrintJob.objects.create(
         source_type=source_type,
@@ -88,10 +92,18 @@ def request_print(request):
         source = get_object_or_404(Order.objects.select_related("created_by", "delivery_person"), pk=source_id)
     else:
         source = get_object_or_404(TableAccount.objects.select_related("table", "assigned_waiter", "opened_by"), pk=source_id)
+    items = list(source.items.all())
+    extra_context = None
+    # Pre-cuenta de una cuenta separada de la mesa (Cuenta N): sólo sus partidas.
+    split_slot = data.get("split_slot")
+    if source_type == "table" and ticket_type == "payment" and isinstance(split_slot, int) and split_slot > 0:
+        items = [item for item in items if item.split_slot == split_slot]
+        subtotal = sum((item.subtotal for item in items), start=Decimal("0"))
+        extra_context = {"subtotal": subtotal, "tip": Decimal("0"), "total": subtotal, "split_label": f"Cuenta {split_slot}"}
     try:
         job = queue_ticket(
             source_type=source_type, source=source, ticket_type=ticket_type,
-            items=[printable_item(item) for item in source.items.all()], user=request.user,
+            items=[printable_item(item) for item in items], user=request.user, extra_context=extra_context,
         )
     except ValueError as error:
         return JsonResponse({"ok": False, "error": str(error)}, status=503)

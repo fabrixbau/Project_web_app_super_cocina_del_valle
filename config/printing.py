@@ -92,6 +92,7 @@ def table_print_context(account):
         "folio": "",
         "print_mode_label": "MESAS",
         "table_name": account.table.name,
+        "split_label": account.split_label,
         "customer_name": account.customer_name or "Cliente de mesa",
         "responsible": _person_name(account.assigned_waiter),
         "opened_at": account.opened_at,

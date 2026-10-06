@@ -205,11 +205,13 @@ def add_product_to_table(
     ):
         raise ValidationError(f"{product.name} ya no está disponible.")
     selection = resolve_product_selection(product, raw_option_ids, customization_comment)
+    split_slot = active_split_slot(account)
     item = TableAccountItem.objects.select_for_update().filter(
         account=account, product=product, chicken_piece=chicken_piece,
         is_package_candidate=is_package_candidate,
         daily_menu=daily_menu,
         configuration_signature=selection["signature"],
+        split_slot=split_slot,
     ).order_by("-id").first()
     if item:
         item.quantity += 1
@@ -231,6 +233,7 @@ def add_product_to_table(
             configuration_signature=selection["signature"],
             customization_comment=selection["comment"],
             is_customized=selection["is_customized"],
+            split_slot=split_slot,
         )
     _change_item_stock(item=item, quantity=1, actor=added_by, reserve=True)
     record_activity(account=account, actor=added_by, action=TableActivity.Action.CUSTOMIZE if selection["is_customized"] else TableActivity.Action.ADD, description=product.name, quantity_delta=1)
@@ -440,6 +443,7 @@ def add_package_to_table(
         "configuration_snapshot": cleaned_data.get("configuration_snapshot", {}),
         "is_customized": cleaned_data.get("is_customized", False),
     }
+    signature["split_slot"] = active_split_slot(account)
     item = TableAccountItem.objects.select_for_update().filter(**signature).order_by("-id").first()
     if item:
         item.quantity += 1
@@ -545,6 +549,8 @@ def change_item_in_ticket(*, account, item, action, changed_by):
             daily_menu_id=item.daily_menu_id,
             configuration_signature=item.configuration_signature,
         )
+    if account.split_mode:
+        item_query = item_query.filter(split_slot=item.split_slot)
     items = list(item_query.select_for_update().order_by("-id"))
     if not items:
         raise ValidationError("El producto ya no está en el ticket.")
@@ -761,3 +767,193 @@ def split_and_close_table_account(*, account, splits, responsible_waiter, closed
             closed_by=closed_by,
         ))
     return closed_accounts
+
+
+# ---------------------------------------------------------------- cuentas separadas en curso
+# Mientras el ticket sigue abierto, cada partida puede pertenecer a "Cuenta 1, 2…"
+# (`TableAccountItem.split_slot`). "Separar cuentas" / "Una sola cuenta" sólo cambia la vista
+# (`split_mode`); el reparto se conserva hasta cobrar. Cada cuenta puede cobrarse cuando el
+# cliente quiera: se crea una cuenta cerrada hija con sus partidas y la mesa sigue abierta con
+# las demás. Si es lo último que queda en la mesa, se cierra la cuenta principal.
+
+def active_split_slot(account):
+    """Cuenta donde caen los productos nuevos (None = sin asignar / una sola cuenta)."""
+    fresh = TableAccount.objects.only("split_mode", "split_active").get(pk=account.pk)
+    return fresh.split_active if fresh.split_mode else None
+
+
+def paid_split_numbers(account):
+    return set(account.split_children.exclude(split_number=None).values_list("split_number", flat=True))
+
+
+def open_split_numbers(account):
+    paid = paid_split_numbers(account)
+    return [number for number in range(1, account.split_count + 1) if number not in paid]
+
+
+def _first_open_split(account):
+    numbers = open_split_numbers(account)
+    return numbers[0] if numbers else None
+
+
+@transaction.atomic
+def update_split_accounts(*, account, action, slot=None, actor):
+    """Separar / unir la vista, agregar o quitar una cuenta y elegir la cuenta activa."""
+    account = TableAccount.objects.select_for_update().get(pk=account.pk)
+    if account.status != TableAccount.Status.OPEN:
+        raise ValidationError("La cuenta ya no está abierta.")
+    fields = ["split_mode", "split_count", "split_active"]
+    if action == "mode_on":
+        account.split_mode = True
+        while len(open_split_numbers(account)) < 2:
+            account.split_count += 1
+        if account.split_active not in open_split_numbers(account):
+            account.split_active = _first_open_split(account)
+    elif action == "mode_off":
+        account.split_mode = False
+    elif action == "add":
+        account.split_count += 1
+        account.split_active = account.split_count
+    elif action == "remove":
+        if slot != account.split_count or slot in paid_split_numbers(account):
+            raise ValidationError("Sólo puedes quitar la última cuenta.")
+        if account.items.filter(split_slot=slot).exists():
+            raise ValidationError("Mueve primero los productos de esa cuenta.")
+        if len(open_split_numbers(account)) <= 2:
+            raise ValidationError("Con cuentas separadas debe haber al menos dos cuentas.")
+        account.split_count -= 1
+        if account.split_active == slot:
+            account.split_active = _first_open_split(account)
+    elif action == "select":
+        if slot not in open_split_numbers(account):
+            raise ValidationError("Esa cuenta ya no está disponible.")
+        account.split_active = slot
+    else:
+        raise ValidationError("La acción solicitada no es válida.")
+    account.save(update_fields=fields)
+    return account
+
+
+@transaction.atomic
+def move_item_to_split(*, account, item, slot, actor):
+    """Mueve UNA pieza de la partida a otra cuenta (slot=None: sin asignar)."""
+    account = TableAccount.objects.select_for_update().get(pk=account.pk)
+    if account.status != TableAccount.Status.OPEN:
+        raise ValidationError("La cuenta ya no está abierta.")
+    if slot is not None and slot not in open_split_numbers(account):
+        raise ValidationError("Esa cuenta ya no está disponible.")
+    item = TableAccountItem.objects.select_for_update().get(pk=item.pk, account=account)
+    if item.split_slot == slot:
+        return item
+    if item.quantity == 1:
+        item.split_slot = slot
+        item.save(update_fields=["split_slot"])
+        return item
+    item.quantity -= 1
+    item.subtotal = item.unit_price * item.quantity
+    item.save(update_fields=["quantity", "subtotal"])
+    # La pieza separada es una partida nueva con los mismos datos. Como en la división al
+    # cobrar, sus movimientos de inventario siguen ligados a la partida original.
+    moved = TableAccountItem.objects.get(pk=item.pk)
+    moved.pk = None
+    moved.id = None
+    moved._state.adding = True
+    moved.quantity = 1
+    moved.subtotal = moved.unit_price
+    moved.split_slot = slot
+    moved.save(force_insert=True)
+    return moved
+
+
+@transaction.atomic
+def pay_split_account(*, account, slot, cleaned_data, closed_by):
+    """Cobra sólo la Cuenta `slot`. Devuelve la cuenta cerrada (hija, o la principal si era
+    lo último que quedaba en la mesa)."""
+    account = TableAccount.objects.select_for_update().get(pk=account.pk)
+    if account.status != TableAccount.Status.OPEN:
+        raise ValidationError("La cuenta ya fue cerrada.")
+    if slot not in open_split_numbers(account):
+        raise ValidationError("Esa cuenta ya fue cobrada o no existe.")
+    items = list(account.items.select_for_update().filter(split_slot=slot))
+    if not items:
+        raise ValidationError(f"La Cuenta {slot} no tiene productos.")
+    others_remain = account.items.exclude(split_slot=slot).exists()
+    if others_remain:
+        # Una mesa sólo puede tener una cuenta abierta: la hija se crea ya cerrada.
+        target = TableAccount.objects.create(
+            table=account.table, customer_name=account.customer_name,
+            status=TableAccount.Status.CLOSED, assigned_waiter=account.assigned_waiter,
+            opened_by=account.opened_by, split_parent=account, split_number=slot,
+        )
+        TableAccountItem.objects.filter(pk__in=[item.pk for item in items]).update(account=target)
+        for item in items:
+            item.account = target
+    else:
+        target = account
+        target.split_number = slot
+        target.save(update_fields=["split_number"])
+    closed = _finalize_account_close(
+        account=target, items=items,
+        payment_method=cleaned_data["payment_method"], tip_amount=cleaned_data["tip_amount"],
+        cash_tendered=cleaned_data.get("cash_tendered"),
+        responsible_waiter=cleaned_data["responsible_waiter"], closed_by=closed_by,
+    )
+    if others_remain:
+        record_activity(
+            account=account, actor=closed_by, action=TableActivity.Action.CLOSE,
+            description=f"Cuenta {slot} cobrada por separado · ${closed.total_paid}",
+        )
+        if account.split_active == slot:
+            account.split_active = _first_open_split(account)
+            account.save(update_fields=["split_active"])
+    return closed
+
+
+# ---------------------------------------------------------------- cuentas pendientes
+# "Dejar pendiente" guarda la cuenta tal como está (productos, cliente, mesero, cuentas
+# separadas) y libera la mesa: la restricción de una cuenta abierta por mesa sólo cuenta
+# las abiertas. "Traer a" la regresa a cualquier mesa; si esa mesa tenía una cuenta con
+# productos, esa cuenta se deja pendiente en automático; si estaba vacía, se descarta.
+
+def _park(account, actor):
+    account.status = TableAccount.Status.PARKED
+    account.parked_at = timezone.now()
+    account.parked_by = actor
+    account.save(update_fields=["status", "parked_at", "parked_by"])
+    record_activity(account=account, actor=actor, action=TableActivity.Action.PARK, description=f"Dejó pendiente {account.table.name}")
+    return account
+
+
+@transaction.atomic
+def park_table_account(*, account, actor):
+    account = TableAccount.objects.select_for_update().select_related("table").get(pk=account.pk)
+    if account.status != TableAccount.Status.OPEN:
+        raise ValidationError("Sólo una mesa abierta puede dejarse pendiente.")
+    if not account.items.exists():
+        raise ValidationError("La mesa no tiene productos; no hay nada que dejar pendiente.")
+    return _park(account, actor)
+
+
+@transaction.atomic
+def resume_table_account(*, account, table, actor):
+    """Trae una cuenta pendiente a `table`. Devuelve (cuenta, cuenta desplazada o None)."""
+    account = TableAccount.objects.select_for_update().get(pk=account.pk)
+    if account.status != TableAccount.Status.PARKED:
+        raise ValidationError("Esa cuenta ya no está pendiente.")
+    table = DiningTable.objects.select_for_update().get(pk=table.pk, is_active=True)
+    displaced = None
+    current = TableAccount.objects.select_for_update().select_related("table").filter(
+        table=table, status=TableAccount.Status.OPEN,
+    ).first()
+    if current:
+        if current.items.exists() or current.split_children.exists():
+            displaced = _park(current, actor)
+        else:
+            current.delete()  # cuenta abierta sin productos: no hay nada que guardar
+    account.table = table
+    account.status = TableAccount.Status.OPEN
+    account.parked_at = None
+    account.parked_by = None
+    account.save(update_fields=["table", "status", "parked_at", "parked_by"])
+    record_activity(account=account, actor=actor, action=TableActivity.Action.RESUME, description=f"Retomada en {table.name}")
+    return account, displaced

@@ -52,7 +52,7 @@ from menu.selection import (
 
 from .forms import TableAccountCloseForm, TablePackageForm
 from .models import DiningTable, TableAccount, TableAccountItem, TableActivity
-from .services import add_auto_meal_component, add_daily_menu_product_to_table, add_package_to_table, add_product_to_table, change_item_in_ticket, close_table_account, open_table_account, product_is_available_now, reassign_table_account, record_activity, split_and_close_table_account, update_table_package
+from .services import add_auto_meal_component, add_daily_menu_product_to_table, add_package_to_table, add_product_to_table, change_item_in_ticket, close_table_account, move_item_to_split, park_table_account, resume_table_account, open_split_numbers, open_table_account, pay_split_account, product_is_available_now, reassign_table_account, record_activity, split_and_close_table_account, update_split_accounts, update_table_package
 
 
 CAPTURE_MODE_SESSION_KEY = "table_capture_mode"
@@ -152,11 +152,16 @@ def ticket_summary(account):
     candidate_quantities = {}
     meal_quantities = {}
     total = Decimal("0")
+    # Los servicios cambian el reparto en la base: se lee el estado vigente de la cuenta.
+    account = TableAccount.objects.select_related("table").get(pk=account.pk)
+    split_mode = account.split_mode
     for item in account.items.select_related("product", "main_course_product", "daily_menu").all():
         key = (
             f"product-{item.product_id}-{item.chicken_piece}-{item.is_package_candidate}-{item.configuration_signature}"
             if item.product_id else f"item-{item.pk}"
         )
+        if split_mode:
+            key = f"{key}|cuenta-{item.split_slot or 0}"
         if key not in grouped:
             if item.item_type == TableAccountItem.ItemType.PACKAGE:
                 description_parts = []
@@ -216,6 +221,7 @@ def ticket_summary(account):
                 "egg_product_id": item.egg_product_id,
                 "refill_extra": item.refill_extra,
                 "edit_dialog_id": f"package-edit-{item.pk}",
+                "split_slot": item.split_slot if split_mode else None,
             }
         grouped[key]["quantity"] += item.quantity
         grouped[key]["subtotal"] += item.subtotal
@@ -247,6 +253,7 @@ def ticket_summary(account):
             )
     return {
         "items": items,
+        "split": split_summary(account, items),
         "total": total,
         "total_display": f"{total:.2f}",
         "count": sum(item["quantity"] for item in items),
@@ -254,6 +261,39 @@ def ticket_summary(account):
         "candidate_quantities": candidate_quantities,
         "meal_quantities": meal_quantities,
         "stock_warnings": stock_warning_payload(selected_date=timezone.localdate(account.opened_at)),
+    }
+
+
+def split_summary(account, items):
+    """Cuentas separadas en curso: abiertas (con su subtotal), cobradas y sin asignar."""
+    open_numbers = open_split_numbers(account) if account.split_count else []
+    totals = {number: Decimal("0") for number in open_numbers}
+    counts = {number: 0 for number in open_numbers}
+    unassigned_total, unassigned_count = Decimal("0"), 0
+    for item in account.items.only("split_slot", "subtotal", "quantity"):
+        if item.split_slot in totals:
+            totals[item.split_slot] += item.subtotal
+            counts[item.split_slot] += item.quantity
+        else:
+            unassigned_total += item.subtotal
+            unassigned_count += item.quantity
+    paid = [
+        {"number": child.split_number, "label": child.split_label, "total_display": f"{child.total_paid or 0:.2f}",
+         "method": child.get_payment_method_display(), "url": reverse("tables:table_detail", args=(child.pk,))}
+        for child in account.split_children.exclude(split_number=None).order_by("split_number")
+    ]
+    return {
+        "enabled": account.split_mode,
+        "active": account.split_active,
+        "slots": [
+            {"number": number, "label": f"Cuenta {number}", "total_display": f"{totals[number]:.2f}",
+             "count": counts[number], "removable": number == account.split_count and not counts[number] and len(open_numbers) > 2,
+             "pay_url": reverse("tables:table_split_pay", args=(account.pk, number))}
+            for number in open_numbers
+        ],
+        "paid": paid,
+        "unassigned_total_display": f"{unassigned_total:.2f}",
+        "unassigned_count": unassigned_count,
     }
 
 
@@ -279,8 +319,17 @@ def table_map(request):
         for account in table.open_accounts:
             account.current_total = ticket_summary(account)["total"]
     can_choose_waiter = user_has_any_role(request.user, (ADMIN, ORDER_TAKER))
+    # Cuentas pendientes: guardadas sin mesa; se traen a cualquier mesa desde la bandeja.
+    parked_accounts = list(TableAccount.objects.filter(status=TableAccount.Status.PARKED).select_related(
+        "table", "assigned_waiter", "parked_by",
+    ).order_by("parked_at"))
+    for account in parked_accounts:
+        summary = ticket_summary(account)
+        account.current_total, account.item_count = summary["total"], summary["count"]
     context = {
         "tables": tables,
+        "parked_accounts": parked_accounts,
+        "can_park": user_has_any_role(request.user, (ADMIN, WAITER)),
         "waiters": waiter_queryset() if can_choose_waiter else (),
         "can_choose_waiter": can_choose_waiter,
         "can_transfer_to_order": user_has_any_role(request.user, (ADMIN, WAITER)),
@@ -652,6 +701,8 @@ def table_detail(request, account_id):
         "auto_print_job_id": request.GET.get("printed_job") if request.GET.get("printed_job", "").isdigit() else None,
     }
     context.update(capture_mode_context(request))
+    context["can_park"] = user_has_any_role(request.user, (ADMIN, WAITER))
+    context["resume_tables"] = DiningTable.objects.filter(is_active=True) if account.status == TableAccount.Status.PARKED else ()
     return render(request, "tables/table_detail.html", context)
 
 
@@ -1104,6 +1155,110 @@ def table_split_close(request, account_id):
     return JsonResponse({"ok": True, "redirect_url": reverse("tables:table_map")})
 
 
+@require_POST
+@role_required(ADMIN, WAITER)
+def table_park(request, account_id):
+    """Dejar pendiente: guarda la cuenta como está y libera la mesa."""
+    account = get_object_or_404(TableAccount, pk=account_id)
+    try:
+        park_table_account(account=account, actor=request.user)
+    except ValidationError as error:
+        messages.error(request, error.message)
+    else:
+        messages.success(request, f"{account.table.name} quedó libre. Su cuenta está en «Cuentas pendientes».")
+    return redirect("tables:table_map")
+
+
+@require_POST
+@role_required(ADMIN, WAITER)
+def table_resume(request, account_id):
+    """Trae una cuenta pendiente a la mesa elegida."""
+    account = get_object_or_404(TableAccount, pk=account_id)
+    table = get_object_or_404(DiningTable, pk=request.POST.get("table_id") or 0, is_active=True)
+    try:
+        account, displaced = resume_table_account(account=account, table=table, actor=request.user)
+    except ValidationError as error:
+        messages.error(request, error.message)
+        return redirect("tables:table_map")
+    note = f" La cuenta que estaba en {table.name} quedó en «Cuentas pendientes»." if displaced else ""
+    messages.success(request, f"La cuenta quedó en {table.name}.{note}")
+    return redirect("tables:table_detail", account_id=account.pk)
+
+
+@require_POST
+@role_required(*SECTION_ROLE_MATRIX["tables"])
+def table_split_update(request, account_id):
+    """Cuentas separadas en curso: separar/unir la vista, agregar/quitar y elegir cuenta."""
+    account = get_object_or_404(TableAccount, pk=account_id)
+    slot = request.POST.get("slot", "")
+    try:
+        update_split_accounts(
+            account=account, action=request.POST.get("action", ""),
+            slot=int(slot) if slot.isdigit() else None, actor=request.user,
+        )
+    except ValidationError as error:
+        return JsonResponse({"ok": False, "error": error.message}, status=400)
+    return JsonResponse({"ok": True, "ticket": ticket_summary(account)})
+
+
+@require_POST
+@role_required(*SECTION_ROLE_MATRIX["tables"])
+def table_split_move(request, account_id):
+    """Mueve una pieza de una partida a otra cuenta (o a "sin asignar")."""
+    account = get_object_or_404(TableAccount, pk=account_id)
+    item = get_object_or_404(TableAccountItem, pk=request.POST.get("item_id") or 0, account=account)
+    slot = request.POST.get("slot", "")
+    try:
+        move_item_to_split(account=account, item=item, slot=int(slot) if slot.isdigit() and int(slot) > 0 else None, actor=request.user)
+    except ValidationError as error:
+        return JsonResponse({"ok": False, "error": error.message}, status=400)
+    return JsonResponse({"ok": True, "ticket": ticket_summary(account)})
+
+
+@require_POST
+@role_required(*SECTION_ROLE_MATRIX["tables"])
+def table_split_pay(request, account_id, slot):
+    """Cobra una sola cuenta separada; la mesa sigue abierta con las demás."""
+    account = get_object_or_404(TableAccount, pk=account_id)
+    slot_total = sum(
+        (item.subtotal for item in account.items.filter(split_slot=slot)), start=Decimal("0"),
+    )
+    form = TableAccountCloseForm(request.POST, account_total=slot_total)
+    if not form.is_valid():
+        error_messages = [error["message"] for errors in form.errors.get_json_data().values() for error in errors]
+        messages.error(request, " ".join(error_messages) or "Revisa los datos del cobro.")
+        return redirect("tables:table_detail", account_id=account.pk)
+    try:
+        closed = pay_split_account(account=account, slot=slot, cleaned_data=form.cleaned_data, closed_by=request.user)
+    except ValidationError as error:
+        messages.error(request, error.message)
+        return redirect("tables:table_detail", account_id=account.pk)
+    still_open = closed.pk != account.pk
+    try:
+        job = queue_ticket(
+            source_type="table", source=closed, ticket_type="payment",
+            items=[printable_item(item) for item in closed.items.all()], user=request.user,
+        )
+    except ValueError as error:
+        job = None
+        messages.warning(request, f"La Cuenta {slot} quedó cobrada, pero no se pudo enviar el ticket a imprimir: {error}")
+    if still_open:
+        messages.success(request, f"Cuenta {slot} cobrada (${closed.total_paid}). La mesa sigue abierta con las demás cuentas.")
+        return redirect("tables:table_detail", account_id=account.pk)
+    messages.success(request, f"Cuenta {slot} cobrada. La cuenta de {account.table.name} quedó cerrada y la mesa está disponible.")
+    suffix = f"?printed_job={job.pk}" if job else ""
+    return redirect(f"{reverse('tables:table_detail', args=(account.pk,))}{suffix}")
+
+
+def split_print_items(account, request):
+    """Pre-cuenta de una sola cuenta separada (?cuenta=N): sus partidas y su subtotal."""
+    raw = request.GET.get("cuenta", "")
+    if not raw.isdigit() or account.status != TableAccount.Status.OPEN:
+        return None, None
+    items = list(account.items.filter(split_slot=int(raw)))
+    return items, int(raw)
+
+
 @role_required(ADMIN, WAITER, ORDER_TAKER)
 def table_kitchen_print(request, account_id):
     # NOTA TEMPORAL PARA APRENDIZAJE: esta ruta abre la comanda completa; la selección
@@ -1155,8 +1310,13 @@ def table_payment_print(request, account_id):
         pk=account_id,
     )
     context = table_print_context(account)
+    split_items, slot = split_print_items(account, request)
+    items = split_items if split_items is not None else list(account.items.all())
+    if split_items is not None:
+        subtotal = sum((item.subtotal for item in split_items), start=Decimal("0"))
+        context.update({"subtotal": subtotal, "tip": Decimal("0"), "total": subtotal, "split_label": f"Cuenta {slot}"})
     context.update({
-        "items": [printable_item(item) for item in account.items.all()],
+        "items": [printable_item(item) for item in items],
         "back_url": reverse("tables:table_detail", args=(account.pk,)),
     })
     return render(request, "printing/payment_ticket.html", context)

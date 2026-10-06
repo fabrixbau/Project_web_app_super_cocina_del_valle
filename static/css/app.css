@@ -2309,6 +2309,50 @@ cierre con el repartidor presente. Borra esta nota después de leerla. */
 .change-money.important { color: #702f12; background: #ffe3bd; }
 .change-row form { margin: 0 0 .4rem; }
 .change-row form button { width: 100%; font-weight: 900; }
+/* Mesas: cuentas pendientes (dejar pendiente / traer a una mesa). */
+.parked-accounts { display: grid; gap: .5rem; margin: 0 0 .8rem; padding: .75rem .85rem; border: 2px solid #e5b84a; background: #fffaf0; }
+.parked-accounts h2 { display: flex; align-items: center; gap: .45rem; margin: 0; font-size: 1rem; }
+.parked-accounts h2 span { display: inline-grid; min-width: 1.6rem; padding: 0 .45rem; place-items: center; color: #fff; background: #c67622; border-radius: 999px; font-size: .78rem; }
+.parked-accounts > p { margin: 0; font-size: .85rem; }
+.parked-account { display: grid; gap: .35rem; padding: .5rem .6rem; background: #fff; border: 1px solid #ecd9a8; border-radius: .6rem; }
+.parked-account-info { display: grid; gap: .1rem; color: #173c2f; text-decoration: none; }
+.parked-account-info small { color: #5f6964; font-size: .76rem; }
+.parked-account-resume { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: 0; }
+.parked-account-resume > span { color: #5f6964; font-size: .74rem; font-weight: 700; }
+.parked-account-resume button { min-height: 2rem; margin: 0; padding: .2rem .55rem; color: #24513f; background: #fff; border: 1px solid #9bb4a8; border-radius: .45rem; font-size: .74rem; font-weight: 800; box-shadow: none; }
+.parked-account-resume button.is-original { color: #fff; background: #24634d; border-color: #24634d; }
+.parked-account-resume button.is-busy { border-style: dashed; }
+.parked-ticket-note { margin: .4rem 0; padding: .45rem .6rem; color: #6b4a00; background: #fff1cc; border-radius: .5rem; font-weight: 700; }
+.parked-cut-warning { color: #6b4a00; background: #fff1cc; font-weight: 700; }
+/* Mesas: cuentas separadas mientras el ticket sigue abierto. */
+.table-close-launcher[hidden] { display: none !important; }
+.ticket-split-bar { margin: .35rem 0; }
+.ticket-split-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: .2rem; padding: .2rem; background: #eef3ef; border-radius: .7rem; }
+.ticket-split-toggle button { min-height: 2.2rem; margin: 0; padding: .25rem .4rem; color: #24513f; background: transparent; border: 0; border-radius: .55rem; font-size: .78rem; font-weight: 800; box-shadow: none; }
+.ticket-split-toggle button[aria-pressed="true"] { color: #fff; background: #24634d; }
+.ticket-split-paid { display: grid; gap: .2rem; margin: .3rem 0; }
+.ticket-split-paid a { padding: .3rem .5rem; color: #1d6a43; background: #e6f4ea; border-radius: .5rem; font-size: .74rem; font-weight: 700; text-decoration: none; }
+.ticket-split-section { display: grid; gap: .25rem; margin: 0 0 .45rem; padding: .4rem; background: #fbfaf6; border: 2px solid #e1dbcf; border-radius: .7rem; }
+.ticket-split-section.is-active { background: #f1f8f3; border-color: #24634d; }
+.ticket-split-section.is-unassigned { border-style: dashed; }
+.ticket-split-section > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .3rem; }
+.ticket-split-section > header > strong { font-size: .8rem; }
+.ticket-split-select { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .45rem; min-height: 0; margin: 0; padding: .15rem .2rem; color: #173c2f; text-align: left; background: none; border: 0; box-shadow: none; cursor: pointer; }
+.ticket-split-select strong { font-size: .9rem; }
+.ticket-split-select span { font-weight: 800; }
+.ticket-split-select small { padding: .05rem .4rem; color: #fff; background: #24634d; border-radius: 999px; font-size: .62rem; font-weight: 800; }
+.ticket-split-actions { display: flex; gap: .25rem; }
+.ticket-split-actions a, .ticket-split-actions button { display: inline-flex; align-items: center; min-height: 1.9rem; margin: 0; padding: .2rem .5rem; border-radius: .45rem; font-size: .7rem; font-weight: 800; text-decoration: none; }
+.ticket-split-actions a { color: #24513f; background: #fff; border: 1px solid #9bb4a8; }
+.ticket-split-actions a[aria-disabled="true"] { opacity: .45; pointer-events: none; }
+.ticket-split-pay { color: #fff; background: #c67622; border: 0; }
+.ticket-split-pay:disabled { opacity: .45; }
+.ticket-split-empty { margin: 0; color: #5f6964; font-size: .72rem; }
+.ticket-split-add { width: 100%; min-height: 2.2rem; margin: 0 0 .4rem; color: #24513f; background: #fff; border: 2px dashed #9bb4a8; border-radius: .6rem; font-weight: 800; box-shadow: none; }
+.ticket-split-move-open { color: #24513f; background: #e6efe9; }
+.ticket-split-move-menu { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .25rem; padding: .3rem; background: #f3f6f4; border-radius: .5rem; }
+.ticket-split-move-menu[hidden] { display: none; }
+.ticket-split-move-menu button { min-height: 2rem; margin: 0; padding: .2rem .55rem; color: #173c2f; text-align: left; background: #fff; border: 0; border-radius: .4rem; font-size: .74rem; font-weight: 700; box-shadow: none; }
 .change-list-count { margin: .2rem 0 .45rem; color: #173c2f; font-weight: 700; }
 .change-list-count strong { display: inline-grid; min-width: 1.8rem; padding: .05rem .5rem; place-items: center; color: #fff; background: #c67622; border-radius: 999px; }
 /* Tablet horizontal y celular: tarjetas compactas en dos columnas (lo menos alto posible). */
@@ -12740,3 +12784,7 @@ html[data-theme="dark"] .live-search-count { color: #edf4f0; }
   .menu-category-panel .menu-section-heading > button { display: none; }
   .menu-admin-filters .filters > button { height: 2.25rem; min-height: 2.25rem; }
 }
+
+/* Cuentas separadas: ⇄ − cantidad + × en una sola fila (5 columnas en vez de 4). */
+.table-pos-layout .table-ticket.is-split .table-ticket-item > .quantity-buttons,
+.table-pos-layout .table-ticket.is-split .quantity-buttons { grid-template-columns: repeat(5, 2.35rem) !important; }
