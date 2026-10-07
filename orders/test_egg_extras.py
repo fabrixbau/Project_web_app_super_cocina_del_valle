@@ -104,7 +104,8 @@ class EggExtraTests(TestCase):
                           "chicken_piece": "", "with_water": False, "refill_extra": False,
                           "is_complete": False, "egg_product": self.egg},
         )
-        self.assertEqual(item.unit_price, Decimal("85.00"))
+        # Paquete con tiempos pendientes: se cobra por orden lo elegido (aquí sólo el huevo).
+        self.assertEqual(item.unit_price, self.egg.price)
         self.assertEqual(item.egg_name_snapshot, "Huevo revuelto")
         self.assertEqual(self.stock.available_quantity, 4)
 

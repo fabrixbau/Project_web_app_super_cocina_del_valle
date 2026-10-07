@@ -800,8 +800,6 @@ def close_internal_order_capture(*, order, actor):
         return order
     if not order.items.exists():
         raise ValidationError("Agrega al menos un producto antes de cerrar el ticket.")
-    if order.items.filter(is_package_candidate=True).exists():
-        raise ValidationError("Hay una comida incompleta. Agrega los tiempos faltantes o elimina sus componentes.")
     if not order.customer_name.strip():
         raise ValidationError("Escribe el nombre del cliente.")
     if not order.requested_date or not order.requested_time:
@@ -1721,8 +1719,6 @@ def transfer_order_to_table(*, order, table, actor, assigned_waiter=None):
         raise ValidationError("Este pedido ya no está activo.")
     if not order.items.exists():
         raise ValidationError("Agrega al menos un producto antes de pasarlo a mesa.")
-    if order.items.filter(is_package_candidate=True).exists():
-        raise ValidationError("Hay una comida incompleta. Complétala antes de pasarlo a mesa.")
     if order.credit_applied > 0:
         raise ValidationError(
             "Este pedido ya tiene saldo a favor aplicado; ciérralo normalmente en vez de pasarlo a mesa."
@@ -1784,8 +1780,6 @@ def transfer_table_to_order(*, table_account, actor):
         raise ValidationError("Esta cuenta ya no está abierta.")
     if not table_account.items.exists():
         raise ValidationError("Agrega al menos un producto antes de pasarlo a Recoger.")
-    if table_account.items.filter(is_package_candidate=True).exists():
-        raise ValidationError("Hay una comida incompleta. Complétala antes de pasarlo a Recoger.")
 
     existing_order = getattr(table_account, "transferred_from_order", None)
     reused_existing = (

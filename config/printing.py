@@ -37,8 +37,6 @@ def printable_item(item, quantity=None):
             details.append(f"Agregar: {item.egg_name_snapshot}")
     else:
         details.extend(_configuration_details(item))
-        if getattr(item, "is_package_candidate", False):
-            details.append("Pendiente de completar paquete")
     chicken_piece = getattr(item, "chicken_piece", "")
     if chicken_piece:
         details.append({"leg": "Pieza: pierna", "thigh": "Pieza: muslo"}.get(chicken_piece, chicken_piece))

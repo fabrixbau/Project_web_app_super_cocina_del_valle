@@ -1662,7 +1662,7 @@ después de leerla. */
    `@media` angostos de abajo. Borra esta nota después de leerla. */
 .internal-live-ticket > .table-ticket-items { align-content: start; }
 .internal-live-ticket .internal-ticket-item { align-items: start; grid-auto-rows: max-content; }
-.ticket-package-edit { display: flex; gap: .45rem; align-items: center; padding: 0; color: #285943; background: transparent; text-align: left; }
+.ticket-package-edit { display: flex; gap: .45rem; align-items: center; padding: 0; color: inherit; background: transparent; text-align: left; font: inherit; }
 .ticket-package-edit:hover { text-decoration: underline; }
 .incomplete-badge { display: inline-block; padding: .2rem .45rem; border-radius: 999px; color: #6f3f24; background: #f4c95d; font-size: .75rem; font-weight: 900; }
 .quantity-buttons { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
@@ -12852,3 +12852,9 @@ main.internal-panel .customer-delete-control button { min-height: 0; padding: .3
   main.internal-panel .customer-delete-control button { padding: .25rem .45rem; font-size: .7rem; }
   main.internal-panel .customer-delete-message { max-width: 9rem; font-size: .62rem; }
 }
+
+/* Ticket: "Comida corrida" / "Comida ejecutiva" con el mismo tamaño, color y negrita que
+   cualquier otro producto (el botón para editar el paquete no cambia la letra). */
+.table-ticket .ticket-package-edit, .table-ticket .ticket-package-edit strong { min-height: 0; color: inherit; font: inherit; font-weight: 700; box-shadow: none; }
+.table-ticket .ticket-package-edit strong { font-size: inherit; }
+

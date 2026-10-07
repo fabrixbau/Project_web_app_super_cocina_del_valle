@@ -2518,7 +2518,7 @@ class OrderTableTransferTests(TestCase):
         with self.assertRaisesMessage(ValidationError, "Agrega al menos un producto"):
             transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
 
-    def test_transfer_rejects_incomplete_package_items(self):
+    def test_transfer_allows_incomplete_package_items(self):
         order = self.make_pickup_order()
         add_internal_order_product(order=order, product=self.product, actor=self.admin)
         OrderItem.objects.create(
@@ -2527,8 +2527,8 @@ class OrderTableTransferTests(TestCase):
             quantity=1, subtotal=self.product.price, is_package_candidate=True,
             tortillas=False, beans=False,
         )
-        with self.assertRaisesMessage(ValidationError, "comida incompleta"):
-            transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
+        # Ya no se bloquea por comidas incompletas: se pasan como piezas sueltas.
+        transfer_order_to_table(order=order, table=self.table, actor=self.waiter)
 
     def test_transfer_rejects_orders_with_credit_applied(self):
         order = self.make_pickup_order()
@@ -2600,7 +2600,7 @@ class OrderTableTransferTests(TestCase):
         with self.assertRaisesMessage(ValidationError, "Agrega al menos un producto"):
             transfer_table_to_order(table_account=account, actor=self.waiter)
 
-    def test_transfer_table_to_order_rejects_incomplete_package_items(self):
+    def test_transfer_table_to_order_allows_incomplete_package_items(self):
         account = open_table_account(table=self.table, assigned_waiter=self.waiter, opened_by=self.waiter)
         add_product_to_table(account=account, product=self.product, added_by=self.waiter)
         TableAccountItem.objects.create(
@@ -2608,8 +2608,7 @@ class OrderTableTransferTests(TestCase):
             unit_price=self.product.price, quantity=1, subtotal=self.product.price,
             is_package_candidate=True, added_by=self.waiter,
         )
-        with self.assertRaisesMessage(ValidationError, "comida incompleta"):
-            transfer_table_to_order(table_account=account, actor=self.waiter)
+        transfer_table_to_order(table_account=account, actor=self.waiter)
 
     # -- stock moves between channels --------------------------------------------
 

@@ -419,6 +419,12 @@ def add_package_to_table(
     )
     if cleaned_data["refill_extra"]:
         price += package.table_refill_price
+    if not cleaned_data["is_complete"]:
+        price = incomplete_package_price(
+            courses=(first, second, main), water=daily_menu.water_product if cleaned_data["with_water"] else None,
+            egg_price=egg.price if egg else Decimal("0"),
+            refill=package.table_refill_price if cleaned_data["refill_extra"] else Decimal("0"),
+        )
     signature = {
         "account": account, "item_type": TableAccountItem.ItemType.PACKAGE,
         "is_two_course": bool(cleaned_data.get("two_course")),
@@ -490,6 +496,12 @@ def update_table_package(*, account, item, package, daily_menu, cleaned_data, ch
     price = (package.price_with_water if cleaned_data["with_water"] else package.price_without_water) + egg_price
     if cleaned_data["refill_extra"]:
         price += package.table_refill_price
+    if not cleaned_data["is_complete"]:
+        price = incomplete_package_price(
+            courses=(cleaned_data.get("first_course"), cleaned_data.get("second_course"), cleaned_data.get("main_course")),
+            water=daily_menu.water_product if cleaned_data["with_water"] else None, egg_price=egg_price,
+            refill=package.table_refill_price if cleaned_data["refill_extra"] else Decimal("0"),
+        )
     item.first_course_product = first
     item.first_course_snapshot = first.name if first else ""
     item.second_course_product = second
@@ -578,6 +590,15 @@ def change_item_in_ticket(*, account, item, action, changed_by):
     record_activity(account=account, actor=changed_by, action=event, description=description, quantity_delta=1 if action == "increase" else -1)
 
 
+def incomplete_package_price(*, courses, water=None, egg_price=Decimal("0"), refill=Decimal("0")):
+    """Paquete con tiempos pendientes: se cobra cada tiempo elegido a su precio por orden
+    (el que se capturó en el producto), más agua, huevo y refill si los lleva."""
+    total = sum((course.price for course in courses if course), start=Decimal("0"))
+    if water:
+        total += water.price
+    return total + egg_price + refill
+
+
 def _validate_items_closeable(items, *, allow_empty=False):
     # NOTA TEMPORAL PARA APRENDIZAJE: esta validación se comparte entre el cierre normal
     # (todos los artículos de la cuenta) y cada cuenta dividida (sólo sus artículos
@@ -585,25 +606,9 @@ def _validate_items_closeable(items, *, allow_empty=False):
     # Borra esta nota después de leerla.
     if not items and not allow_empty:
         raise ValidationError("No puedes cerrar una cuenta sin consumos.")
-    incomplete_items = [
-        item.product_name_snapshot for item in items
-        if item.item_type == TableAccountItem.ItemType.PACKAGE and not item.is_complete
-    ]
-    if incomplete_items:
-        pending_names = ", ".join(incomplete_items)
-        raise ValidationError(
-            "No se puede cerrar la cuenta porque hay comidas incompletas: "
-            f"{pending_names}. Completa los tiempos pendientes antes de continuar."
-        )
-    pending_components = [
-        item.product_name_snapshot for item in items
-        if item.item_type == TableAccountItem.ItemType.PRODUCT and item.is_package_candidate
-    ]
-    if pending_components:
-        raise ValidationError(
-            "No se puede cerrar la cuenta porque hay selecciones de paquete pendientes: "
-            f"{', '.join(pending_components)}. Completa el paquete o elimina esas partidas."
-        )
+    # Ya no se bloquea por comidas incompletas: las piezas sueltas de Comida corrida /
+    # ejecutiva se cobran por pieza y un paquete con tiempos pendientes, al precio por
+    # orden de los tiempos elegidos (ver incomplete_package_price).
 
 
 def _finalize_account_close(*, account, items, payment_method, tip_amount, cash_tendered, responsible_waiter, closed_by):
