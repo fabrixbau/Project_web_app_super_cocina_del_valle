@@ -2309,6 +2309,13 @@ cierre con el repartidor presente. Borra esta nota después de leerla. */
 .change-money.important { color: #702f12; background: #ffe3bd; }
 .change-row form { margin: 0 0 .4rem; }
 .change-row form button { width: 100%; font-weight: 900; }
+/* Menú diario: tercer tiempo con hasta 12 guisados. */
+.daily-menu-stews .daily-stew-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .4rem; }
+.daily-menu-stews .daily-stew-row[hidden], [data-stew-stock][hidden] { display: none !important; }
+.daily-menu-stews .daily-stew-row > p { margin: 0; min-width: 0; }
+.daily-stew-remove { width: 2.6rem; min-height: 2.6rem; margin: 0 0 .1rem; padding: 0; }
+.daily-stew-add { justify-self: start; margin-top: .4rem; }
+.daily-stew-add[hidden] { display: none; }
 /* Clientes: depuración de duplicados y panel de "No pagó" sin cliente. */
 .customer-duplicates-link { color: #6b4a00; background: #fff1cc; border-color: #e5b84a; }
 .duplicate-group { display: grid; gap: .45rem; margin-bottom: .8rem; }

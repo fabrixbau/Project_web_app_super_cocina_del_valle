@@ -19,7 +19,7 @@
           <section><strong>Agua del día</strong><p>{{ daily_menu.water_product.name|default:"Sin definir" }}</p></section>
           <section><strong>Primer tiempo</strong><p>{{ daily_menu.chicken_consomme.name|default:"Sin definir" }}</p><p>{{ daily_menu.variable_first_course.name|default:"Sin definir" }}</p></section>
           <section><strong>Segundo tiempo</strong><p>{{ daily_menu.second_course_one.name|default:"Sin definir" }}</p><p>{{ daily_menu.second_course_two.name|default:"Sin definir" }}</p></section>
-          <section><strong>Tercer tiempo</strong><p>{{ daily_menu.chicken_stew.name|default:"Sin definir" }}</p><p>{{ daily_menu.beef_stew.name|default:"Sin definir" }}</p><p>{{ daily_menu.varied_stew.name|default:"Sin definir" }}</p></section>
+          <section><strong>Tercer tiempo</strong>{% for entry in daily_menu.stew_entries.all %}<p>{{ entry.product.name }}</p>{% empty %}<p>Sin definir</p>{% endfor %}</section>
           {% if daily_menu.beans_order %}<section><strong>Complemento</strong><p>{{ daily_menu.beans_order.name }}</p></section>{% endif %}
         </div>
         <footer class="action-group">

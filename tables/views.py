@@ -86,12 +86,7 @@ def auto_meal_slot(product, daily_menu):
         return "first"
     if product.pk in {daily_menu.second_course_one_id, daily_menu.second_course_two_id}:
         return "second"
-    stew_ids = {
-        product_id for product_id in (
-            daily_menu.chicken_stew_id, daily_menu.beef_stew_id, daily_menu.varied_stew_id,
-        ) if product_id
-    }
-    if product.pk in stew_ids or (
+    if product.pk in daily_menu.stew_ids or (
         product.component_type == Product.ComponentType.GRILL
         and product.eligible_for_executive_meal
     ):
@@ -473,8 +468,7 @@ def table_detail(request, account_id):
         date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED,
     ).select_related(
         "water_product", "chicken_consomme", "variable_first_course",
-        "second_course_one", "second_course_two", "chicken_stew", "beef_stew",
-        "varied_stew", "beans_order",
+        "second_course_one", "second_course_two", "beans_order",
     ).first()
     from menu.catalog import limit_cold_drinks_to_daily_water
 
@@ -524,9 +518,7 @@ def table_detail(request, account_id):
             daily_menu.chicken_consomme_id, daily_menu.variable_first_course_id,
             daily_menu.second_course_one_id, daily_menu.second_course_two_id,
         ) if product_id]
-        stew_ids = [product_id for product_id in (
-            daily_menu.chicken_stew_id, daily_menu.beef_stew_id, daily_menu.varied_stew_id,
-        ) if product_id]
+        stew_ids = list(daily_menu.stew_ids)
         meal_component_ids = first_and_second_ids + stew_ids
         daily_order_ids = meal_component_ids + ([daily_menu.beans_order_id] if daily_menu.beans_order_id else [])
         smart_candidates = Product.objects.filter(

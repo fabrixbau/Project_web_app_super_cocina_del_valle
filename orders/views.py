@@ -153,7 +153,7 @@ def internal_auto_meal_slot(product, daily_menu):
         return "first"
     if product.pk in {daily_menu.second_course_one_id, daily_menu.second_course_two_id}:
         return "second"
-    if product.pk in {daily_menu.chicken_stew_id, daily_menu.beef_stew_id, daily_menu.varied_stew_id} or (
+    if product.pk in daily_menu.stew_ids or (
         product.component_type == Product.ComponentType.GRILL and product.eligible_for_executive_meal
     ):
         return "main"
@@ -343,8 +343,7 @@ def public_package_order(request, package_type):
     daily_menu = get_object_or_404(
         DailyMenu.objects.select_related(
             "water_product", "chicken_consomme", "variable_first_course",
-            "second_course_one", "second_course_two", "chicken_stew",
-            "beef_stew", "varied_stew",
+            "second_course_one", "second_course_two",
         ),
         date=timezone.localdate(),
         status=DailyMenu.Status.PUBLISHED,
@@ -1092,7 +1091,7 @@ def internal_order_edit(request, order_id):
     ).exclude(packaging_kind=Product.PackagingKind.NONE).order_by("sort_order", "name"))
     daily_menu = DailyMenu.objects.filter(date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED).select_related(
         "water_product", "chicken_consomme", "variable_first_course", "second_course_one",
-        "second_course_two", "chicken_stew", "beef_stew", "varied_stew", "beans_order",
+        "second_course_two", "beans_order",
     ).first()
     from menu.catalog import limit_cold_drinks_to_daily_water
 
@@ -1113,9 +1112,7 @@ def internal_order_edit(request, order_id):
             daily_menu.chicken_consomme_id, daily_menu.variable_first_course_id,
             daily_menu.second_course_one_id, daily_menu.second_course_two_id,
         ) if pk]
-        stew_ids = [pk for pk in (
-            daily_menu.chicken_stew_id, daily_menu.beef_stew_id, daily_menu.varied_stew_id,
-        ) if pk]
+        stew_ids = list(daily_menu.stew_ids)
         daily_ids = first_second_ids + stew_ids + ([daily_menu.beans_order_id] if daily_menu.beans_order_id else [])
         daily_records = Product.objects.filter(pk__in=daily_ids, is_available=True)
         daily_by_id = {product.pk: product for product in daily_records}
@@ -1388,8 +1385,7 @@ def internal_order_daily_product_add(request, order_id, product_id):
         allowed_ids = {pk for pk in (
             daily_menu.chicken_consomme_id, daily_menu.variable_first_course_id,
             daily_menu.second_course_one_id, daily_menu.second_course_two_id,
-            daily_menu.chicken_stew_id, daily_menu.beef_stew_id,
-            daily_menu.varied_stew_id, daily_menu.beans_order_id,
+            daily_menu.beans_order_id, *daily_menu.stew_ids,
         ) if pk}
     if product.pk not in allowed_ids:
         return JsonResponse({"ok": False, "error": "Este producto no pertenece al menú publicado de hoy."}, status=400)

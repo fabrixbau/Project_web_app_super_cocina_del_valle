@@ -505,3 +505,72 @@ class OptionGroupsAlwaysMultipleTests(TestCase):
             ],
         }]))
         self.assertEqual(groups[0]["selection_type"], "multiple")
+
+
+class DailyMenuStewListTests(TestCase):
+    """Tercer tiempo con hasta 12 guisados de cualquier tipo (los de pollo piden pieza)."""
+
+    def setUp(self):
+        from menu.models import Category
+        category = Category.objects.create(name="Guisados lista")
+        make = lambda name, kind: Product.objects.create(category=category, name=name, price=0, component_type=kind)
+        self.stews = [
+            make("Pollo a la ciruela", Product.ComponentType.CHICKEN_STEW),
+            make("Res en estofado", Product.ComponentType.BEEF_STEW),
+            make("Bistec en salsa verde", Product.ComponentType.BEEF_STEW),
+            make("Pollo en mole", Product.ComponentType.CHICKEN_STEW),
+            make("Enchiladas suizas", Product.ComponentType.VARIED_STEW),
+        ]
+
+    def form_data(self, stews):
+        from menu.models import DailyProductStock
+        data = {"date": timezone.localdate().isoformat()}
+        for kind in (DailyProductStock.ItemKind.TORTILLAS, DailyProductStock.ItemKind.BREAD):
+            for channel in (DailyProductStock.Channel.TABLE, DailyProductStock.Channel.ORDERS):
+                data[f"stock_{kind}_{channel}"] = "5"
+        for slot, product in enumerate(stews, start=1):
+            data[f"stew_{slot}"] = str(product.pk)
+            pieces = ("leg", "thigh") if product.component_type == Product.ComponentType.CHICKEN_STEW else ("",)
+            for piece in pieces:
+                suffix = f"_{piece}" if piece else ""
+                data[f"stock_stew_{slot}{suffix}_table"] = "4"
+                data[f"stock_stew_{slot}{suffix}_orders"] = "3"
+        return data
+
+    def test_form_saves_five_stews_in_order_with_chicken_pieces(self):
+        from menu.forms import DailyMenuForm
+        from menu.models import DailyProductStock
+        form = DailyMenuForm(self.form_data(self.stews))
+        self.assertTrue(form.is_valid(), form.errors)
+        menu = form.save()
+        form.save_stocks()
+        self.assertEqual([product.name for product in menu.stew_products], [product.name for product in self.stews])
+        self.assertEqual(set(menu.chicken_stew_ids), {self.stews[0].pk, self.stews[3].pk})
+        mole_pieces = set(DailyProductStock.objects.filter(product=self.stews[3]).values_list("chicken_piece", flat=True))
+        self.assertEqual(mole_pieces, {"leg", "thigh"})
+        beef_pieces = set(DailyProductStock.objects.filter(product=self.stews[1]).values_list("chicken_piece", flat=True))
+        self.assertEqual(beef_pieces, {""})
+        # Al editar se conservan los 5 renglones y sus raciones.
+        edit = DailyMenuForm(instance=menu)
+        self.assertEqual(edit.visible_stew_rows, 5)
+        self.assertEqual(edit.initial["stock_stew_4_leg_table"], 4)
+
+    def test_repeated_stew_is_rejected(self):
+        from menu.forms import DailyMenuForm
+        form = DailyMenuForm(self.form_data([self.stews[1], self.stews[1]]))
+        self.assertFalse(form.is_valid())
+        self.assertIn("stew_2", form.errors)
+
+    def test_any_chicken_stew_requires_piece_in_package(self):
+        from orders.forms import PackageCartForm
+        from menu.models import DailyMenu, MealPackage
+        menu = DailyMenu.objects.create(date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED)
+        menu.set_stews(self.stews)
+        package, _ = MealPackage.objects.update_or_create(
+            package_type=MealPackage.PackageType.RUNNING,
+            defaults={"name": "Comida corrida", "price_without_water": 70, "price_with_water": 80},
+        )
+        form = PackageCartForm(package=package, daily_menu=menu)
+        self.assertEqual(list(form.fields["main_course"].queryset), self.stews)
+        self.assertTrue(menu.is_chicken_stew(self.stews[3]))
+        self.assertFalse(menu.is_chicken_stew(self.stews[2]))

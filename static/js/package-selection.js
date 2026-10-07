@@ -5,7 +5,10 @@ Bajo `data-package-add`, Mesas permite guardar pollo sin pieza como comida pendi
 Borra esta nota después de comprobar ambos formularios. */
 
 document.querySelectorAll("[data-package-form], [data-internal-package]").forEach((form) => {
-  const chickenProduct = form.dataset.chickenProduct;
+  // Guisados de pollo del día ("12,15"): cualquiera de ellos pide pierna o muslo.
+  const chickenProducts = (form.dataset.chickenProduct || "").split(",").filter(Boolean);
+  const chickenProduct = chickenProducts.length ? chickenProducts : null;
+  const isChicken = (value) => Boolean(value) && chickenProducts.includes(String(value));
   const pieceField = form.querySelector("[data-chicken-piece-field], [data-package-chicken-field]");
   const mainInputs = form.querySelectorAll("input[name$='main_course']");
   const pieceInputs = pieceField?.querySelectorAll("input[name$='chicken_piece']") || [];
@@ -31,7 +34,7 @@ document.querySelectorAll("[data-package-form], [data-internal-package]").forEac
   const selectedMainInput = () => [...mainInputs].find((input) => input.checked);
   const closeWithoutPiece = () => {
     const main = selectedMainInput();
-    if (main?.value === chickenProduct && ![...pieceInputs].some((input) => input.checked)) {
+    if (isChicken(main?.value) && ![...pieceInputs].some((input) => input.checked)) {
       main.checked = false;
     }
     dialog.close();
@@ -53,7 +56,7 @@ document.querySelectorAll("[data-package-form], [data-internal-package]").forEac
 
   function updateChickenPiece(promptForPiece = false) {
     const selectedMain = selectedMainInput()?.value;
-    const requiresPiece = selectedMain === chickenProduct;
+    const requiresPiece = isChicken(selectedMain);
     pieceField.hidden = true;
     pieceInputs.forEach((input) => {
       input.required = requiresPiece && !isProgressiveTablePackage;

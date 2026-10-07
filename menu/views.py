@@ -467,7 +467,7 @@ def inventory_tracking(request):
     def stew_rank(stock, product, component):
         menu = stock.daily_menu
         if menu and product:
-            for rank, stew_id in enumerate((menu.chicken_stew_id, menu.beef_stew_id, menu.varied_stew_id)):
+            for rank, stew_id in enumerate(menu.stew_ids):
                 if stew_id == product.pk:
                     return rank
         return stew_rank_by_component.get(component, 3)
@@ -1049,8 +1049,8 @@ def _product_delete_blocker(product):
     # capturar y el usuario veía un error 500. Borra esta nota después de leerla.
     daily_menu_relations = (
         "daily_menus_as_water", "daily_menus_as_chicken_consomme", "daily_menus_as_variable_first_course",
-        "daily_menus_as_second_course_one", "daily_menus_as_second_course_two", "daily_menus_as_chicken_stew",
-        "daily_menus_as_beef_stew", "daily_menus_as_varied_stew", "daily_menus_as_beans_order",
+        "daily_menus_as_second_course_one", "daily_menus_as_second_course_two",
+        "daily_menu_stew_entries", "daily_menus_as_beans_order",
     )
     if any(getattr(product, relation).exists() for relation in daily_menu_relations):
         return "está asignado como componente en uno o más menús diarios"
@@ -1096,9 +1096,8 @@ def daily_menu_list(request):
         date__range=(selected_month, month_end),
     ).select_related(
         "water_product", "chicken_consomme", "variable_first_course",
-        "second_course_one", "second_course_two", "chicken_stew", "beef_stew",
-        "varied_stew", "beans_order",
-    )
+        "second_course_one", "second_course_two", "beans_order",
+    ).prefetch_related("stew_entries__product")
     return render(request, "menu/daily_menu_list.html", {
         "daily_menus": daily_menus,
         "selected_month": selected_month,
@@ -1139,11 +1138,11 @@ def daily_menu_status(request, daily_menu_id):
     if action == "publish":
         required_field_names = (
             "water_product", "chicken_consomme", "variable_first_course",
-            "second_course_one", "second_course_two", "chicken_stew", "beef_stew", "varied_stew",
+            "second_course_one", "second_course_two",
         )
         selected_products = [getattr(daily_menu, field_name) for field_name in required_field_names]
-        if any(product is None for product in selected_products):
-            messages.error(request, "Completa el agua y los siete lugares del menú antes de publicar.")
+        if any(product is None for product in selected_products) or not daily_menu.stew_ids:
+            messages.error(request, "Completa el agua, las sopas, el segundo tiempo y al menos un guisado antes de publicar.")
         elif daily_menu.second_course_one_id == daily_menu.second_course_two_id:
             messages.error(request, "Las dos opciones del segundo tiempo deben ser diferentes.")
         elif any(not product.is_available for product in selected_products):

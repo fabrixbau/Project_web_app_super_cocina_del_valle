@@ -42,7 +42,7 @@ def public_daily_menu():
         DailyMenu.objects.filter(date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED)
         .select_related(
             "water_product", "chicken_consomme", "variable_first_course",
-            "second_course_one", "second_course_two", "chicken_stew", "beef_stew", "varied_stew",
+            "second_course_one", "second_course_two",
         )
         .first()
     )
@@ -51,7 +51,7 @@ def public_daily_menu():
         group_products = (
             ("Primer tiempo", (daily_menu.chicken_consomme, daily_menu.variable_first_course)),
             ("Segundo tiempo", (daily_menu.second_course_one, daily_menu.second_course_two)),
-            ("Guisados", (daily_menu.chicken_stew, daily_menu.beef_stew, daily_menu.varied_stew)),
+            ("Guisados", daily_menu.stew_options),
         )
         for title, products in group_products:
             visible_products = filter_products_by_stock(

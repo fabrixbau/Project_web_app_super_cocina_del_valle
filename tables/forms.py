@@ -61,7 +61,7 @@ class TablePackageForm(PackageSelectionForm):
         cleaned_data["is_customized"] = bool(comment)
         main_course = cleaned_data.get("main_course")
         if cleaned_data.get("chicken_piece") and (
-            not main_course or main_course.pk != self.daily_menu.chicken_stew_id
+            not main_course or not self.daily_menu.is_chicken_stew(main_course)
         ):
             self.add_error("chicken_piece", "La pieza solo aplica al guisado de pollo.")
         if cleaned_data.get("refill_extra") and not cleaned_data.get("with_water"):
@@ -89,7 +89,7 @@ class TablePackageForm(PackageSelectionForm):
             ))
         main_course = self.cleaned_data.get("main_course")
         chicken_complete = not (
-            main_course and main_course.pk == self.daily_menu.chicken_stew_id
+            main_course and self.daily_menu.is_chicken_stew(main_course)
         ) or bool(self.cleaned_data.get("chicken_piece"))
         return courses_complete and chicken_complete
 

@@ -307,9 +307,9 @@ def resolve_cart(session):
             ):
                 continue
             chicken_piece = raw.get("chicken_piece", "")
-            if main_id == daily_menu.chicken_stew_id and chicken_piece not in {"leg", "thigh"}:
+            if daily_menu.is_chicken_stew(main_id) and chicken_piece not in {"leg", "thigh"}:
                 continue
-            if main_id != daily_menu.chicken_stew_id and chicken_piece:
+            if not daily_menu.is_chicken_stew(main_id) and chicken_piece:
                 continue
             unit_price = package.price_with_water if raw.get("with_water") else package.price_without_water
             item = {

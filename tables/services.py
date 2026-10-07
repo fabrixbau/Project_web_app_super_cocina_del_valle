@@ -92,10 +92,8 @@ def daily_menu_order_product_ids(daily_menu):
             daily_menu.variable_first_course_id,
             daily_menu.second_course_one_id,
             daily_menu.second_course_two_id,
-            daily_menu.chicken_stew_id,
-            daily_menu.beef_stew_id,
-            daily_menu.varied_stew_id,
             daily_menu.beans_order_id,
+            *daily_menu.stew_ids,
         ) if product_id
     }
 
@@ -171,7 +169,7 @@ def _change_item_stock(*, item, quantity, actor, reserve):
             required=bool(not is_product and requirement == DailyProductStock.ItemKind.BREAD) or bool(menu and not is_product) or is_required_daily_product,
             chicken_piece=(
                 item.chicken_piece
-                if is_product and menu and requirement.pk == menu.chicken_stew_id
+                if is_product and menu and menu.is_chicken_stew(requirement)
                 else ""
             ),
         )
@@ -250,9 +248,9 @@ def add_daily_menu_product_to_table(
     )
     if product.pk not in daily_menu_order_product_ids(daily_menu):
         raise ValidationError("Este producto no pertenece al menú diario publicado.")
-    if product.pk == daily_menu.chicken_stew_id and chicken_piece not in {"leg", "thigh"}:
+    if daily_menu.is_chicken_stew(product) and chicken_piece not in {"leg", "thigh"}:
         raise ValidationError("Selecciona si la orden de pollo es pierna o muslo.")
-    if product.pk != daily_menu.chicken_stew_id:
+    if not daily_menu.is_chicken_stew(product):
         chicken_piece = ""
     return add_product_to_table(
         account=account, product=product, added_by=added_by, chicken_piece=chicken_piece,
@@ -301,8 +299,8 @@ def add_auto_meal_component(
     )
     if product.pk not in daily_ids and not is_eligible_grill:
         raise ValidationError("Este producto no es elegible para formar una comida del menú de hoy.")
-    clicked_chicken_piece = chicken_piece if product.pk == daily_menu.chicken_stew_id else ""
-    if product.pk == daily_menu.chicken_stew_id and clicked_chicken_piece not in {"leg", "thigh"}:
+    clicked_chicken_piece = chicken_piece if daily_menu.is_chicken_stew(product) else ""
+    if daily_menu.is_chicken_stew(product) and clicked_chicken_piece not in {"leg", "thigh"}:
         raise ValidationError("Selecciona si el pollo es pierna o muslo.")
     add_product_to_table(
         account=account, product=product, added_by=added_by,
@@ -330,17 +328,13 @@ def add_auto_meal_component(
         raise ValidationError("El segundo tiempo ya no pertenece al menú diario.")
     if main.component_type == Product.ComponentType.GRILL and main.eligible_for_executive_meal:
         package_type = MealPackage.PackageType.EXECUTIVE
-    elif main.pk in {
-        product_id for product_id in (
-            daily_menu.chicken_stew_id, daily_menu.beef_stew_id, daily_menu.varied_stew_id,
-        ) if product_id
-    }:
+    elif main.pk in daily_menu.stew_ids:
         package_type = MealPackage.PackageType.RUNNING
     else:
         raise ValidationError("El tercer tiempo no puede completar un paquete.")
-    if main.pk == daily_menu.chicken_stew_id and chicken_piece not in {"leg", "thigh"}:
+    if daily_menu.is_chicken_stew(main) and chicken_piece not in {"leg", "thigh"}:
         raise ValidationError("No encontramos la pieza elegida para el pollo.")
-    if main.pk != daily_menu.chicken_stew_id:
+    if not daily_menu.is_chicken_stew(main):
         chicken_piece = ""
     package = MealPackage.objects.select_for_update().filter(
         package_type=package_type, is_active=True,
@@ -369,7 +363,7 @@ def add_auto_meal_component(
         account=account,
         product_ids=(first.pk, second.pk, main.pk),
         actor=added_by,
-        chicken_product_id=daily_menu.chicken_stew_id,
+        chicken_product_id=main.pk if daily_menu.is_chicken_stew(main) else None,
         chicken_piece=chicken_piece,
     )
     cleaned_data = {

@@ -23,7 +23,7 @@ package-selection.js sólo aporta la ventanita de pierna/muslo.
 
 {% if advance_food_order %}<p class="pp-notice">Tu comida estará lista a partir de la 1:00 p. m.</p>{% endif %}
 
-<form method="post" class="pp-package-form" data-package-form data-chicken-product="{{ daily_menu.chicken_stew_id }}"
+<form method="post" class="pp-package-form" data-package-form data-chicken-product="{{ daily_menu.chicken_stew_ids_csv }}"
       data-pp-package data-price-without-water="{{ package.price_without_water }}" data-price-with-water="{{ package.price_with_water }}">
   {% csrf_token %}
   {% if form.non_field_errors %}<div class="pp-form-error">{{ form.non_field_errors }}</div>{% endif %}

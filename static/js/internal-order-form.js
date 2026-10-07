@@ -1035,7 +1035,7 @@
     if (!chickenField) return;
     const refreshChickenField = () => {
       const selectedMain = form.querySelector("input[name$='main_course']:checked")?.value || "";
-      const show = selectedMain === form.dataset.chickenProduct;
+      const show = (form.dataset.chickenProduct || "").split(",").filter(Boolean).includes(String(selectedMain));
       chickenField.hidden = true;
       if (!show) chickenField.querySelectorAll("input[type='radio']").forEach((input) => { input.checked = false; });
     };

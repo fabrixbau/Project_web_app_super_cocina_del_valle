@@ -100,8 +100,9 @@ class CustomerVisibilityTests(TestCase):
         stew = Product.objects.create(category=self.category, name="Guisado", price=0, component_type="beef_stew")
         menu = DailyMenu.objects.create(
             date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED, chicken_consomme=consomme,
-            variable_first_course=soup, second_course_one=rice, beef_stew=stew,
+            variable_first_course=soup, second_course_one=rice,
         )
+        menu.set_stews([stew])
         package = MealPackage.objects.get(package_type=MealPackage.PackageType.RUNNING)
         public = PackageCartForm(package=package, daily_menu=menu, customers_only=True)
         labels = [choice.choice_label for choice in public["first_course"]]
@@ -144,8 +145,9 @@ class PublicPackageBuilderTests(TestCase):
         self.stew = make("Res en salsa", "beef_stew")
         self.menu = DailyMenu.objects.create(
             date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED,
-            chicken_consomme=self.consomme, second_course_one=self.rice, beef_stew=self.stew,
+            chicken_consomme=self.consomme, second_course_one=self.rice,
         )
+        self.menu.set_stews([self.stew])
         self.package = MealPackage.objects.get(package_type=MealPackage.PackageType.RUNNING)
         for product in (self.consomme, self.rice, self.stew):
             DailyProductStock.objects.create(
@@ -243,7 +245,7 @@ class DailyBoardExecutiveTests(TestCase):
         Product.objects.create(category=category, name="Plancha oculta", price=0, component_type=Product.ComponentType.GRILL,
                                eligible_for_executive_meal=True, show_to_customers=False)
         stew = Product.objects.create(category=category, name="Guisado", price=0, component_type="beef_stew")
-        DailyMenu.objects.create(date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED, beef_stew=stew)
+        DailyMenu.objects.create(date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED).set_stews([stew])
         session = self.client.session
         session["public_order_mode"] = "delivery"
         session.save()

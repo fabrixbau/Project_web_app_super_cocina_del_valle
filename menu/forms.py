@@ -290,9 +290,11 @@ class FixedStockForm(forms.Form):
 class DailyMenuForm(forms.ModelForm):
     STOCK_FIELDS = (
         "water_product", "chicken_consomme", "variable_first_course",
-        "second_course_one", "second_course_two", "chicken_stew", "beef_stew",
-        "varied_stew", "beans_order",
+        "second_course_one", "second_course_two", "beans_order",
     )
+    # Tercer tiempo: hasta 12 guisados (stew_1 … stew_12), cada uno de cualquier tipo.
+    STEW_SLOTS = tuple(range(1, DailyMenu.MAX_STEWS + 1))
+    DEFAULT_STEW_ROWS = 3
     CHANNELS = (DailyProductStock.Channel.TABLE, DailyProductStock.Channel.ORDERS)
     SUPPLIES = (
         (DailyProductStock.ItemKind.TORTILLAS, "Tortillas"),
@@ -303,8 +305,7 @@ class DailyMenuForm(forms.ModelForm):
         model = DailyMenu
         fields = (
             "date", "water_product", "chicken_consomme", "variable_first_course",
-            "second_course_one", "second_course_two", "chicken_stew", "beef_stew", "varied_stew",
-            "beans_order",
+            "second_course_one", "second_course_two", "beans_order",
         )
         labels = {
             "date": "Fecha",
@@ -313,9 +314,6 @@ class DailyMenuForm(forms.ModelForm):
             "variable_first_course": "Segunda opción de sopa",
             "second_course_one": "Segundo tiempo · opción 1",
             "second_course_two": "Segundo tiempo · opción 2",
-            "chicken_stew": "Guisado de pollo",
-            "beef_stew": "Guisado de res",
-            "varied_stew": "Guisado variado",
             "beans_order": "Orden de frijoles",
         }
         widgets = {"date": forms.DateInput(attrs={"type": "date"})}
@@ -328,9 +326,6 @@ class DailyMenuForm(forms.ModelForm):
             "variable_first_course": Product.ComponentType.VARIABLE_FIRST_COURSE,
             "second_course_one": Product.ComponentType.SECOND_COURSE,
             "second_course_two": Product.ComponentType.SECOND_COURSE,
-            "chicken_stew": Product.ComponentType.CHICKEN_STEW,
-            "beef_stew": Product.ComponentType.BEEF_STEW,
-            "varied_stew": Product.ComponentType.VARIED_STEW,
             "beans_order": Product.ComponentType.COMPLEMENT,
         }
         for field_name, component_type in field_types.items():
@@ -365,6 +360,36 @@ class DailyMenuForm(forms.ModelForm):
             if default_soup:
                 self.initial["chicken_consomme"] = default_soup.pk
 
+        stew_queryset = Product.objects.filter(
+            component_type__in=DailyMenu.STEW_TYPES, is_available=True,
+        ).order_by("name")
+        current_stews = self.instance.stew_products if self.instance.pk else []
+        self.chicken_stew_product_ids = list(stew_queryset.filter(
+            component_type=Product.ComponentType.CHICKEN_STEW,
+        ).values_list("pk", flat=True))
+        for slot in self.STEW_SLOTS:
+            name = f"stew_{slot}"
+            self.fields[name] = forms.ModelChoiceField(
+                label=f"Guisado {slot}", queryset=stew_queryset, required=False, empty_label="Sin seleccionar",
+            )
+            # Sólo el nombre del platillo (sin "Comida corrida · …") para que quepa en la lista.
+            self.fields[name].label_from_instance = lambda product: product.name
+            for attr in ("data-searchable-select", "data-click-toggle-select"):
+                self.fields[name].widget.attrs[attr] = ""
+            self.fields[name].widget.attrs["autocomplete"] = "off"
+            self.fields[name].widget.attrs["data-stew-select"] = str(slot)
+            if not self.is_bound and slot <= len(current_stews):
+                self.initial[name] = current_stews[slot - 1].pk
+        if self.is_bound:
+            filled = [slot for slot in self.STEW_SLOTS if self.data.get(f"stew_{slot}")]
+        else:
+            filled = list(range(1, len(current_stews) + 1))
+        self.visible_stew_rows = max([self.DEFAULT_STEW_ROWS, *filled])
+        self.stew_rows = [
+            {"slot": slot, "field": self[f"stew_{slot}"], "hidden": slot > self.visible_stew_rows}
+            for slot in self.STEW_SLOTS
+        ]
+
         channel_labels = dict(DailyProductStock.Channel.choices)
         existing = {}
         if self.instance.pk:
@@ -375,7 +400,7 @@ class DailyMenuForm(forms.ModelForm):
             }
         for field_name in self.STOCK_FIELDS:
             selected_id = self.data.get(field_name) if self.is_bound else getattr(self.instance, f"{field_name}_id", None)
-            pieces = DailyProductStock.ChickenPiece.choices if field_name == "chicken_stew" else (("", ""),)
+            pieces = (("", ""),)
             for piece, piece_label in pieces:
                 label = self.fields[field_name].label
                 if piece_label:
@@ -402,6 +427,39 @@ class DailyMenuForm(forms.ModelForm):
                     row["channels"].append({
                         "label": channel_labels[channel], "quantity": self[name],
                         "threshold": self[threshold_name],
+                    })
+                self.stock_rows.append(row)
+        # Raciones de cada guisado: fila general y, para guisados de pollo, pierna y muslo.
+        # Se dibujan las de los 12 renglones; daily-menu-stews.js muestra las que aplican.
+        piece_labels = dict(DailyProductStock.ChickenPiece.choices)
+        for slot in self.STEW_SLOTS:
+            if self.is_bound:
+                selected_id = self.data.get(f"stew_{slot}") or None
+            else:
+                selected_id = current_stews[slot - 1].pk if slot <= len(current_stews) else None
+            for piece in ("", *DailyProductStock.ChickenPiece.values):
+                row = {
+                    "label": f"Guisado {slot}" + (f" · {piece_labels[piece]}" if piece else ""),
+                    "selector": None, "channels": [], "stew_slot": slot, "stew_piece": piece,
+                }
+                for channel in self.CHANNELS:
+                    suffix = f"_{piece}" if piece else ""
+                    name = f"stock_stew_{slot}{suffix}_{channel}"
+                    threshold_name = f"threshold_stew_{slot}{suffix}_{channel}"
+                    self.fields[name] = forms.IntegerField(
+                        label=channel_labels[channel], min_value=0, required=False, initial=0,
+                        widget=forms.NumberInput(attrs={"inputmode": "numeric", "min": "0", "step": "1"}),
+                    )
+                    self.fields[threshold_name] = forms.IntegerField(
+                        label="Avisar cuando queden", min_value=0, required=False, initial=15,
+                        widget=forms.NumberInput(attrs={"inputmode": "numeric", "min": "0", "step": "1"}),
+                    )
+                    if not self.is_bound and selected_id:
+                        self.initial[name], self.initial[threshold_name] = existing.get(
+                            (int(selected_id), DailyProductStock.ItemKind.PRODUCT, channel, piece), (0, 15),
+                        )
+                    row["channels"].append({
+                        "label": channel_labels[channel], "quantity": self[name], "threshold": self[threshold_name],
                     })
                 self.stock_rows.append(row)
         for item_kind, label in self.SUPPLIES:
@@ -431,10 +489,38 @@ class DailyMenuForm(forms.ModelForm):
             self.add_error("second_course_two", "Selecciona una opción diferente.")
         if cleaned_data.get("chicken_consomme") == cleaned_data.get("variable_first_course") and cleaned_data.get("chicken_consomme"):
             self.add_error("variable_first_course", "Selecciona una sopa diferente.")
+        stews, seen = [], {}
+        for slot in self.STEW_SLOTS:
+            product = cleaned_data.get(f"stew_{slot}")
+            if not product:
+                continue
+            if product.pk in seen:
+                self.add_error(f"stew_{slot}", f"Este guisado ya está en el renglón {seen[product.pk]}.")
+                continue
+            seen[product.pk] = slot
+            stews.append((slot, product))
+            pieces = DailyProductStock.ChickenPiece.values if product.component_type == Product.ComponentType.CHICKEN_STEW else ("",)
+            for piece in pieces:
+                suffix = f"_{piece}" if piece else ""
+                values = []
+                for channel in self.CHANNELS:
+                    quantity_name = f"stock_stew_{slot}{suffix}_{channel}"
+                    quantity = cleaned_data.get(quantity_name)
+                    if quantity is None:
+                        self.add_error(quantity_name, "Indica una cantidad, aunque sea cero.")
+                    else:
+                        values.append(quantity)
+                if values and not any(values):
+                    item_label = dict(DailyProductStock.ChickenPiece.choices).get(piece, "producto").lower()
+                    self.add_error(
+                        f"stock_stew_{slot}{suffix}_{self.CHANNELS[0]}",
+                        f"Distribuye al menos una ración de {item_label}.",
+                    )
+        cleaned_data["stews"] = stews
         for field_name in self.STOCK_FIELDS:
             if not cleaned_data.get(field_name):
                 continue
-            pieces = DailyProductStock.ChickenPiece.values if field_name == "chicken_stew" else ("",)
+            pieces = ("",)
             for piece in pieces:
                 suffix = f"_{piece}" if piece else ""
                 values = []
@@ -457,14 +543,30 @@ class DailyMenuForm(forms.ModelForm):
                 self.add_error(f"stock_{item_kind}_{self.CHANNELS[0]}", f"Distribuye al menos una ración de {label.lower()}.")
         return cleaned_data
 
+    def save(self, commit=True):
+        instance = super().save(commit=commit)
+        if commit:
+            instance.set_stews([product for _slot, product in self.cleaned_data.get("stews", [])])
+        return instance
+
     def save_stocks(self):
         """Persist the channel allocation after the DailyMenu instance has been saved."""
         desired = []
+        for slot, product in self.cleaned_data.get("stews", []):
+            pieces = DailyProductStock.ChickenPiece.values if product.component_type == Product.ComponentType.CHICKEN_STEW else ("",)
+            for piece in pieces:
+                suffix = f"_{piece}" if piece else ""
+                for channel in self.CHANNELS:
+                    desired.append((
+                        DailyProductStock.ItemKind.PRODUCT, product, channel, piece,
+                        self.cleaned_data[f"stock_stew_{slot}{suffix}_{channel}"],
+                        self.cleaned_data.get(f"threshold_stew_{slot}{suffix}_{channel}") or 0,
+                    ))
         for field_name in self.STOCK_FIELDS:
             product = self.cleaned_data.get(field_name)
             if not product:
                 continue
-            pieces = DailyProductStock.ChickenPiece.values if field_name == "chicken_stew" else ("",)
+            pieces = ("",)
             for piece in pieces:
                 suffix = f"_{piece}" if piece else ""
                 for channel in self.CHANNELS:
@@ -582,7 +684,7 @@ class PackageSelectionForm(forms.Form):
         main_ids = [product.pk for product in main_products if product]
         main_queryset = Product.objects.filter(pk__in=main_ids, is_available=True, **visible)
         if package.package_type == MealPackage.PackageType.RUNNING:
-            # Guisados en el orden del menú del día: pollo, res y guisado variado.
+            # Guisados en el orden en que se capturaron en el menú del día.
             main_queryset = main_queryset.order_by(Case(
                 *(When(pk=product_id, then=Value(position)) for position, product_id in enumerate(main_ids)),
                 output_field=IntegerField(),
@@ -594,7 +696,7 @@ class PackageSelectionForm(forms.Form):
     def clean(self):
         cleaned_data = super().clean()
         main_course = cleaned_data.get("main_course")
-        if main_course and main_course.pk == self.daily_menu.chicken_stew_id:
+        if main_course and self.daily_menu.is_chicken_stew(main_course):
             if not cleaned_data.get("chicken_piece"):
                 self.add_error("chicken_piece", "Elige pierna o muslo para el guisado de pollo.")
         elif cleaned_data.get("chicken_piece"):

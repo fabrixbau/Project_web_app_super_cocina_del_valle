@@ -13,7 +13,10 @@ Borra esta nota después de leerla. -->
         <fieldset class="daily-menu-general"><legend>Información general</legend><p>{{ form.date.label_tag }} {{ form.date.errors }} {{ form.date }}</p><p>{{ form.water_product.label_tag }} {{ form.water_product.errors }} {{ form.water_product }}</p></fieldset>
         <fieldset class="daily-menu-course"><legend><b>1</b> Primer tiempo</legend><small>El consomé se propone automáticamente, pero puedes sustituirlo por otra sopa.</small><p>{{ form.chicken_consomme.label_tag }} {{ form.chicken_consomme.errors }} {{ form.chicken_consomme }}</p><p>{{ form.variable_first_course.label_tag }} {{ form.variable_first_course.errors }} {{ form.variable_first_course }}</p></fieldset>
         <fieldset class="daily-menu-course"><legend><b>2</b> Segundo tiempo</legend><small>Selecciona dos opciones diferentes.</small><p>{{ form.second_course_one.label_tag }} {{ form.second_course_one.errors }} {{ form.second_course_one }}</p><p>{{ form.second_course_two.label_tag }} {{ form.second_course_two.errors }} {{ form.second_course_two }}</p></fieldset>
-        <fieldset class="daily-menu-course"><legend><b>3</b> Tercer tiempo</legend><small>Configura los tres guisados disponibles.</small><p>{{ form.chicken_stew.label_tag }} {{ form.chicken_stew.errors }} {{ form.chicken_stew }}</p><p>{{ form.beef_stew.label_tag }} {{ form.beef_stew.errors }} {{ form.beef_stew }}</p><p>{{ form.varied_stew.label_tag }} {{ form.varied_stew.errors }} {{ form.varied_stew }}</p></fieldset>
+        <fieldset class="daily-menu-course daily-menu-stews" data-stew-list data-max-stews="{{ form.STEW_SLOTS|length }}"><legend><b>3</b> Tercer tiempo</legend><small>Agrega los guisados del día (hasta {{ form.STEW_SLOTS|length }}). Los de pollo piden pierna o muslo.</small>
+          {% for row in form.stew_rows %}<div class="daily-stew-row" data-stew-row="{{ row.slot }}" {% if row.hidden %}hidden{% endif %}><p>{{ row.field.label_tag }} {{ row.field.errors }} {{ row.field }}</p><button type="button" class="danger daily-stew-remove" data-stew-remove aria-label="Quitar guisado {{ row.slot }}">×</button></div>{% endfor %}
+          <button type="button" class="secondary daily-stew-add" data-stew-add>+ Agregar guisado</button>
+        </fieldset>
         <fieldset class="daily-menu-complements"><legend>Complementos por orden</legend><p>{{ form.beans_order.label_tag }} {{ form.beans_order.errors }} {{ form.beans_order }}</p><small>Opcional; aparece únicamente en Comida por orden.</small></fieldset>
       </div>
       <fieldset class="daily-stock-editor">
@@ -22,7 +25,7 @@ Borra esta nota después de leerla. -->
         <div class="daily-stock-table">
           <div class="daily-stock-heading"><strong>Producto o insumo</strong><strong>Mesas</strong><strong>Pedidos · recoger y domicilio</strong></div>
           {% for row in form.stock_rows %}
-            <div class="daily-stock-row">
+            <div class="daily-stock-row" {% if row.stew_slot %}data-stew-stock="{{ row.stew_slot }}" data-stew-piece="{{ row.stew_piece }}"{% endif %}>
               <strong>{{ row.label }}</strong>
               {% for channel in row.channels %}<div class="daily-stock-channel"><span>{{ channel.label }}</span><label>Raciones{{ channel.quantity.errors }}{{ channel.quantity }}</label><label>Avisar en{{ channel.threshold.errors }}{{ channel.threshold }}</label></div>{% endfor %}
             </div>
@@ -33,4 +36,4 @@ Borra esta nota después de leerla. -->
     </form>
   </section>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/daily-menu-draft.js' %}?v=1"></script>{% endblock %}
+{% block extra_js %}{{ form.chicken_stew_product_ids|json_script:"daily-chicken-stew-ids" }}<script src="{% static 'js/daily-menu-stews.js' %}?v=2"></script><script src="{% static 'js/daily-menu-draft.js' %}?v=1"></script>{% endblock %}

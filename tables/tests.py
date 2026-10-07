@@ -368,8 +368,8 @@ class AutoMealOutOfOrderTests(TestCase):
         self.menu = DailyMenu.objects.create(
             date=today, status=DailyMenu.Status.PUBLISHED,
             variable_first_course=self.first_product, second_course_one=self.second_product,
-            beef_stew=self.main_product,
         )
+        self.menu.set_stews([self.main_product])
         for product in (self.first_product, self.second_product, self.main_product):
             DailyProductStock.objects.create(
                 date=today, daily_menu=self.menu, product=product,

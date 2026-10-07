@@ -234,30 +234,8 @@ class DailyMenu(models.Model):
         related_name="daily_menus_as_second_course_two",
         limit_choices_to={"component_type": Product.ComponentType.SECOND_COURSE},
     )
-    chicken_stew = models.ForeignKey(
-        Product,
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="daily_menus_as_chicken_stew",
-        limit_choices_to={"component_type": Product.ComponentType.CHICKEN_STEW},
-    )
-    beef_stew = models.ForeignKey(
-        Product,
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="daily_menus_as_beef_stew",
-        limit_choices_to={"component_type": Product.ComponentType.BEEF_STEW},
-    )
-    varied_stew = models.ForeignKey(
-        Product,
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="daily_menus_as_varied_stew",
-        limit_choices_to={"component_type": Product.ComponentType.VARIED_STEW},
-    )
+    # El tercer tiempo (guisados) ya no son 3 lugares fijos: es una lista de hasta
+    # MAX_STEWS productos de cualquier tipo de guisado (DailyMenuStew, en orden).
     beans_order = models.ForeignKey(
         Product,
         on_delete=models.PROTECT,
@@ -284,9 +262,6 @@ class DailyMenu(models.Model):
             "variable_first_course": Product.ComponentType.VARIABLE_FIRST_COURSE,
             "second_course_one": Product.ComponentType.SECOND_COURSE,
             "second_course_two": Product.ComponentType.SECOND_COURSE,
-            "chicken_stew": Product.ComponentType.CHICKEN_STEW,
-            "beef_stew": Product.ComponentType.BEEF_STEW,
-            "varied_stew": Product.ComponentType.VARIED_STEW,
             "beans_order": Product.ComponentType.COMPLEMENT,
         }
         errors = {}
@@ -314,9 +289,78 @@ class DailyMenu(models.Model):
     def second_course_options(self):
         return (self.second_course_one, self.second_course_two)
 
+    MAX_STEWS = 12
+    STEW_TYPES = (
+    Product.ComponentType.CHICKEN_STEW, Product.ComponentType.BEEF_STEW, Product.ComponentType.VARIED_STEW,
+)
+
+    @property
+    def stew_products(self):
+        """Guisados del día en su orden (se guarda en caché por instancia)."""
+        cached = getattr(self, "_stew_products_cache", None)
+        if cached is None:
+            if self.pk is None:
+                cached = []
+            else:
+                cached = [entry.product for entry in self.stew_entries.select_related("product").order_by("sort_order", "id")]
+            self._stew_products_cache = cached
+        return cached
+
     @property
     def stew_options(self):
-        return (self.chicken_stew, self.beef_stew, self.varied_stew)
+        return tuple(self.stew_products)
+
+    @property
+    def stew_ids(self):
+        return [product.pk for product in self.stew_products]
+
+    @property
+    def chicken_stew_ids(self):
+        """Guisados de pollo del día: piden pierna o muslo y llevan existencias por pieza."""
+        return [product.pk for product in self.stew_products if product.component_type == Product.ComponentType.CHICKEN_STEW]
+
+    @property
+    def chicken_stew_ids_csv(self):
+        return ",".join(str(pk) for pk in self.chicken_stew_ids)
+
+    def is_chicken_stew(self, product_or_id):
+        product_id = getattr(product_or_id, "pk", product_or_id)
+        return product_id in self.chicken_stew_ids
+
+    def set_stews(self, products):
+        """Reemplaza la lista de guisados (en el orden recibido, sin repetir, máximo MAX_STEWS)."""
+        seen, ordered = set(), []
+        for product in products:
+            if product and product.pk not in seen:
+                seen.add(product.pk)
+                ordered.append(product)
+        if len(ordered) > self.MAX_STEWS:
+            raise ValidationError(f"El tercer tiempo admite hasta {self.MAX_STEWS} guisados.")
+        self.stew_entries.all().delete()
+        DailyMenuStew.objects.bulk_create([
+            DailyMenuStew(daily_menu=self, product=product, sort_order=position)
+            for position, product in enumerate(ordered, start=1)
+        ])
+        self._stew_products_cache = ordered
+
+
+class DailyMenuStew(models.Model):
+    """Un guisado del tercer tiempo de un menú diario (hasta 12, en orden)."""
+
+    daily_menu = models.ForeignKey(DailyMenu, on_delete=models.CASCADE, related_name="stew_entries")
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="daily_menu_stew_entries")
+    sort_order = models.PositiveSmallIntegerField(default=1)
+
+    class Meta:
+        ordering = ("sort_order", "id")
+        constraints = [
+            models.UniqueConstraint(fields=("daily_menu", "product"), name="unique_daily_menu_stew"),
+        ]
+        verbose_name = "guisado del menú diario"
+        verbose_name_plural = "guisados del menú diario"
+
+    def __str__(self):
+        return f"{self.daily_menu} · {self.product}"
 
 
 class MealPackage(models.Model):

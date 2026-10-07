@@ -63,8 +63,7 @@ def _daily_product_ids(daily_menu):
     return {product_id for product_id in (
         daily_menu.water_product_id, daily_menu.chicken_consomme_id,
         daily_menu.variable_first_course_id, daily_menu.second_course_one_id,
-        daily_menu.second_course_two_id, daily_menu.chicken_stew_id,
-        daily_menu.beef_stew_id, daily_menu.varied_stew_id, daily_menu.beans_order_id,
+        daily_menu.second_course_two_id, daily_menu.beans_order_id, *daily_menu.stew_ids,
     ) if product_id}
 
 
@@ -102,7 +101,7 @@ def _change_order_item_stock(*, item, quantity, actor, reserve, channel=None):
             "item_kind": DailyProductStock.ItemKind.PRODUCT if is_product else requirement,
             "product": requirement if is_product else None,
         }
-        if is_product and daily_menu and requirement.pk == daily_menu.chicken_stew_id:
+        if is_product and daily_menu and daily_menu.is_chicken_stew(requirement):
             filters["chicken_piece"] = item.chicken_piece
         else:
             filters["chicken_piece"] = ""
@@ -927,15 +926,14 @@ def add_internal_auto_meal_component(
     daily_ids = {
         pk for pk in (
             daily_menu.chicken_consomme_id, daily_menu.variable_first_course_id,
-            daily_menu.second_course_one_id, daily_menu.second_course_two_id,
-            daily_menu.chicken_stew_id, daily_menu.beef_stew_id, daily_menu.varied_stew_id,
+            daily_menu.second_course_one_id, daily_menu.second_course_two_id, *daily_menu.stew_ids,
         ) if pk
     }
     eligible_grill = product.component_type == Product.ComponentType.GRILL and product.eligible_for_executive_meal
     if product.pk not in daily_ids and not eligible_grill:
         raise ValidationError("Este producto no puede formar una comida del menú de hoy.")
-    clicked_piece = chicken_piece if product.pk == daily_menu.chicken_stew_id else ""
-    if product.pk == daily_menu.chicken_stew_id and clicked_piece not in {"leg", "thigh"}:
+    clicked_piece = chicken_piece if daily_menu.is_chicken_stew(product) else ""
+    if daily_menu.is_chicken_stew(product) and clicked_piece not in {"leg", "thigh"}:
         raise ValidationError("Selecciona si el pollo es pierna o muslo.")
     add_internal_order_product(
         order=order, product=product, actor=actor, require_individual=False,
@@ -960,7 +958,7 @@ def add_internal_auto_meal_component(
     package = MealPackage.objects.select_for_update().filter(package_type=package_type, is_active=True).order_by("id").first()
     if not package:
         raise ValidationError("No existe un paquete activo para completar esta comida.")
-    final_piece = completed_selection.get("chicken_piece", "") if main.pk == daily_menu.chicken_stew_id else ""
+    final_piece = completed_selection.get("chicken_piece", "") if daily_menu.is_chicken_stew(main) else ""
     component_comments = []
     for selected_product in (first, second, main):
         candidate = OrderItem.objects.filter(
@@ -980,7 +978,7 @@ def add_internal_auto_meal_component(
         _consume_internal_candidate(
             order=order, product_id=product_id,
             actor=actor,
-            chicken_product_id=daily_menu.chicken_stew_id, chicken_piece=final_piece,
+            chicken_product_id=main.pk if daily_menu.is_chicken_stew(main) else None, chicken_piece=final_piece,
         )
     cleaned_data = {
         "first_course": first, "second_course": second, "main_course": main,

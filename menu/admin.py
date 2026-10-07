@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from .models import (
-    Category, DailyMenu, DailyProductStock, MealPackage, Product, ProductOption,
+    Category, DailyMenu, DailyMenuStew, DailyProductStock, MealPackage, Product, ProductOption,
     InventoryAuditLog, ProductOptionGroup, ServicePeriod, StockMovement,
 )
 
@@ -37,10 +37,17 @@ class ServicePeriodAdmin(admin.ModelAdmin):
     list_display = ("name", "start_time", "end_time", "is_active", "sort_order")
 
 
+class DailyMenuStewInline(admin.TabularInline):
+    model = DailyMenuStew
+    extra = 0
+    max_num = DailyMenu.MAX_STEWS
+
+
 @admin.register(DailyMenu)
 class DailyMenuAdmin(admin.ModelAdmin):
     list_display = ("date", "status", "water_product", "published_at")
     list_filter = ("status", "date")
+    inlines = (DailyMenuStewInline,)
 
 
 @admin.register(MealPackage)
