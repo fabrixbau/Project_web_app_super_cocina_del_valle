@@ -549,8 +549,14 @@ class DailyMenuForm(forms.ModelForm):
             instance.set_stews([product for _slot, product in self.cleaned_data.get("stews", [])])
         return instance
 
-    def save_stocks(self):
-        """Persist the channel allocation after the DailyMenu instance has been saved."""
+    def save_stocks(self, actor=None):
+        """Persist the channel allocation after the DailyMenu instance has been saved.
+
+        Si la existencia de ese día ya tiene movimientos (ventas registradas), no se bloquea:
+        se conserva su cantidad inicial y se registra un ajuste de inventario por la
+        diferencia, así el historial queda intacto y el disponible queda como se capturó.
+        """
+        from .inventory import adjust_stock
         desired = []
         for slot, product in self.cleaned_data.get("stews", []):
             pieces = DailyProductStock.ChickenPiece.values if product.component_type == Product.ComponentType.CHICKEN_STEW else ("",)
@@ -593,16 +599,21 @@ class DailyMenuForm(forms.ModelForm):
             else:
                 lookup["product__isnull"] = True
             stock = DailyProductStock.objects.filter(**lookup).first()
+            adjustment = 0
             if stock and stock.movements.exists() and stock.initial_quantity != quantity:
-                raise forms.ValidationError(
-                    f"{stock.item_name} ya tiene movimientos. Cambia su existencia mediante un ajuste de inventario."
-                )
+                adjustment = quantity - stock.initial_quantity
+                quantity = stock.initial_quantity
             if not stock:
                 stock = DailyProductStock(**{key: value for key, value in lookup.items() if key != "product__isnull"})
             stock.daily_menu = self.instance
             stock.initial_quantity = quantity
             stock.low_stock_threshold = threshold
             stock.save()
+            if adjustment:
+                adjust_stock(
+                    stock=stock, quantity=adjustment, actor=actor,
+                    note=f"Ajuste desde el menú diario ({'+' if adjustment > 0 else ''}{adjustment})",
+                )
             from notifications.services import sync_stock_alert
             sync_stock_alert(stock)
             keep_ids.append(stock.pk)

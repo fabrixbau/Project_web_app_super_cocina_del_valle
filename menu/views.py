@@ -1115,7 +1115,7 @@ def daily_menu_form(request, daily_menu_id=None):
         try:
             with transaction.atomic():
                 form.save()
-                form.save_stocks()
+                form.save_stocks(actor=request.user)
         except ValidationError as error:
             form.add_error(None, error)
         else:
