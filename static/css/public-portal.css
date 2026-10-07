@@ -766,3 +766,72 @@ body.pp-sheet-open { overflow: hidden; }
   .pp-body .pp-preview-switch button { padding: 5px 8px; }
   .pp-body .pp-preview-switch button small { display: none; }
 }
+
+/* ---------------------------------------------------------------- menú del QR (/menu/) */
+.pp-qr-page .pp-main { width: min(100%, 760px); padding-top: 18px; }
+.pp-qr-hero {
+  display: grid; justify-items: center; gap: 6px; padding: 24px 16px 20px; text-align: center; color: #f4ead6;
+  background: radial-gradient(120% 140% at 20% 0%, #1f5a43 0%, #143d2e 55%, #0f3024 100%); border-radius: 20px;
+  box-shadow: 0 14px 34px rgb(15 48 36 / 25%);
+}
+.pp-qr-title { font-family: "Playfair Display", Georgia, serif; color: #fbf3e2; font-size: clamp(2rem, 8vw, 2.6rem); line-height: 1.05; }
+.pp-qr-sub { color: rgb(244 234 214 / 78%); font-size: .95rem; }
+.pp-qr-nav {
+  position: sticky; top: var(--pp-topbar); z-index: 20; display: flex; gap: 6px; overflow-x: auto;
+  margin: 12px -16px 4px; padding: 10px 16px; background: var(--pp-cream); border-bottom: 1px solid var(--pp-line);
+  scrollbar-width: none;
+}
+.pp-qr-nav::-webkit-scrollbar { display: none; }
+.pp-qr-nav a { flex: 0 0 auto; padding: 7px 14px; color: #fbf3e2; text-decoration: none; background: var(--pp-green-2); border-radius: 999px; font-size: .88rem; font-weight: 700; }
+.pp-qr-section { margin-top: 14px; padding: 16px 16px 10px; background: #fff; border: 1px solid var(--pp-line); border-radius: 16px; scroll-margin-top: calc(var(--pp-topbar) + 64px); }
+.pp-qr-section h2 { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px; font-family: "Playfair Display", Georgia, serif; color: var(--pp-green); font-size: 1.35rem; font-style: italic; }
+.pp-qr-section h2 .pp-today-rule { flex: 1 1 30px; max-width: 90px; height: 1px; background: linear-gradient(90deg, transparent, #d6b26a); }
+.pp-qr-section h2 .pp-today-rule:last-child { background: linear-gradient(90deg, #d6b26a, transparent); }
+.pp-qr-section ul { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.pp-qr-item { display: flex; align-items: baseline; gap: 8px; padding: 9px 0; border-bottom: 1px dashed #e8e1d3; }
+.pp-qr-item:last-child { border-bottom: 0; }
+.pp-qr-name { display: grid; min-width: 0; font-weight: 600; }
+.pp-qr-name small { color: var(--pp-muted); font-size: .8rem; font-weight: 500; }
+.pp-qr-dots { flex: 1 1 auto; min-width: 12px; border-bottom: 2px dotted #d6c9ac; transform: translateY(-4px); }
+.pp-qr-item strong { flex: 0 0 auto; color: var(--pp-green); font-size: 1.02rem; }
+.pp-qr-item.is-daily { margin: 0 -8px; padding: 9px 8px; background: #fbf5e6; border-radius: 10px; }
+.pp-qr-item.is-daily small { color: var(--pp-brown); font-weight: 700; }
+.pp-qr-note { margin: 16px 4px 0; padding: 12px 14px; color: #6b4a00; text-align: center; background: #fff6df; border: 1px solid #ecd9a8; border-radius: 12px; font-size: .86rem; }
+.pp-qr-info { margin-top: 14px; }
+@media (min-width: 640px) { .pp-qr-info { grid-template-columns: 1fr 1fr; } }
+
+/* Menú del QR en 2 columnas (también en celular) para que la página sea más corta:
+   cada platillo es una tarjeta compacta con nombre, descripción corta (2 renglones) y precio. */
+.pp-qr-section { padding: 12px 10px 10px; }
+.pp-qr-section ul { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.pp-qr-item {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 2px 6px;
+  padding: 8px 9px; background: #fbf9f4; border: 1px solid #efe8da; border-radius: 10px;
+}
+.pp-qr-item:last-child { border-bottom: 1px solid #efe8da; }
+.pp-qr-dots { display: none; }
+.pp-qr-name { font-size: .92rem; line-height: 1.2; }
+.pp-qr-name small {
+  display: -webkit-box; overflow: hidden; margin-top: 2px; font-size: .74rem; line-height: 1.25;
+  -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
+.pp-qr-item strong { font-size: .95rem; line-height: 1.2; }
+.pp-qr-item.is-daily { grid-column: 1 / -1; margin: 0; padding: 8px 9px; background: #fbf5e6; border-color: #ecd9a8; }
+@media (max-width: 420px) {
+  .pp-qr-page .pp-main { padding-inline: 10px; }
+  .pp-qr-nav { margin-inline: -10px; padding-inline: 10px; }
+  .pp-qr-section { padding: 10px 7px 8px; border-radius: 14px; }
+  .pp-qr-section h2 { font-size: 1.2rem; margin-bottom: 6px; }
+  .pp-qr-section ul { gap: 5px; }
+  .pp-qr-item { grid-template-columns: minmax(0, 1fr); padding: 7px 8px; }
+  .pp-qr-name { font-size: .84rem; }
+  .pp-qr-name small { font-size: .7rem; }
+  .pp-qr-item strong { font-size: .88rem; }
+}
+
+/* Menú del QR: por ahora sin la barra superior (logo que lleva a ordenar). Para regresarla
+   basta con borrar estas dos reglas. Las pestañas de categorías quedan fijas hasta arriba. */
+.pp-qr-page .pp-topbar { display: none; }
+.pp-qr-page .pp-qr-nav { top: 0; }
+.pp-qr-page .pp-qr-section { scroll-margin-top: 64px; }
+

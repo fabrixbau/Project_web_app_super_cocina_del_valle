@@ -94,6 +94,8 @@ class Product(models.Model):
     # Portal de clientes (/pedir/): un producto oculto no aparece en el menú público ni como
     # opción de los paquetes, aunque siga disponible para Mesas y Pedidos internos.
     show_to_customers = models.BooleanField("visible para clientes", default=True)
+    # Menú del QR (supercocina.win/menu/): carta fija de consulta, sin pedidos.
+    show_in_qr_menu = models.BooleanField("mostrar en menú QR", default=False)
     component_type = models.CharField(
         max_length=30,
         choices=ComponentType.choices,

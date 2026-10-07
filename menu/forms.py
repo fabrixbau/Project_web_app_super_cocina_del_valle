@@ -55,7 +55,7 @@ class ProductForm(forms.ModelForm):
         model = Product
         fields = (
             "category", "name", "price", "description", "image", "image_position_x",
-            "image_position_y", "image_zoom", "is_available", "show_to_customers",
+            "image_position_y", "image_zoom", "is_available", "show_to_customers", "show_in_qr_menu",
             "component_type", "service_periods", "is_sold_individually", "uses_bread_stock",
             "eligible_for_executive_meal", "packaging_kind", "sort_order",
         )

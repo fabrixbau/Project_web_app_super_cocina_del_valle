@@ -12821,3 +12821,34 @@ html[data-theme="dark"] .live-search-count { color: #edf4f0; }
 /* Cuentas separadas: ⇄ − cantidad + × en una sola fila (5 columnas en vez de 4). */
 .table-pos-layout .table-ticket.is-split .table-ticket-item > .quantity-buttons,
 .table-pos-layout .table-ticket.is-split .quantity-buttons { grid-template-columns: repeat(5, 2.35rem) !important; }
+
+/* Agenda de clientes: fichas compactas en 2 columnas (también en celular) para crecer menos
+   a lo alto. Nombre y teléfono arriba, domicilios en un renglón cada uno, y abajo
+   "Editar →" a la izquierda y "Eliminar" a la derecha en la misma línea. */
+main.internal-panel .customer-agenda-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; align-items: stretch; }
+main.internal-panel .customer-agenda-list > .empty-state { grid-column: 1 / -1; }
+main.internal-panel .customer-agenda-entry { display: flex; min-width: 0; }
+main.internal-panel .customer-agenda-entry .customer-agenda-row {
+  flex: 1 1 auto; grid-template-columns: minmax(0, 1fr); align-content: start; gap: .3rem;
+  min-width: 0; padding: .6rem .75rem 2.75rem; border-left-width: 5px;
+}
+main.internal-panel .customer-agenda-row > span:first-child { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; min-width: 0; }
+main.internal-panel .customer-agenda-row > span:first-child strong { overflow: hidden; font-size: .98rem; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+main.internal-panel .customer-agenda-row > span:first-child small { font-size: .82rem; }
+main.internal-panel .customer-agenda-row > span:nth-child(2) { gap: .1rem; min-width: 0; }
+main.internal-panel .customer-agenda-row > span:nth-child(2) small { overflow: hidden; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+main.internal-panel .customer-agenda-row > strong { position: absolute; left: calc(.75rem + 5px); bottom: .7rem; font-size: .85rem; }
+main.internal-panel .customer-delete-control { right: .6rem; bottom: .5rem; }
+main.internal-panel .customer-delete-control button { min-height: 0; padding: .3rem .6rem; font-size: .78rem; }
+@media (max-width: 600px) {
+  main.internal-panel .customer-agenda-list { gap: .4rem; }
+  main.internal-panel .customer-agenda-entry .customer-agenda-row { padding: .5rem .55rem 2.5rem; }
+  main.internal-panel .customer-agenda-row > span:first-child { display: grid; gap: 0; }
+  main.internal-panel .customer-agenda-row > span:first-child strong { font-size: .86rem; }
+  main.internal-panel .customer-agenda-row > span:first-child small { font-size: .74rem; }
+  main.internal-panel .customer-agenda-row > span:nth-child(2) small { font-size: .7rem; }
+  main.internal-panel .customer-agenda-row > strong { left: calc(.55rem + 5px); bottom: .65rem; font-size: .76rem; }
+  main.internal-panel .customer-delete-control { right: .45rem; bottom: .45rem; }
+  main.internal-panel .customer-delete-control button { padding: .25rem .45rem; font-size: .7rem; }
+  main.internal-panel .customer-delete-message { max-width: 9rem; font-size: .62rem; }
+}

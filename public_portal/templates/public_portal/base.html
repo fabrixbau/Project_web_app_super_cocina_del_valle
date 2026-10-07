@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600;1,700&display=swap">
-  <link rel="stylesheet" href="{% static 'css/public-portal.css' %}?v=27">
+  <link rel="stylesheet" href="{% static 'css/public-portal.css' %}?v=31">
 </head>
 <body class="pp-body {% block body_class %}{% endblock %}">
   <header class="pp-topbar">
@@ -25,7 +25,8 @@
     {% block content %}{% endblock %}
   </main>
   {% block after_main %}{% endblock %}
-  {% public_preview_switch %}
+  {# Vista de prueba por horario (sólo administradores); la carta del QR la omite. #}
+  {% block preview_switch %}{% public_preview_switch %}{% endblock %}
   {# Primera letra en mayúscula en nombres, domicilio y notas (mismo script que la app interna). #}
   <script src="{% static 'js/text-autocapitalize.js' %}?v=2"></script>
   {% block scripts %}{% endblock %}

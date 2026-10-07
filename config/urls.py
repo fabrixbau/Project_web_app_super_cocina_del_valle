@@ -11,6 +11,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from accounts.views import login_view
+from public_portal.views import qr_menu
 
 
 urlpatterns = [
@@ -32,6 +33,8 @@ urlpatterns = [
     path("app/impresion/", include("print_station.urls")),
     path("app/", include("internal_portal.urls")),
     path("pedir/", include("public_portal.urls")),
+    # Carta del QR: menú fijo de consulta (sin pedidos).
+    path("menu/", qr_menu, name="qr_menu"),
 ]
 
 if settings.DEBUG:

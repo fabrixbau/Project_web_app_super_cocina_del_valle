@@ -22,6 +22,55 @@ CHECKOUT_DRAFT_FIELDS = (
 STALE_PAGE_MESSAGE = "La página estuvo abierta mucho tiempo; revisa tus datos y vuelve a enviar."
 
 
+QR_MENU_CATEGORY_ORDER = ("Desayunos", "Plancha", "Bebidas calientes", "Bebidas frías", "Postres")
+QR_MENU_DAILY_WATER_CATEGORY = "Bebidas frías"
+QR_MENU_NOTE = (
+    "El menú está sujeto a disponibilidad. Los precios pueden cambiar sin previo aviso; "
+    "cualquier cambio en un platillo puede modificar su precio."
+)
+
+
+def qr_menu(request):
+    """Carta del QR (supercocina.win/menu/): sólo consulta, sin pedidos.
+
+    Muestra los productos con "Mostrar en menú QR" que estén disponibles, por categoría en el
+    orden acordado, y al inicio de Bebidas frías el "Agua del día" con el sabor de hoy.
+    """
+    from django.utils import timezone
+
+    from menu.models import DailyMenu, Product
+
+    products = Product.objects.filter(show_in_qr_menu=True, is_available=True).select_related("category").order_by(
+        "category__name", "sort_order", "name",
+    )
+    sections = {}
+    for product in products:
+        sections.setdefault(product.category.name, []).append(product)
+    ordered = [name for name in QR_MENU_CATEGORY_ORDER if name in sections]
+    ordered += sorted(name for name in sections if name not in QR_MENU_CATEGORY_ORDER)
+
+    today_menu = DailyMenu.objects.filter(
+        date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED,
+    ).select_related("water_product").first()
+    water = today_menu.water_product if today_menu else None
+    concept = Product.objects.filter(name__iexact="Agua del día").order_by("pk").first()
+    daily_water = {
+        "name": "Agua del día",
+        "today": water.name if water else "",
+        "price": water.price if water else (concept.price if concept else None),
+    }
+    if QR_MENU_DAILY_WATER_CATEGORY not in ordered:
+        ordered.insert(min(len(ordered), QR_MENU_CATEGORY_ORDER.index(QR_MENU_DAILY_WATER_CATEGORY)), QR_MENU_DAILY_WATER_CATEGORY)
+    return render(request, "public_portal/qr_menu.html", {
+        "sections": [{"name": name, "slug": f"cat-{index}", "products": sections.get(name, [])} for index, name in enumerate(ordered, start=1)],
+        "daily_water": daily_water,
+        "daily_water_category": QR_MENU_DAILY_WATER_CATEGORY,
+        "note": QR_MENU_NOTE,
+        "whatsapp_url": WHATSAPP_URL, "whatsapp_label": WHATSAPP_LABEL,
+        "address_label": ADDRESS_LABEL, "maps_url": MAPS_URL,
+    })
+
+
 def csrf_failure(request, reason=""):
     """Código de seguridad vencido en /pedir/: regresar a la página con un aviso amable.
 
