@@ -835,3 +835,34 @@ body.pp-sheet-open { overflow: hidden; }
 .pp-qr-page .pp-qr-nav { top: 0; }
 .pp-qr-page .pp-qr-section { scroll-margin-top: 64px; }
 
+/* Menú del QR · Menú del día al final (pizarra verde y dorado; se actualiza con lo publicado). */
+.pp-qr-daily {
+  margin-top: 16px; padding: 8px; color: #f4ead6; scroll-margin-top: 64px;
+  background: radial-gradient(120% 140% at 20% 0%, #1f5a43 0%, #143d2e 55%, #0f3024 100%); border-radius: 18px;
+}
+.pp-qr-daily-frame {
+  display: grid; justify-items: center; gap: 8px; padding: 18px 12px 16px; text-align: center;
+  border: 1px solid rgb(214 178 106 / 55%); border-radius: 13px;
+}
+.pp-qr-daily .pp-today-title { font-size: clamp(1.4rem, 6vw, 1.8rem); }
+.pp-qr-daily-service { padding: 4px 12px; color: #143d2e; background: #d6b26a; border-radius: 999px; font-size: .82rem; font-weight: 800; }
+.pp-qr-daily-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; width: 100%; margin-top: 4px; }
+.pp-qr-daily-groups > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
+/* En celular los guisados (último grupo, a todo lo ancho) van en 2 columnas. */
+.pp-qr-daily-groups > div:last-child:nth-child(odd) ul { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 10px; }
+.pp-qr-daily-service { line-height: 1.3; }
+.pp-qr-daily-groups h3 { color: #d6b26a; font-size: .7rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.pp-qr-daily-groups ul { display: grid; gap: 3px; margin: 4px 0 0; padding: 0; list-style: none; }
+.pp-qr-daily-groups li { font-family: "Playfair Display", Georgia, serif; color: #fbf3e2; font-size: .98rem; line-height: 1.25; }
+.pp-qr-daily-prices { display: grid; gap: 6px; width: 100%; margin-top: 4px; }
+.pp-qr-daily-prices span { display: grid; gap: 1px; padding: 8px 10px; background: rgb(0 0 0 / 18%); border: 1px solid rgb(214 178 106 / 35%); border-radius: 10px; }
+.pp-qr-daily-prices strong { color: #fbf3e2; font-size: .95rem; }
+.pp-qr-daily-prices small { color: rgb(244 234 214 / 82%); font-size: .78rem; }
+.pp-qr-daily-empty { color: rgb(244 234 214 / 85%); font-size: .9rem; }
+@media (min-width: 640px) {
+  .pp-qr-daily-groups { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pp-qr-daily-groups > div:last-child:nth-child(odd) { grid-column: auto; }
+  .pp-qr-daily-groups > div:last-child:nth-child(odd) ul { grid-template-columns: minmax(0, 1fr); }
+  .pp-qr-daily-prices { grid-template-columns: 1fr 1fr; }
+}
+

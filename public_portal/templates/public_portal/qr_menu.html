@@ -15,6 +15,7 @@ disponibles, por categoría; el Agua del día muestra el sabor de hoy. Sin fotos
 
 <nav class="pp-qr-nav" aria-label="Categorías">
   {% for section in sections %}<a href="#{{ section.slug }}">{{ section.name }}</a>{% endfor %}
+  <a href="#menu-del-dia">Menú del día</a>
 </nav>
 
 {% for section in sections %}
@@ -30,6 +31,28 @@ disponibles, por categoría; el Agua del día muestra el sabor de hoy. Sin fotos
     </ul>
   </section>
 {% endfor %}
+
+{% with daily=daily_section %}
+<section class="pp-qr-daily" id="menu-del-dia" aria-label="Menú del día">
+  <div class="pp-qr-daily-frame">
+    {% if daily.menu %}<p class="pp-today-date">{{ daily.menu.date|date:"l j \d\e F" }}</p>{% endif %}
+    <h2 class="pp-today-title"><span class="pp-today-rule" aria-hidden="true"></span>Menú del día<span class="pp-today-rule" aria-hidden="true"></span></h2>
+    <p class="pp-qr-daily-service">{{ daily.service_note }}</p>
+    {% if daily.menu and daily.groups %}
+      <div class="pp-qr-daily-groups">
+        {% for group in daily.groups %}<div><h3>{{ group.title }}</h3><ul>{% for product in group.products %}<li>{{ product.name }}</li>{% endfor %}</ul></div>{% endfor %}
+      </div>
+      {% if daily.menu.water_product %}<p class="pp-today-water">Agua del día · <strong>{{ daily.menu.water_product.name }}</strong></p>{% endif %}
+      <div class="pp-qr-daily-prices">
+        {% if daily.running %}<span><strong>{{ daily.running.name }}</strong><small>Sin agua ${{ daily.running.price_without_water|floatformat:"-2" }} · Con agua ${{ daily.running.price_with_water|floatformat:"-2" }}</small></span>{% endif %}
+        {% if daily.executive %}<span><strong>{{ daily.executive.name }}</strong><small>Tercer tiempo a la plancha · Sin agua ${{ daily.executive.price_without_water|floatformat:"-2" }} · Con agua ${{ daily.executive.price_with_water|floatformat:"-2" }}</small></span>{% endif %}
+      </div>
+    {% else %}
+      <p class="pp-qr-daily-empty">El menú del día se publica cada mañana. ¡Vuelve a escanear más tarde!</p>
+    {% endif %}
+  </div>
+</section>
+{% endwith %}
 
 <p class="pp-qr-note">{{ note }}</p>
 

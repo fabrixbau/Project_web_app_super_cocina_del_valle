@@ -24,6 +24,7 @@ STALE_PAGE_MESSAGE = "La página estuvo abierta mucho tiempo; revisa tus datos y
 
 QR_MENU_CATEGORY_ORDER = ("Desayunos", "Plancha", "Bebidas calientes", "Bebidas frías", "Postres")
 QR_MENU_DAILY_WATER_CATEGORY = "Bebidas frías"
+QR_MENU_DAILY_SERVICE_NOTE = "Servicio de comida del día a partir de la 1:00 p. m."
 QR_MENU_NOTE = (
     "El menú está sujeto a disponibilidad. Los precios pueden cambiar sin previo aviso; "
     "cualquier cambio en un platillo puede modificar su precio."
@@ -59,11 +60,28 @@ def qr_menu(request):
         "today": water.name if water else "",
         "price": water.price if water else (concept.price if concept else None),
     }
+    # Menú del día al final de la carta: se actualiza solo con lo que se publique hoy.
+    from menu.catalog import public_daily_menu
+    from menu.models import MealPackage
+
+    published_menu, daily_groups = public_daily_menu()
+    packages = {package.package_type: package for package in MealPackage.objects.filter(is_active=True)}
+    daily_section = {
+        "menu": published_menu,
+        "groups": [
+            {"title": "Guisados del día" if group["title"] == "Guisados" else group["title"], "products": group["products"]}
+            for group in daily_groups
+        ],
+        "running": packages.get(MealPackage.PackageType.RUNNING),
+        "executive": packages.get(MealPackage.PackageType.EXECUTIVE),
+        "service_note": QR_MENU_DAILY_SERVICE_NOTE,
+    }
     if QR_MENU_DAILY_WATER_CATEGORY not in ordered:
         ordered.insert(min(len(ordered), QR_MENU_CATEGORY_ORDER.index(QR_MENU_DAILY_WATER_CATEGORY)), QR_MENU_DAILY_WATER_CATEGORY)
     return render(request, "public_portal/qr_menu.html", {
         "sections": [{"name": name, "slug": f"cat-{index}", "products": sections.get(name, [])} for index, name in enumerate(ordered, start=1)],
         "daily_water": daily_water,
+        "daily_section": daily_section,
         "daily_water_category": QR_MENU_DAILY_WATER_CATEGORY,
         "note": QR_MENU_NOTE,
         "whatsapp_url": WHATSAPP_URL, "whatsapp_label": WHATSAPP_LABEL,
