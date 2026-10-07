@@ -255,7 +255,10 @@ def ticket_summary(account):
         "standard_quantities": standard_quantities,
         "candidate_quantities": candidate_quantities,
         "meal_quantities": meal_quantities,
-        "stock_warnings": stock_warning_payload(selected_date=timezone.localdate(account.opened_at)),
+        # Los productos se descuentan de las existencias de hoy: los avisos también son de hoy
+        # (antes usaban el día en que se abrió la mesa y una cuenta de otro día mostraba
+        # faltantes viejos).
+        "stock_warnings": stock_warning_payload(selected_date=timezone.localdate()),
     }
 
 

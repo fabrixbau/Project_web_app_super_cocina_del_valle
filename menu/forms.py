@@ -9,11 +9,11 @@
 # eligen y cada opción define si es estándar, disponible y si cobra extra. Borra esta nota.
 
 from django import forms
-from django.db.models import Case, IntegerField, Value, When
+from django.db.models import Case, IntegerField, Sum, Value, When
 
 from .models import (
     Category, DailyMenu, DailyProductStock, MealPackage, Product, ProductOption,
-    ProductOptionGroup,
+    ProductOptionGroup, StockMovement,
 )
 from .widgets import ProductImageInput
 
@@ -285,6 +285,9 @@ class FixedStockForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["product"].widget.attrs["data-searchable-select"] = ""
+
+
+MENU_ADJUSTMENT_NOTE = "Ajuste desde el menú diario"
 
 
 class DailyMenuForm(forms.ModelForm):
@@ -600,8 +603,14 @@ class DailyMenuForm(forms.ModelForm):
                 lookup["product__isnull"] = True
             stock = DailyProductStock.objects.filter(**lookup).first()
             adjustment = 0
-            if stock and stock.movements.exists() and stock.initial_quantity != quantity:
-                adjustment = quantity - stock.initial_quantity
+            if stock and stock.movements.exists():
+                # Las raciones "efectivas" de esa existencia = inicial + ajustes que ya hizo el
+                # menú. Sólo se ajusta la diferencia contra eso (antes se volvía a sumar en
+                # cada guardado y las raciones crecían de más).
+                menu_adjustments = stock.movements.filter(
+                    reason=StockMovement.Reason.ADJUSTMENT, note__startswith=MENU_ADJUSTMENT_NOTE,
+                ).aggregate(total=Sum("quantity"))["total"] or 0
+                adjustment = quantity - (stock.initial_quantity + menu_adjustments)
                 quantity = stock.initial_quantity
             if not stock:
                 stock = DailyProductStock(**{key: value for key, value in lookup.items() if key != "product__isnull"})
@@ -612,7 +621,7 @@ class DailyMenuForm(forms.ModelForm):
             if adjustment:
                 adjust_stock(
                     stock=stock, quantity=adjustment, actor=actor,
-                    note=f"Ajuste desde el menú diario ({'+' if adjustment > 0 else ''}{adjustment})",
+                    note=f"{MENU_ADJUSTMENT_NOTE} ({'+' if adjustment > 0 else ''}{adjustment})",
                 )
             from notifications.services import sync_stock_alert
             sync_stock_alert(stock)
