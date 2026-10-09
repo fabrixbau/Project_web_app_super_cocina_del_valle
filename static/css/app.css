@@ -12858,3 +12858,8 @@ main.internal-panel .customer-delete-control button { min-height: 0; padding: .3
 .table-ticket .ticket-package-edit, .table-ticket .ticket-package-edit strong { min-height: 0; color: inherit; font: inherit; font-weight: 700; box-shadow: none; }
 .table-ticket .ticket-package-edit strong { font-size: inherit; }
 
+/* Saldo a favor usado en un pedido: desglose en Adeudos y en el detalle del pedido. */
+.debt-row > summary .debt-credit-note { color: #567064; font-size: .74rem; font-weight: 500; }
+.order-credit-breakdown { display: grid; gap: .15rem; margin-top: .35rem; color: #285943; }
+.order-credit-breakdown .nowrap-amount, .debt-credit-note .nowrap-amount { white-space: nowrap; }
+

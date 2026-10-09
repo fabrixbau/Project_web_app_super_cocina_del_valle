@@ -185,7 +185,14 @@ def create_customer_debt(*, order, actor, note=""):
     # nota después de leerla.
     outstanding = order.amount_due
     if outstanding <= 0:
-        raise ValidationError("Este pedido ya está cubierto por completo con el saldo a favor del cliente.")
+        last_use = CustomerCreditMovement.objects.filter(
+            order=order, action=CustomerCreditMovement.Action.REDEMPTION,
+        ).order_by("-created_at").first()
+        when = f" el {timezone.localtime(last_use.created_at):%d/%m}" if last_use else ""
+        raise ValidationError(
+            f"Este pedido ya está pagado: se cubrió con ${order.credit_applied:.2f} del saldo a favor "
+            f"del cliente{when}. No queda nada por cobrar."
+        )
     return CustomerDebt.objects.create(
         customer=order.agenda_customer, order=order, original_amount=outstanding,
         created_by=actor, note=" ".join(note.split()),

@@ -1613,7 +1613,7 @@ class CustomerCreditTests(TestCase):
 
     def test_marking_unpaid_is_blocked_when_credit_fully_covers_the_order(self):
         order = self.make_order(status=Order.Status.PREPARING, total=200, credit_applied=200)
-        with self.assertRaisesMessage(ValidationError, "cubierto por completo"):
+        with self.assertRaisesMessage(ValidationError, "ya está pagado: se cubrió con"):
             create_customer_debt(order=order, actor=self.actor)
 
     def test_cashier_can_register_a_deposit_by_customer_name(self):
