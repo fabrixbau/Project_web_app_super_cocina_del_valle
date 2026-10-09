@@ -606,7 +606,7 @@ def _validate_items_closeable(items, *, allow_empty=False):
     # Borra esta nota después de leerla.
     if not items and not allow_empty:
         raise ValidationError("No puedes cerrar una cuenta sin consumos.")
-    # Ya no se bloquea por comidas incompletas: las piezas sueltas de Comida corrida /
+    # Ya no se bloquea por comidas incompletas: las piezas sueltas de Comida mexicana /
     # ejecutiva se cobran por pieza y un paquete con tiempos pendientes, al precio por
     # orden de los tiempos elegidos (ver incomplete_package_price).
 

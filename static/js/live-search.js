@@ -28,7 +28,7 @@ Borra esta nota después de leerla. */
     return text.includes(query) ? 2 : 99;
   };
 
-  // Tarjetas que arman paquetes (Comida corrida/ejecutiva): sólo se usan si el producto no
+  // Tarjetas que arman paquetes (Comida mexicana/ejecutiva): sólo se usan si el producto no
   // tiene otra tarjeta, para que + agregue el producto suelto como en Comida por orden/categoría.
   const AUTO_MEAL_CARD = "[data-auto-meal-card], [data-internal-auto-product]";
 

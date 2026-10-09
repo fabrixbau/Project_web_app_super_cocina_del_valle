@@ -375,7 +375,7 @@ class DailyMenuForm(forms.ModelForm):
             self.fields[name] = forms.ModelChoiceField(
                 label=f"Guisado {slot}", queryset=stew_queryset, required=False, empty_label="Sin seleccionar",
             )
-            # Sólo el nombre del platillo (sin "Comida corrida · …") para que quepa en la lista.
+            # Sólo el nombre del platillo (sin "Comida mexicana · …") para que quepa en la lista.
             self.fields[name].label_from_instance = lambda product: product.name
             for attr in ("data-searchable-select", "data-click-toggle-select"):
                 self.fields[name].widget.attrs[attr] = ""

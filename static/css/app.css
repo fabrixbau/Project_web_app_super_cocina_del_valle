@@ -94,7 +94,7 @@ body { margin: 0; background: #f6f3eb; }
 @media (max-width: 650px) { .login-profile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .login-access-panel { grid-template-columns: 1fr; } }
 @media (max-width: 420px) { .login-profile-grid { grid-template-columns: 1fr; } }
 
-/* Corrida y ejecutiva: extras proporcionados, sin una celda de agua sobredimensionada. */
+/* Mexicana y ejecutiva: extras proporcionados, sin una celda de agua sobredimensionada. */
 .auto-package-options { grid-template-columns: 138px minmax(300px, 1.45fr) 150px minmax(245px, 1.15fr); }
 .auto-package-options > .auto-extra-group:first-child { width: 138px; justify-self: start; }
 .auto-package-options > .auto-extra-group:first-child > button { min-width: 0; padding-inline: .45rem; }
@@ -1545,7 +1545,7 @@ devuelve overflow:visible sólo a esta sección. Borra esta nota al leerla. */
 .chicken-choice-dialog .chicken-choice-buttons button:last-child { background: #b6653f; }
 .confirm-package-button { width: 100%; padding: .9rem; font-weight: 800; }
 /* NOTA TEMPORAL PARA APRENDIZAJE:
-   Los formularios de Corrida y Ejecutiva conservan los campos de Django, pero cada tiempo se
+   Los formularios de Mexicana y Ejecutiva conservan los campos de Django, pero cada tiempo se
    presenta como un bloque de botones grandes. El color seleccionado confirma visualmente la
    elección sin depender del pequeño círculo del radio. Borra esta nota al validar el diseño. */
 .table-package-dialog:has(form[data-package-form]) { width: min(900px, calc(100% - 2rem)); padding: 0; overflow: hidden; }
@@ -8339,7 +8339,7 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   .catalog-product-card .catalog-customize-button { display: block; width: 100%; }
 }
 
-/* Comida ejecutiva de Mesas comparte la misma matriz compacta que comida corrida. */
+/* Comida ejecutiva de Mesas comparte la misma matriz compacta que comida mexicana. */
 @media (max-width: 900px) {
   .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .package-visual-groups {
     display: grid !important;
@@ -8775,7 +8775,7 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
   }
 }
 
-/* Constructor de paquetes de Pedidos: distribución compacta de corrida y ejecutiva. */
+/* Constructor de paquetes de Pedidos: distribución compacta de mexicana y ejecutiva. */
 @media (max-width: 900px) {
   .visual-package-dialog:has(form[data-internal-package]) {
     width: min(100% - .7rem, 820px);
@@ -10357,7 +10357,7 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
 .table-operation-header .ticket-heading-actions > .status-badge { display: none !important; }
 .package-packaging-options article { cursor: pointer; }
 
-/* Mesas, iPad Air horizontal: composición final de Corrida y Ejecutiva. */
+/* Mesas, iPad Air horizontal: composición final de Mexicana y Ejecutiva. */
 @media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
   .table-operation-header:not(.is-closed) .table-ticket-heading,
   .table-operation-header.is-breakfast:not(.is-closed) .table-ticket-heading {
@@ -10481,7 +10481,7 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
   }
 }
 
-/* Mesas, Corrida en iPad Air horizontal: cinco extras exactos al 20%. */
+/* Mesas, Mexicana en iPad Air horizontal: cinco extras exactos al 20%. */
 @media (min-width: 1000px) and (max-width: 1200px) and (orientation: landscape) and (pointer: coarse) {
   .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras {
     display: grid !important;
@@ -11212,7 +11212,7 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
   }
 }
 
-/* Prioridad definitiva: los extras de Corrida/Ejecutiva (agua, refill, bolillo,
+/* Prioridad definitiva: los extras de Mexicana/Ejecutiva (agua, refill, bolillo,
    huevo, comentario) nunca deben "filtrarse" a la cuadrícula de los tres tiempos
    en celular. Varias reglas anteriores alternan display:contents/grid y
    grid-column/grid-row explícitos para distintos anchos, y la última en el
@@ -11249,7 +11249,7 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
      calificadas con form[data-package-form][data-package-kind="executive"], que
      por llevar dos atributos más pesan más que las reglas genéricas de arriba
      (incluida la del propio contenedor). Se repiten aquí con esa misma
-     calificación para igualar la especificidad en ambos casos (corrida y
+     calificación para igualar la especificidad en ambos casos (mexicana y
      ejecutiva) y que gane la última regla del archivo. Borra esta nota. */
   .table-visual-package-dialog form[data-package-form][data-package-kind="running"] .table-package-visual-extras,
   .table-visual-package-dialog form[data-package-form][data-package-kind="executive"] .table-package-visual-extras {
@@ -11404,7 +11404,7 @@ main:has(.order-board-columns) > .page-heading .new-order-type-actions .order-ty
 }
 
 /* Nueva distribución en celular para Agua/Refill+Bolillo/Huevo de Comida
-   corrida y Comida ejecutiva (Mesas): 3 columnas iguales (agua, refill+bolillo
+   mexicana y Comida ejecutiva (Mesas): 3 columnas iguales (agua, refill+bolillo
    apilados, huevo) y el comentario abajo a todo el ancho, en vez de 5 tarjetas
    apiladas una tras otra a ancho completo (que era difícil de escanear).
    NOTA TEMPORAL PARA APRENDIZAJE: .table-package-refill-bread-group es una
@@ -12057,7 +12057,7 @@ html[data-theme="dark"] .table-ticket-item .ticket-item-modification { color: #f
   }
   .internal-pos-workspace [data-internal-package-open] > strong { font-size: .72rem !important; white-space: nowrap; }
   .internal-pos-workspace [data-internal-package-open] > span { margin: 0 !important; font-size: .58rem !important; white-space: nowrap; }
-  /* Barra de complementos de Comida corrida/ejecutiva: una fila con anchos según su
+  /* Barra de complementos de Comida mexicana/ejecutiva: una fila con anchos según su
      contenido (Acompañamiento lleva tres botones) y título arriba en todas, huevo incluido. */
   .internal-pos-workspace .internal-menu-workspace .auto-package-options[data-auto-package-options] {
     display: grid !important;
@@ -12124,7 +12124,7 @@ html[data-theme="dark"] .table-ticket-item .ticket-item-modification { color: #f
     height: .45rem !important;
   }
 
-  /* Títulos de categoría ("Comida corrida", etc.): sin el margen por defecto del h2
+  /* Títulos de categoría ("Comida mexicana", etc.): sin el margen por defecto del h2
      (~20 px arriba y abajo), que dejaba franjas vacías alrededor del título. */
   .internal-pos-workspace .internal-menu-workspace .internal-category > h2 {
     margin: .2rem 0 .3rem !important;
@@ -12134,7 +12134,7 @@ html[data-theme="dark"] .table-ticket-item .ticket-item-modification { color: #f
     margin-top: 0 !important;
   }
 
-  /* Envases de Comida corrida: en ~160 px por tarjeta la imagen dejaba ~10 px al nombre y
+  /* Envases de Comida mexicana: en ~160 px por tarjeta la imagen dejaba ~10 px al nombre y
      el contador se desbordaba. Imagen chica a la izquierda; tipo, nombre (hasta 2 líneas)
      y precio a la derecha; contador − # + a todo lo ancho abajo. */
   .internal-pos-workspace .packaging-quick-panel .packaging-product-grid > .packaging-product-card {
@@ -12383,7 +12383,7 @@ html[data-theme="dark"] .table-ticket > .current-ticket-heading > .ticket-headin
   }
 }
 
-/* Mesas en TABA+9 y escritorio. Corrida: el tercer tiempo sólo ocupa la primera fila y
+/* Mesas en TABA+9 y escritorio. Mexicana: el tercer tiempo sólo ocupa la primera fila y
    el comentario para cocina sube al hueco que quedaba debajo de él (columna 3, junto a
    Agua del día y Refill/Huevo). Ejecutiva: el comentario va junto a Refill/Huevo. */
 @media (min-width: 1201px) {
@@ -12853,7 +12853,7 @@ main.internal-panel .customer-delete-control button { min-height: 0; padding: .3
   main.internal-panel .customer-delete-message { max-width: 9rem; font-size: .62rem; }
 }
 
-/* Ticket: "Comida corrida" / "Comida ejecutiva" con el mismo tamaño, color y negrita que
+/* Ticket: "Comida mexicana" / "Comida ejecutiva" con el mismo tamaño, color y negrita que
    cualquier otro producto (el botón para editar el paquete no cambia la letra). */
 .table-ticket .ticket-package-edit, .table-ticket .ticket-package-edit strong { min-height: 0; color: inherit; font: inherit; font-weight: 700; box-shadow: none; }
 .table-ticket .ticket-package-edit strong { font-size: inherit; }

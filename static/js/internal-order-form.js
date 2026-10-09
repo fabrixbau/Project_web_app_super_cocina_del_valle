@@ -1027,7 +1027,7 @@
     });
   }));
 
-  // NOTA TEMPORAL PARA APRENDIZAJE: sólo la Corrida puede contener el guisado de
+  // NOTA TEMPORAL PARA APRENDIZAJE: sólo la Mexicana puede contener el guisado de
   // pollo del día. Comparamos el ID seleccionado y mostramos Pierna/Muslo únicamente
   // en ese caso; al elegir otro guisado limpiamos la pieza anterior. Borra esta nota.
   document.querySelectorAll("form[data-internal-package]").forEach((form) => {

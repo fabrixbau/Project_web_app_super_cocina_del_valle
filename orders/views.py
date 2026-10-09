@@ -2,7 +2,7 @@
 # Las vistas finales forman el panel operativo y las acciones seguras de reparto.
 # El flujo público exige modalidad en sesión antes del menú; checkout usa esa decisión
 # para mostrar solo los datos necesarios. Borra esta nota después de leerla.
-# Corrida y ejecutiva permiten pedidos anticipados antes de la 1 p. m. con un aviso.
+# Mexicana y ejecutiva permiten pedidos anticipados antes de la 1 p. m. con un aviso.
 # Productos generales también respetan la visibilidad pública de su categoría según horario.
 
 import copy
@@ -322,7 +322,7 @@ def internal_order_ticket(order):
                 meal_quantities[str(item.product_id)] = meal_quantities.get(str(item.product_id), 0) + item.quantity
         else:
             # Las piezas que ya forman un paquete siguen contando en las tarjetas de
-            # Comida corrida/ejecutiva (antes el contador volvía a 0 al armarse).
+            # Comida mexicana/ejecutiva (antes el contador volvía a 0 al armarse).
             for course_id in (item.first_course_id, item.second_course_id, item.main_course_id):
                 if course_id:
                     meal_quantities[str(course_id)] = meal_quantities.get(str(course_id), 0) + item.quantity
@@ -1074,7 +1074,8 @@ def internal_order_edit(request, order_id):
         mode = "breakfast" if timezone.localtime().time() < time(13, 0) else "lunch"
     visibility = "show_on_table_breakfast" if mode == "breakfast" else "show_on_table_lunch"
     ordering = "table_breakfast_order" if mode == "breakfast" else "table_lunch_order"
-    reserved_category_names = ("Comida corrida", "Comida ejecutiva", "Comida por orden")
+    # "Comida corrida" es el nombre anterior de Comida mexicana (2026-10-09).
+    reserved_category_names = ("Comida mexicana", "Comida corrida", "Comida ejecutiva", "Comida por orden")
     categories = list(Category.objects.filter(**{visibility: True}).exclude(
         name__in=reserved_category_names,
     ).order_by(ordering, "name").prefetch_related(Prefetch(

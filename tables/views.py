@@ -17,7 +17,7 @@
 # Los paquetes abiertos conservan y reutilizan el menú de su fecha original al editarse.
 # El detalle operativo nunca se guarda en caché: al recargar debe consultar el menú publicado
 # del día y no reutilizar el HTML que el navegador mostró ayer. Borra esta nota al leerla.
-# Corrida, Ejecutiva y Por orden son nombres reservados: se excluyen del catálogo normal
+# Mexicana, Ejecutiva y Por orden son nombres reservados: se excluyen del catálogo normal
 # en ambos modos y solo se construyen con el menú diario dentro de Modo comida. Borra esta nota.
 
 import copy
@@ -99,7 +99,7 @@ def planned_auto_meal_selection(request, account_id, slot, product_id, chicken_p
     # la vez (builders[0]) y se rechazaba capturar el mismo tiempo dos veces seguidas —
     # obligando a completar primero+segundo+tercero en orden antes de poder iniciar la
     # siguiente comida. El desarrollador pidió poder capturar, por ejemplo, 5 primeros
-    # tiempos seguidos (para 5 comidas corridas) sin ese bloqueo. Ahora se busca, entre
+    # tiempos seguidos (para 5 comidas mexicanas) sin ese bloqueo. Ahora se busca, entre
     # todas las comidas pendientes de esta cuenta, la primera a la que todavía le falte
     # este tiempo; si todas ya lo tienen, se abre una comida pendiente nueva. El orden en
     # que se completen ya no importa, sólo que las cantidades coincidan al final. Borra
@@ -230,7 +230,7 @@ def ticket_summary(account):
             meal_quantities[product_key] = meal_quantities.get(product_key, 0) + item.quantity
         if item.item_type == TableAccountItem.ItemType.PACKAGE:
             # Las piezas que ya forman un paquete siguen contando en las tarjetas de
-            # Comida corrida/ejecutiva (antes el contador volvía a 0 al armarse).
+            # Comida mexicana/ejecutiva (antes el contador volvía a 0 al armarse).
             for course_id in (item.first_course_product_id, item.second_course_product_id, item.main_course_product_id):
                 if course_id:
                     meal_quantities[str(course_id)] = meal_quantities.get(str(course_id), 0) + item.quantity
@@ -455,7 +455,8 @@ def table_detail(request, account_id):
         to_attr="candidate_products",
     ))
     category_queryset = category_queryset.exclude(
-        Q(name__iexact="Comida corrida")
+        Q(name__iexact="Comida mexicana")
+        | Q(name__iexact="Comida corrida")  # nombre anterior (2026-10-09)
         | Q(name__iexact="Comida ejecutiva")
         | Q(name__iexact="Comida por orden")
     )

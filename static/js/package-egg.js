@@ -30,7 +30,7 @@
     const name = first.name.replace(/first_course$/, "egg_product");
     const itemId = form.closest("dialog")?.id.match(/^package-edit-(\d+)$/)?.[1];
     const choice = makeChoice(name, itemId ? initials[itemId] : "");
-    // Paquetes de Mesas (corrida y ejecutiva): el huevo ocupa el lugar que dejó "Lleva bolillo".
+    // Paquetes de Mesas (mexicana y ejecutiva): el huevo ocupa el lugar que dejó "Lleva bolillo".
     const slot = form.querySelector("[data-egg-slot]");
     if (slot) {
       slot.replaceWith(choice);
@@ -43,7 +43,7 @@
   });
 
   // Pedidos: huevo en las opciones de la comida armada tiempo por tiempo. En Mesas ya no
-  // se muestra ahí; el huevo se elige en el diálogo de Comida corrida / ejecutiva.
+  // se muestra ahí; el huevo se elige en el diálogo de Comida mexicana / ejecutiva.
   document.querySelectorAll("#internal-running [data-auto-package-options], #internal-executive [data-auto-package-options]").forEach((container) => {
     container.append(makeChoice("egg_product"));
   });

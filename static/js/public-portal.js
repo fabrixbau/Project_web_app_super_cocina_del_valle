@@ -62,9 +62,9 @@
   }
 
   // ---------------------------------------------------------------- pizarra del menú del día
-  // Pestañas Comida corrida | Comida ejecutiva y "+N opciones más" de la plancha.
+  // Pestañas Comida mexicana | Comida ejecutiva y "+N opciones más" de la plancha.
   // Tocar otra vez la pestaña ya elegida (o doble toque) abre su armador, igual que
-  // "Armar mi comida corrida/ejecutiva →".
+  // "Armar mi comida mexicana/ejecutiva →".
   document.querySelectorAll("[data-pp-board]").forEach((board) => {
     const tabs = [...board.querySelectorAll("[data-pp-board-select]")];
     tabs.forEach((tab) => tab.addEventListener("click", () => {

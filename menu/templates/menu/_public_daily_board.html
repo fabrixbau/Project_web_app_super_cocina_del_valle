@@ -1,5 +1,5 @@
 {% comment %}
-"Menú del día" estilo pizarra elegante con dos pestañas: Comida corrida | Comida ejecutiva.
+"Menú del día" estilo pizarra elegante con dos pestañas: Comida mexicana | Comida ejecutiva.
 Primer y segundo tiempo son los mismos; el tercer tiempo cambia (guisados del día o platillos a
 la plancha). De la plancha se ven 3 destacados del día y "+N opciones más" despliega el resto.
 public-portal.js cambia la pestaña (data-pp-board-tab), abre el armador si se toca otra vez
@@ -14,7 +14,7 @@ la pestaña ya elegida y despliega las opciones.
 
     {% if running_package and executive_package and executive_featured %}
       <div class="pp-today-tabs" role="tablist" aria-label="Tipo de comida">
-        <button type="button" role="tab" aria-selected="true" data-pp-board-select="running">Comida corrida <span>${{ running_package.price_without_water }}</span></button>
+        <button type="button" role="tab" aria-selected="true" data-pp-board-select="running">Comida mexicana <span>${{ running_package.price_without_water }}</span></button>
         <button type="button" role="tab" aria-selected="false" data-pp-board-select="executive">Comida ejecutiva <span>${{ executive_package.price_without_water }}</span></button>
       </div>
     {% endif %}
@@ -51,8 +51,8 @@ la pestaña ya elegida y despliega las opciones.
 
     {% if running_package %}
       <a class="pp-today-cta" data-pp-board-for="running" href="{% url 'public_portal:package_selection' running_package.package_type %}">
-        <span>Comida corrida completa desde <strong>${{ running_package.price_without_water }}</strong></span>
-        <span class="pp-today-cta-button">Armar mi comida corrida <span aria-hidden="true">→</span></span>
+        <span>Comida mexicana completa desde <strong>${{ running_package.price_without_water }}</strong></span>
+        <span class="pp-today-cta-button">Armar mi comida mexicana <span aria-hidden="true">→</span></span>
       </a>
     {% endif %}
     {% if executive_package and executive_featured %}

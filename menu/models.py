@@ -50,7 +50,7 @@ class Category(models.Model):
     show_on_table_lunch = models.BooleanField("mostrar en modo comida", default=True)
     show_table_packages = models.BooleanField(
         "mostrar paquetes de mesa al elegirla", default=False,
-        help_text="Actívalo en la categoría que debe abrir Comida corrida y ejecutiva.",
+        help_text="Actívalo en la categoría que debe abrir Comida mexicana y ejecutiva.",
     )
 
     class Meta:
@@ -367,7 +367,7 @@ class DailyMenuStew(models.Model):
 
 class MealPackage(models.Model):
     class PackageType(models.TextChoices):
-        RUNNING = "running", "Comida corrida"
+        RUNNING = "running", "Comida mexicana"
         EXECUTIVE = "executive", "Comida ejecutiva"
 
     package_type = models.CharField(max_length=20, choices=PackageType.choices, unique=True)

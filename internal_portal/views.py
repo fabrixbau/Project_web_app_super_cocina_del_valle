@@ -98,7 +98,7 @@ def reports(request):
         if item.package_id and item.package:
             return item.package.package_type
         name = item.package_name_snapshot.lower()
-        return "executive" if "ejecut" in name else "running" if "corrida" in name else "other"
+        return "executive" if "ejecut" in name else "running" if "mexicana" in name or "corrida" in name else "other"
 
     def collect(items, *, table=False):
         for item in items:

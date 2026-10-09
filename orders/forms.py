@@ -28,7 +28,7 @@ class PackageCartForm(PackageSelectionForm):
         self.fields.pop("order_type")
         if self.customers_only:
             # Portal de clientes: sin la opción vacía "---------" y con el nombre del
-            # producto a secas (Product.__str__ antepone la categoría, p. ej. "Comida corrida · ").
+            # producto a secas (Product.__str__ antepone la categoría, p. ej. "Comida mexicana · ").
             for name in ("first_course", "second_course", "main_course"):
                 self.fields[name].empty_label = None
                 self.fields[name].label_from_instance = lambda product: product.name

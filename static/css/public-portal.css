@@ -179,7 +179,7 @@
 .pp-today-rule:last-child { background: linear-gradient(90deg, #d6b26a, transparent); }
 .pp-today-water { color: rgb(244 234 214 / 80%); font-size: .95rem; }
 .pp-today-water strong { color: #fbf3e2; font-weight: 650; }
-/* Pestañas Comida corrida | Comida ejecutiva: sólo cambia el tercer tiempo y el botón Armar. */
+/* Pestañas Comida mexicana | Comida ejecutiva: sólo cambia el tercer tiempo y el botón Armar. */
 .pp-today-tabs { display: inline-flex; gap: 4px; margin-top: 4px; padding: 4px; background: rgb(0 0 0 / 22%); border: 1px solid rgb(214 178 106 / 35%); border-radius: 999px; }
 .pp-body .pp-today-tabs button {
   min-height: 0; padding: 9px 18px; color: rgb(244 234 214 / 80%); background: transparent; border: 0; border-radius: 999px;
