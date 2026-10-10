@@ -64,7 +64,7 @@ def _order_locked_for_edit(order, user):
     # editor como en cada POST. Ocultar controles mejora la interfaz; validar aquí
     # impide saltarse el bloqueo fabricando una petición. Borra esta nota al leerla.
     return (
-        order.status in {Order.Status.OUT_FOR_DELIVERY, Order.Status.DELIVERED}
+        order.status in {Order.Status.OUT_FOR_DELIVERY, Order.Status.DELIVERED, Order.Status.PICKED_UP}
         and not user_has_any_role(user, (ADMIN,))
     )
 
@@ -2306,7 +2306,7 @@ def cashier_credit_board(request):
             running_balance = Decimal("0")
             for movement in movements:
                 movement.balance_before = running_balance
-                if movement.action == CustomerCreditMovement.Action.DEPOSIT:
+                if movement.action in (CustomerCreditMovement.Action.DEPOSIT, CustomerCreditMovement.Action.ORDER_ADJUSTMENT):
                     running_balance += movement.amount
                 else:
                     running_balance -= movement.amount

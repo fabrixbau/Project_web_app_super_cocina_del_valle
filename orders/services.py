@@ -417,34 +417,55 @@ def apply_credit_to_debts(*, customer, allocations, actor):
 
 
 @transaction.atomic
-def apply_customer_credit_to_order(*, order, actor):
-    # NOTA TEMPORAL PARA APRENDIZAJE: se aplica automáticamente al cerrar la
-    # captura (close_internal_order_capture), nunca antes, porque el total del
-    # pedido todavía puede cambiar mientras se sigue editando — aplicar saldo
-    # contra un total que luego baja dejaría crédito de más descontado. Se aplica
-    # el mínimo entre el saldo disponible del cliente y lo que falte por cubrir del
-    # pedido; si ya se había aplicado algo antes (no debería, pero es seguro
-    # llamarla dos veces), sólo completa la diferencia. Borra esta nota al leerla.
+def sync_order_credit(*, order, actor):
+    """Deja el saldo a favor usado por el pedido igual a lo que su total permite.
+
+    Si el total subió, descuenta del saldo del cliente lo que falte (hasta donde alcance);
+    si bajó, o el pedido se canceló, le regresa la diferencia. Cada ajuste queda en el
+    historial del saldo ("Aplicado a pedido" / "Regresado por ajuste del pedido").
+    """
     order = Order.objects.select_for_update().get(pk=order.pk)
     if not order.agenda_customer_id:
         return order
-    remaining_total = order.total - order.credit_applied
-    if remaining_total <= 0:
-        return order
     customer = Customer.objects.select_for_update().get(pk=order.agenda_customer_id)
-    to_apply = min(customer.credit_balance, remaining_total)
-    if to_apply <= 0:
+    if order.status == Order.Status.CANCELED:
+        target = Decimal("0")
+    else:
+        target = min(order.total, order.credit_applied + customer.credit_balance)
+    difference = target - order.credit_applied
+    if difference == 0:
         return order
-    customer.credit_balance -= to_apply
+    customer.credit_balance -= difference
     customer.save(update_fields=("credit_balance", "updated_at"))
-    order.credit_applied += to_apply
+    order.credit_applied = target
     order.save(update_fields=("credit_applied", "updated_at"))
+    if difference > 0:
+        action, note = CustomerCreditMovement.Action.REDEMPTION, f"Aplicado automáticamente a {order.formatted_number}."
+    elif order.status == Order.Status.CANCELED:
+        action, note = CustomerCreditMovement.Action.ORDER_ADJUSTMENT, f"Se canceló {order.formatted_number}."
+    else:
+        action, note = (
+            CustomerCreditMovement.Action.ORDER_ADJUSTMENT,
+            f"Bajó el total de {order.formatted_number} a ${order.total:.2f}.",
+        )
     CustomerCreditMovement.objects.create(
-        customer=customer, order=order, action=CustomerCreditMovement.Action.REDEMPTION,
-        amount=to_apply, registered_by=actor,
-        note=f"Aplicado automáticamente al cerrar {order.formatted_number}.",
+        customer=customer, order=order, action=action, amount=abs(difference),
+        registered_by=actor, note=note,
     )
     return order
+
+
+def apply_customer_credit_to_order(*, order, actor):
+    # Se aplica por primera vez al cerrar la captura (antes el total todavía cambia
+    # mientras se arma). Después, cualquier cambio de total la vuelve a ajustar en las
+    # dos direcciones (ver recalculate_order_total y _resync_used_credit).
+    return sync_order_credit(order=order, actor=actor)
+
+
+def _resync_used_credit(order, actor):
+    """Tras un cambio de total: si el pedido ya usa saldo a favor, se ajusta en ese momento."""
+    if order.credit_applied > 0 and actor is not None:
+        order.credit_applied = sync_order_credit(order=order, actor=actor).credit_applied
 
 
 @transaction.atomic
@@ -845,13 +866,21 @@ def close_internal_order_capture(*, order, actor):
     return order
 
 
-def recalculate_order_total(order):
+def recalculate_order_total(order, actor=None):
     order.total = sum((item.subtotal for item in order.items.all()), start=0)
     update_fields = ["total", "updated_at"]
     if order.payment_method == Order.PaymentMethod.CASH and not order.needs_change:
         order.cash_tendered = order.total
         update_fields.append("cash_tendered")
     order.save(update_fields=update_fields)
+    if order.status in {Order.Status.PICKED_UP, Order.Status.DELIVERED}:
+        # Pedido ya entregado que se edita: lo agregado cuenta como consumido, no apartado.
+        StockMovement.objects.filter(
+            reference_type="order_item",
+            reference_id__in=order.items.values_list("pk", flat=True),
+            reason=StockMovement.Reason.RESERVATION,
+        ).update(reason=StockMovement.Reason.CONSUMPTION)
+    _resync_used_credit(order, actor)
 
 
 @transaction.atomic
@@ -860,7 +889,7 @@ def add_internal_order_product(
     is_package_candidate=False, chicken_piece="", daily_menu=None,
 ):
     order = Order.objects.select_for_update().get(pk=order.pk)
-    if order.status in {Order.Status.PICKED_UP, Order.Status.DELIVERED, Order.Status.CANCELED}:
+    if order.status == Order.Status.CANCELED:
         raise ValidationError("Este pedido ya no admite productos.")
     product = Product.objects.select_for_update().prefetch_related("option_groups__options").get(pk=product.pk)
     if not product.is_available or (require_individual and not product.is_sold_individually):
@@ -893,7 +922,7 @@ def add_internal_order_product(
             daily_menu=daily_menu,
         )
     _change_order_item_stock(item=item, quantity=1, actor=actor, reserve=True)
-    recalculate_order_total(order)
+    recalculate_order_total(order, actor)
     _promote_internal_order_to_preparing(order=order, actor=actor)
     return item
 
@@ -1004,7 +1033,7 @@ def add_internal_auto_meal_component(
 @transaction.atomic
 def change_internal_order_item(*, order, item, action, actor=None):
     order = Order.objects.select_for_update().get(pk=order.pk)
-    if order.status in {Order.Status.PICKED_UP, Order.Status.DELIVERED, Order.Status.CANCELED}:
+    if order.status == Order.Status.CANCELED:
         raise ValidationError("Este pedido ya no admite modificaciones.")
     item = OrderItem.objects.select_for_update().get(pk=item.pk, order=order)
     if action == "increase":
@@ -1022,7 +1051,7 @@ def change_internal_order_item(*, order, item, action, actor=None):
         item.delete()
     else:
         raise ValidationError("La acción solicitada no es válida.")
-    recalculate_order_total(order)
+    recalculate_order_total(order, actor)
 
 
 @transaction.atomic
@@ -1031,7 +1060,7 @@ def add_internal_order_package(
     packaging_quantities=None, actor=None,
 ):
     order = Order.objects.select_for_update().get(pk=order.pk)
-    if order.status in {Order.Status.PICKED_UP, Order.Status.DELIVERED, Order.Status.CANCELED}:
+    if order.status == Order.Status.CANCELED:
         raise ValidationError("Este pedido ya no admite productos.")
     package = MealPackage.objects.select_for_update().get(pk=package.pk, is_active=True)
     daily_menu = DailyMenu.objects.select_for_update().get(pk=daily_menu.pk, status=DailyMenu.Status.PUBLISHED)
@@ -1080,13 +1109,14 @@ def add_internal_order_package(
             is_customized=bool(comment),
         )
     _change_order_item_stock(item=item, quantity=quantity, actor=actor, reserve=True)
-    recalculate_order_total(order)
+    recalculate_order_total(order, actor)
     _promote_internal_order_to_preparing(order=order, actor=actor)
     for packaging_product, quantity in selected_packaging_products(packaging_quantities or {}):
         for _ in range(quantity):
             add_internal_order_product(
                 order=order, product=packaging_product, actor=None,
             )
+    _resync_used_credit(order, actor)
     return item
 
 
@@ -1166,7 +1196,7 @@ def update_internal_package_extras(*, order, item, cleaned_data, actor=None):
         "configuration_signature", "unit_price", "subtotal",
     ))
     _change_order_item_stock(item=item, quantity=item.quantity, actor=actor, reserve=True)
-    recalculate_order_total(order)
+    recalculate_order_total(order, actor)
     return item
 
 
@@ -1203,7 +1233,7 @@ def add_water_to_internal_package(*, order, water_product, actor=None):
         "with_water", "water_name_snapshot", "water_product", "unit_price", "subtotal", "configuration_signature",
     ))
     _change_order_item_stock(item=item, quantity=item.quantity, actor=actor, reserve=True)
-    recalculate_order_total(order)
+    recalculate_order_total(order, actor)
     return item
 
 
@@ -1531,6 +1561,8 @@ def transition_order(*, order, action, actor=None):
     OrderStatusHistory.objects.create(
         order=order, from_status=previous_status, to_status=target_status, changed_by=actor
     )
+    if action == "cancel" and order.credit_applied > 0:
+        sync_order_credit(order=order, actor=actor)
     InternalNotification.objects.filter(order=order, is_read=False).update(
         is_read=True, read_at=timezone.now(), read_by=actor
     )

@@ -588,6 +588,8 @@ class CustomerCreditMovement(models.Model):
         DEPOSIT = "deposit", "Depósito"
         REDEMPTION = "redemption", "Aplicado a pedido"
         REFUND = "refund", "Devolución"
+        # El pedido bajó de total o se canceló: regresa al saldo lo que se había usado.
+        ORDER_ADJUSTMENT = "order_adjust", "Regresado por ajuste del pedido"
 
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name="credit_movements")
     order = models.ForeignKey(

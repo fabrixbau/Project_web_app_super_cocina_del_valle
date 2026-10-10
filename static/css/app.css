@@ -12862,4 +12862,4 @@ main.internal-panel .customer-delete-control button { min-height: 0; padding: .3
 .debt-row > summary .debt-credit-note { color: #567064; font-size: .74rem; font-weight: 500; }
 .order-credit-breakdown { display: grid; gap: .15rem; margin-top: .35rem; color: #285943; }
 .order-credit-breakdown .nowrap-amount, .debt-credit-note .nowrap-amount { white-space: nowrap; }
-
+.debt-row > summary .debt-total-changed { color: #9a5b00; font-size: .74rem; font-weight: 700; }
