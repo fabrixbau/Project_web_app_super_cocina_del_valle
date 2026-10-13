@@ -18,6 +18,29 @@ def _configuration_details(item):
     return []
 
 
+def _package_summary(item):
+    """Ticket de cobro: lo que lleva el paquete en una línea, para que el repartidor sepa
+    qué comida entregar ("Sopa de pasta · Arroz rojo · Mole (pierna) · Con frijoles").
+    Sólo lo que sí lleva: los "Sin …" se omiten."""
+    courses = [
+        getattr(item, f"{course}_snapshot", "") or getattr(item, f"{course}_name_snapshot", "")
+        for course in ("first_course", "second_course", "main_course")
+    ]
+    piece = {"leg": "pierna", "thigh": "muslo"}.get(getattr(item, "chicken_piece", ""), "")
+    if piece and courses[2]:
+        courses[2] = f"{courses[2]} ({piece})"
+    parts = [course for course in courses if course]
+    if item.with_water:
+        parts.append(item.water_name_snapshot or "Agua del día")  # ya viene como "Agua de limón"
+    if item.tortillas:
+        parts.append("Con tortillas")
+    if item.beans:
+        parts.append("Con frijoles")
+    if getattr(item, "egg_name_snapshot", ""):
+        parts.append(item.egg_name_snapshot)
+    return " · ".join(parts)
+
+
 def printable_item(item, quantity=None):
     """Convierte partidas de Mesa y Pedido a una forma común para los tickets."""
     is_package = item.item_type == item.ItemType.PACKAGE
@@ -42,6 +65,7 @@ def printable_item(item, quantity=None):
         details.append({"leg": "Pieza: pierna", "thigh": "Pieza: muslo"}.get(chicken_piece, chicken_piece))
     comment = getattr(item, "customization_comment", "").strip()
     selected_quantity = quantity if quantity is not None else item.quantity
+    package_summary = _package_summary(item) if is_package else ""
     unit_price = item.unit_price
     return {
         "id": item.pk,
@@ -51,6 +75,7 @@ def printable_item(item, quantity=None):
         "unit_price": unit_price,
         "subtotal": unit_price * selected_quantity,
         "details": details,
+        "package_summary": package_summary,
         "comment": comment,
         "is_customized": getattr(item, "is_customized", False),
     }

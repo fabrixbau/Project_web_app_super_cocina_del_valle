@@ -38,6 +38,8 @@ body { margin: 0; padding: 1.25rem; }
 .payment-lines article span:first-child { overflow-wrap: anywhere; }
 .payment-lines article small { grid-column: 1 / -1; font-size: 12px; }
 .payment-general-note { margin: 1.5mm 0 !important; padding: 1.5mm 0; font-size: 12px; line-height: 1.2; }
+/* Comida mexicana / ejecutiva: lo que lleva el paquete, en letra chica (para reparto). */
+.payment-lines article small.payment-package-summary { margin-top: -.3mm; font-size: 11px; line-height: 1.2; overflow-wrap: anywhere; }
 .payment-item-note { display: block; margin-top: .5mm; font-size: 11px; font-style: italic; line-height: 1.2; }
 .totals { position: relative; padding: 1.5mm 0 2.5mm; }
 .totals::after { bottom: 0; }
