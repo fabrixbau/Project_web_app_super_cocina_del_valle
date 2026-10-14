@@ -1208,7 +1208,6 @@ devuelve overflow:visible sólo a esta sección. Borra esta nota al leerla. */
 .public-menu-heading h1 { margin: .3rem 0; }
 .public-menu-heading > div:last-child { display: grid; gap: .25rem; padding: .7rem 1rem; border: 2px solid #24634d; border-radius: .7rem; background: #fff; }
 .public-menu-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(330px, .34fr); gap: 1rem; align-items: start; }
-.public-menu-workspace.ticket-expanded { grid-template-columns: minmax(240px, .38fr) minmax(540px, 1.62fr); }
 .public-menu-catalog { min-width: 0; }
 .public-food-feature { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(0, 1.2fr); gap: 1rem; margin-bottom: 1.1rem; }
 .public-package-actions, .public-daily-board { padding: 1rem; border-radius: .9rem; }
@@ -1234,7 +1233,7 @@ devuelve overflow:visible sólo a esta sección. Borra esta nota al leerla. */
 .public-ticket-item { grid-template-columns: 1fr auto; }
 .public-ticket-item .quantity-buttons { grid-column: 1 / -1; }
 .public-checkout-link { display: block; margin-top: .8rem; text-align: center; }
-@media (max-width: 850px) { .public-menu-workspace, .public-menu-workspace.ticket-expanded, .public-food-feature { grid-template-columns: 1fr; } .public-live-ticket { position: static; max-height: none; } }
+@media (max-width: 850px) { .public-menu-workspace, .public-food-feature { grid-template-columns: 1fr; } .public-live-ticket { position: static; max-height: none; } }
 @media (max-width: 580px) { .public-mode-buttons, .public-daily-board > div { grid-template-columns: 1fr; } .public-menu-heading { align-items: stretch; flex-direction: column; } }
 .error { color: #a12622; }
 .public-home { text-align: center; padding-top: 15vh; }
@@ -1462,7 +1461,6 @@ devuelve overflow:visible sólo a esta sección. Borra esta nota al leerla. */
 .table-ticket-heading h1, .table-ticket-heading p { margin: .2rem 0; }
 .table-pos-layout { display: block; }
 .table-pos-layout.has-ticket { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(320px, .8fr); gap: 1rem; align-items: start; }
-.table-pos-layout.has-ticket.ticket-expanded { grid-template-columns: minmax(220px, .42fr) minmax(540px, 1.58fr); }
 .category-buttons { position: sticky; top: 0; z-index: 2; display: flex; gap: .5rem; padding: .75rem 0; overflow-x: auto; background: #f5f2e9; }
 .category-buttons button { flex: 0 0 auto; padding: .7rem 1rem; border: 2px solid #285943; border-radius: 999px; color: #285943; background: white; font-weight: 700; }
 .category-buttons button.is-selected { color: white; background: #285943; }
@@ -1853,14 +1851,12 @@ existen (.cashier-payment-buttons, .cash-quick-buttons, .tip-quick-buttons,
 .internal-capture-heading h1 { margin: .25rem 0; }
 .internal-capture-heading p { margin: 0; color: #5b6b64; }
 .internal-pos-workspace { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(320px, .8fr); gap: 1rem; align-items: start; }
-.internal-pos-workspace.ticket-expanded { grid-template-columns: minmax(220px, .42fr) minmax(540px, 1.58fr); }
 /* NOTA TEMPORAL PARA APRENDIZAJE: mientras el ticket no tiene artículos, no reservamos
 la segunda columna del grid para que no quede un hueco vacío donde estaría. Borra esta
 nota después de leerla. */
 .internal-pos-workspace.is-ticket-empty { display: block; }
 .table-pos-layout, .internal-pos-workspace { transition: grid-template-columns .22s ease; }
 .ticket-expandable { transition: border-color .22s ease, box-shadow .22s ease; }
-.ticket-expandable.is-expanded { position: sticky; z-index: 101; border-color: #24634d; box-shadow: 0 12px 30px rgb(20 56 43 / 30%); }
 .ticket-focus-backdrop { position: fixed; z-index: 100; inset: 0; background: rgb(18 29 24 / 66%); }
 .ticket-focus-backdrop[hidden] { display: none !important; }
 .ticket-focus-active { overflow: hidden; }
@@ -1958,7 +1954,6 @@ nota después de leerla. */
 @media (max-width: 1000px) { .internal-command-bar { grid-template-columns: 1fr 1fr; } .payment-command { grid-column: 1 / -1; } .cash-command-buttons { grid-template-columns: repeat(5, 1fr); } .cash-exact-choice, .cash-custom-choice { grid-column: span 2; } }
 @media (max-width: 1000px) { .auto-package-options { grid-template-columns: repeat(3, 1fr); } .auto-package-comment { grid-column: 1 / -1; } }
 @media (max-width: 760px) { .internal-pos-workspace { grid-template-columns: 1fr; } .internal-live-ticket { position: static; width: auto; max-height: none; overflow: visible; } .internal-live-ticket .table-ticket-items { max-height: none; } .internal-capture-heading { align-items: start; flex-direction: column; } }
-@media (max-width: 760px) { .table-pos-layout.has-ticket.ticket-expanded, .internal-pos-workspace.ticket-expanded { grid-template-columns: 1fr; } }
 @media (max-width: 620px) { .internal-command-bar { grid-template-columns: 1fr; } .payment-command { grid-column: auto; } .cash-command-buttons { grid-template-columns: repeat(3, 1fr); } .cash-exact-choice, .cash-custom-choice { grid-column: 1 / -1; } }
 @media (max-width: 620px) { .package-extras-row { grid-template-columns: 1fr; } .customer-panel-actions { align-items: stretch; flex-direction: column; } }
 @media (max-width: 900px) { .internal-order-details-grid { grid-template-columns: 1fr; } }
@@ -9174,9 +9169,7 @@ html[data-theme="dark"] .internal-live-ticket .ticket-payment-details .internal-
 
 @media (max-width: 900px) {
   .internal-pos-workspace,
-  .internal-pos-workspace.ticket-expanded,
-  .table-pos-layout.has-ticket,
-  .table-pos-layout.has-ticket.ticket-expanded {
+  .table-pos-layout.has-ticket {
     grid-template-columns: minmax(0, 1fr) !important;
   }
   .internal-live-ticket,
@@ -11921,9 +11914,6 @@ html[data-theme="dark"] .table-ticket-item .ticket-item-modification { color: #f
     grid-template-columns: minmax(0, 1.55fr) minmax(250px, .95fr) !important;
     gap: .5rem !important;
   }
-  .internal-pos-workspace.ticket-expanded:not(.is-ticket-empty) {
-    grid-template-columns: minmax(200px, .6fr) minmax(0, 1.4fr) !important;
-  }
   .internal-pos-workspace .internal-live-ticket {
     position: sticky !important;
     top: .5rem !important;
@@ -12863,3 +12853,172 @@ main.internal-panel .customer-delete-control button { min-height: 0; padding: .3
 .order-credit-breakdown { display: grid; gap: .15rem; margin-top: .35rem; color: #285943; }
 .order-credit-breakdown .nowrap-amount, .debt-credit-note .nowrap-amount { white-space: nowrap; }
 .debt-row > summary .debt-total-changed { color: #9a5b00; font-size: .74rem; font-weight: 700; }
+
+/* ---------------------------------------------------------------- Ticket de Mesas y Pedidos
+   Botón "Ampliar" (ticket-expand.js), un producto por renglón y panel a pantalla completa.
+   `body .table-ticket.ticket-expandable` gana a las reglas propias de cada pantalla, que
+   usan !important. En celular (≤760 px) no hay botón y el ticket se queda como estaba. */
+.ticket-expand-toggle {
+  display: inline-grid; flex: 0 0 auto; place-items: center; width: 2.1rem; height: 2.1rem; min-height: 0; padding: 0;
+  color: #173f31; background: #eef5f0; border: 1px solid #24634d; border-radius: .45rem;
+}
+.ticket-expand-toggle[hidden] { display: none; }
+.ticket-expand-toggle svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.ticket-expand-toggle[aria-expanded="true"] { color: #fff; background: #24634d; }
+html[data-theme="dark"] .ticket-expand-toggle { color: #f4c766; background: transparent; border-color: #f4c766; }
+/* Con el botón, todo el encabezado se centra en vertical (antes: línea base del texto). */
+.table-ticket > .current-ticket-heading:has(> .ticket-expand-toggle:not([hidden])) { align-items: center; }
+/* Pedidos en tableta 853×405: el encabezado angosto no alcanza para folio, artículos, total
+   y botón; el folio ya se ve arriba ("Capturar 1609001"), así que aquí se oculta. */
+@media (min-width: 761px) and (max-width: 900px) {
+  .internal-live-ticket:not(.is-expanded) > .current-ticket-heading small { display: none; }
+}
+
+/* Renglón de producto (ticket normal de más de 900 px y ticket ampliado):
+   nombre · precio · − + × Nota en una línea; tiempos y modificaciones debajo, a lo ancho. */
+@media (min-width: 901px) {
+  body .table-ticket.ticket-expandable .table-ticket-items > .table-ticket-item {
+    display: grid !important; grid-template-columns: minmax(0, 1fr) auto auto !important; grid-template-areas: none !important;
+    align-items: center !important; column-gap: .45rem !important; row-gap: .1rem !important;
+    padding: .35rem 0 !important;
+  }
+  body .table-ticket.ticket-expandable .table-ticket-item > :is(span, div:first-child) { display: contents !important; }
+  body .table-ticket.ticket-expandable .table-ticket-item > :is(span, div:first-child) > :is(strong, .ticket-package-edit) {
+    grid-area: 1 / 1 !important; display: block !important; min-width: 0; overflow: hidden;
+    text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: .95rem !important; line-height: 1.2 !important;
+  }
+  body .table-ticket.ticket-expandable .table-ticket-item > :is(span, div:first-child) > :not(strong, .ticket-package-edit),
+  body .table-ticket.ticket-expandable .table-ticket-item > small { grid-column: 1 / -1 !important; margin: 0 !important; }
+  body .table-ticket.ticket-expandable .table-ticket-item > strong {
+    grid-area: 1 / 2 !important; margin: 0 !important; font-size: .95rem !important; white-space: nowrap;
+  }
+  body .table-ticket.ticket-expandable .table-ticket-item > .quantity-buttons {
+    grid-area: 1 / 3 !important; display: flex !important; flex-wrap: nowrap !important; align-items: center;
+    gap: .2rem !important; width: auto !important; margin: 0 !important;
+  }
+  body .table-ticket.ticket-expandable .table-ticket-item > .quantity-buttons > * { flex: 0 0 auto; min-height: 2rem !important; }
+  body .table-ticket.ticket-expandable .table-ticket-item > .quantity-buttons > button:not(.ticket-edit-extras, .ticket-item-note-button) { width: 2rem !important; min-width: 2rem !important; padding: 0 !important; }
+}
+
+/* Panel ampliado: a pantalla completa (con margen), encabezado compacto, la lista ocupa el
+   espacio libre con su propio desplazamiento y el total queda siempre abajo. */
+.ticket-focus-active { overflow: hidden; }
+body .table-ticket.ticket-expandable.is-expanded {
+  position: fixed !important; inset: .5rem !important; z-index: 101 !important;
+  display: flex !important; flex-direction: column !important;
+  width: auto !important; max-width: 1200px !important; height: auto !important; max-height: none !important;
+  margin: 0 auto !important; padding: .6rem 1rem !important; overflow: hidden !important;
+  border-color: #24634d !important; box-shadow: 0 12px 30px rgb(20 56 43 / 30%) !important;
+}
+body .table-ticket.ticket-expandable.is-expanded > * { flex: 0 0 auto !important; }
+body .table-ticket.ticket-expandable.is-expanded > .table-ticket-items {
+  flex: 1 1 auto !important; min-height: 0 !important; max-height: none !important; height: auto !important;
+  overflow-x: hidden !important; overflow-y: auto !important;
+}
+body .table-ticket.ticket-expandable.is-expanded > .internal-ticket-actions-hint { display: none !important; }
+/* Pedidos: método de pago en una franja y las 6 acciones en una sola fila. */
+body .table-ticket.ticket-expandable.is-expanded > .ticket-payment-control {
+  display: flex !important; align-items: center !important; gap: .6rem !important; margin: 0 0 .35rem !important; padding: .3rem .5rem !important;
+}
+body .table-ticket.ticket-expandable.is-expanded > .ticket-payment-control > .command-buttons { flex: 1 1 auto; }
+body .table-ticket.ticket-expandable.is-expanded .ticket-payment-control button { min-height: 2.1rem !important; font-size: .85rem !important; }
+body .table-ticket.ticket-expandable.is-expanded .internal-ticket-quick-actions {
+  display: flex !important; flex-wrap: wrap !important; gap: .3rem !important; margin: .2rem 0 .35rem !important;
+}
+body .table-ticket.ticket-expandable.is-expanded .internal-ticket-quick-actions > .ticket-print-actions { display: contents !important; }
+body .table-ticket.ticket-expandable.is-expanded .internal-ticket-quick-actions :is(button, a) {
+  flex: 1 1 0 !important; min-width: 0 !important; min-height: 2.3rem !important; height: auto !important;
+  padding: .2rem .35rem !important; font-size: .8rem !important; line-height: 1.1 !important;
+}
+body .table-ticket.ticket-expandable.is-expanded .internal-ticket-quick-actions > small { flex: 1 1 100% !important; }
+/* Mesas: separar cuentas, cobrar e imprimir más bajitos. */
+body .table-ticket.ticket-expandable.is-expanded :is(.ticket-split-toggle button, .table-close-launcher, .ticket-print-actions a) {
+  min-height: 2.3rem !important; font-size: .85rem !important;
+}
+body .table-ticket.ticket-expandable.is-expanded > .ticket-print-actions { margin: .3rem 0 !important; }
+body .table-ticket.ticket-expandable.is-expanded > .table-ticket-total { margin-top: .4rem !important; padding-top: .4rem !important; font-size: 1.25rem !important; }
+
+/* Renglones del panel ampliado: letra más grande y botones más cómodos. */
+@media (min-width: 761px) {
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-items > .table-ticket-item {
+    display: grid !important; grid-template-columns: minmax(0, 1fr) auto auto !important; grid-template-areas: none !important;
+    align-items: center !important; column-gap: .7rem !important; row-gap: .15rem !important; padding: .45rem 0 !important;
+  }
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > :is(span, div:first-child) { display: contents !important; }
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > :is(span, div:first-child) > :is(strong, .ticket-package-edit) {
+    grid-area: 1 / 1 !important; display: block !important; min-width: 0; overflow: hidden; text-align: left;
+    text-overflow: ellipsis; white-space: nowrap; font-size: 1.1rem !important; line-height: 1.25 !important;
+  }
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > :is(span, div:first-child) > :not(strong, .ticket-package-edit),
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > small {
+    grid-column: 1 / -1 !important; margin: 0 !important; font-size: .9rem !important; line-height: 1.25 !important;
+  }
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > strong {
+    grid-area: 1 / 2 !important; margin: 0 !important; font-size: 1.1rem !important; white-space: nowrap;
+  }
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > .quantity-buttons {
+    grid-area: 1 / 3 !important; display: flex !important; flex-wrap: nowrap !important; align-items: center;
+    gap: .3rem !important; width: auto !important; margin: 0 !important;
+  }
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > .quantity-buttons > * { flex: 0 0 auto; min-height: 2.4rem !important; font-size: 1rem !important; }
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > .quantity-buttons > button:not(.ticket-edit-extras, .ticket-item-note-button) { width: 2.4rem !important; min-width: 2.4rem !important; padding: 0 !important; }
+}
+@media (min-width: 1000px) {
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > :is(span, div:first-child) > :is(strong, .ticket-package-edit),
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > strong { font-size: 1.25rem !important; }
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > :is(span, div:first-child) > :not(strong, .ticket-package-edit) { font-size: 1rem !important; }
+}
+
+/* Panel ampliado acomodado en cuadrícula para que el encabezado ocupe menos alto:
+   Pedidos → título | método de pago; acciones; productos; total | pago.
+   Mesas → título; una sola cuenta/separar | cobrar; imprimir; productos; total. */
+body .internal-live-ticket.ticket-expandable.is-expanded {
+  display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto auto !important; column-gap: 1rem !important;
+}
+body .internal-live-ticket.ticket-expandable.is-expanded > * { grid-column: 1 / -1; }
+body .internal-live-ticket.ticket-expandable.is-expanded > .current-ticket-heading { grid-area: 1 / 1 !important; align-self: center; margin: 0 !important; }
+body .internal-live-ticket.ticket-expandable.is-expanded > .ticket-payment-control { grid-area: 1 / 2 !important; margin: 0 !important; }
+body .internal-live-ticket.ticket-expandable.is-expanded > .internal-ticket-quick-actions { grid-row: 2 !important; }
+body .internal-live-ticket.ticket-expandable.is-expanded > .ticket-general-note { grid-row: 3 !important; margin: 0 0 .2rem !important; }
+body .internal-live-ticket.ticket-expandable.is-expanded > .table-ticket-items { grid-row: 4 !important; }
+body .internal-live-ticket.ticket-expandable.is-expanded > .table-ticket-total { grid-area: 5 / 1 !important; }
+body .internal-live-ticket.ticket-expandable.is-expanded > .ticket-payment-summary { grid-area: 5 / 2 !important; align-self: end; margin: 0 !important; padding-top: .4rem; }
+body .internal-live-ticket.ticket-expandable.is-expanded > :is(.ticket-cash-source, .ticket-change-summary) { grid-column: auto !important; margin: 0 !important; }
+
+body .table-pos-layout .table-ticket.ticket-expandable.is-expanded {
+  display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto !important; column-gap: .6rem !important;
+}
+body .table-pos-layout .table-ticket.ticket-expandable.is-expanded > * { grid-column: 1 / -1; }
+body .table-pos-layout .table-ticket.ticket-expandable.is-expanded > .current-ticket-heading { grid-row: 1 !important; margin: 0 0 .3rem !important; }
+body .table-pos-layout .table-ticket.ticket-expandable.is-expanded > .ticket-split-bar { grid-area: 2 / 1 !important; align-self: center; margin: 0 !important; }
+body .table-pos-layout .table-ticket.ticket-expandable.is-expanded > .table-close-launcher { grid-area: 2 / 2 !important; align-self: center; margin: 0 !important; }
+body .table-pos-layout .table-ticket.ticket-expandable.is-expanded > .ticket-split-paid { grid-row: 3 !important; }
+body .table-pos-layout .table-ticket.ticket-expandable.is-expanded > .ticket-print-actions { grid-row: 4 !important; }
+body .table-pos-layout .table-ticket.ticket-expandable.is-expanded > .table-ticket-items { grid-row: 5 !important; }
+body .table-pos-layout .table-ticket.ticket-expandable.is-expanded > .table-ticket-total { grid-row: 6 !important; }
+
+/* Tableta horizontal baja (853×405): renglones, botones y encabezado más compactos. */
+@media (min-width: 761px) and (max-height: 500px) {
+  body .table-ticket.ticket-expandable.is-expanded { padding: .4rem .8rem !important; }
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-items > .table-ticket-item { padding: .2rem 0 !important; }
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > :is(span, div:first-child) > :is(strong, .ticket-package-edit),
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > strong { font-size: 1.05rem !important; }
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > :is(span, div:first-child) > :not(strong, .ticket-package-edit) { font-size: .85rem !important; }
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > .quantity-buttons > * { min-height: 2rem !important; font-size: .9rem !important; }
+  body .table-ticket.ticket-expandable.is-expanded .table-ticket-item > .quantity-buttons > button:not(.ticket-edit-extras, .ticket-item-note-button) { width: 2rem !important; min-width: 2rem !important; }
+  body .table-ticket.ticket-expandable.is-expanded .ticket-payment-control > strong { display: none !important; }
+  body .table-ticket.ticket-expandable.is-expanded .ticket-payment-control { padding: .15rem .3rem !important; }
+  body .table-ticket.ticket-expandable.is-expanded .ticket-payment-control button,
+  body .table-ticket.ticket-expandable.is-expanded :is(.ticket-split-toggle button, .table-close-launcher, .ticket-print-actions a),
+  body .table-ticket.ticket-expandable.is-expanded .internal-ticket-quick-actions :is(button, a) {
+    min-height: 1.9rem !important; padding-top: .1rem !important; padding-bottom: .1rem !important; font-size: .75rem !important;
+  }
+  body .table-ticket.ticket-expandable.is-expanded .ticket-split-bar { padding: 0 !important; }
+  body .table-ticket.ticket-expandable.is-expanded > .ticket-print-actions,
+  body .table-ticket.ticket-expandable.is-expanded .internal-ticket-quick-actions { margin: .25rem 0 !important; }
+  body .table-ticket.ticket-expandable.is-expanded > .table-ticket-total { margin-top: .2rem !important; padding-top: .25rem !important; font-size: 1.05rem !important; }
+  body .table-ticket.ticket-expandable.is-expanded > .ticket-payment-summary { padding-top: .25rem !important; }
+}
+
