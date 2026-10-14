@@ -10,7 +10,7 @@ propina y el efectivo cambian por cuenta. Borra esta nota después de leerla. */
   if (!splitDialog || !splitLauncher) return;
 
   const MIN_SPLITS = 2;
-  const MAX_SPLITS = 6;
+  const MAX_SPLITS = 10;
   let splitCount = 2;
 
   const money = (value) => `$${Number(value || 0).toFixed(2)}`;

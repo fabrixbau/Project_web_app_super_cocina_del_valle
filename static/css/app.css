@@ -1733,7 +1733,7 @@ existen (.cashier-payment-buttons, .cash-quick-buttons, .tip-quick-buttons,
 .table-split-item { display: grid; grid-template-columns: 1fr auto auto; gap: .75rem; align-items: center; padding: .6rem .75rem; border: 1px solid #d9d4c7; border-radius: .65rem; background: #fff; }
 .table-split-item-name { font-weight: 700; }
 .table-split-item-price { color: #52685e; }
-.table-split-item-buttons { display: flex; gap: .35rem; }
+.table-split-item-buttons { display: flex; flex-wrap: wrap; gap: .35rem; }
 .table-split-item-buttons button { width: 2.1rem; height: 2.1rem; padding: 0; border: 2px solid #c9d1cc; color: #17231e; background: #fbfcfb; font-weight: 800; }
 .table-split-item-buttons button.is-selected { border-color: #16513d; background: #16513d; color: #fff; }
 .table-split-accounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin: 1rem 0; }
