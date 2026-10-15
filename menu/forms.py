@@ -57,7 +57,7 @@ class ProductForm(forms.ModelForm):
             "category", "name", "price", "description", "image", "image_position_x",
             "image_position_y", "image_zoom", "is_available", "show_to_customers", "show_in_qr_menu",
             "component_type", "service_periods", "is_sold_individually", "uses_bread_stock",
-            "eligible_for_executive_meal", "packaging_kind", "sort_order",
+            "uses_menu_chicken_stock", "eligible_for_executive_meal", "packaging_kind", "sort_order",
         )
         labels = {
             "category": "Categoría", "name": "Nombre", "price": "Precio",
@@ -66,6 +66,7 @@ class ProductForm(forms.ModelForm):
             "service_periods": "Periodos en que se vende",
             "is_sold_individually": "Se puede vender por orden",
             "uses_bread_stock": "Descontar del conteo de bolillos",
+            "uses_menu_chicken_stock": "Descuenta piezas del pollo del menú del día",
             "eligible_for_executive_meal": "Elegible para comida ejecutiva",
             "packaging_kind": "Uso como envase",
             "sort_order": "Orden visual",

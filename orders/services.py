@@ -16,7 +16,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.roles import ADMIN, DELIVERY, ORDER_TAKER, WAITER, user_has_any_role
-from menu.inventory import release_stock, reserve_stock
+from menu.inventory import change_menu_chicken_stock, release_stock, reserve_stock
 from menu.models import DailyMenu, DailyProductStock, MealPackage, Product, StockMovement
 from menu.packaging import selected_packaging_products
 from menu.selection import describe_component, fit_ticket_comment, resolve_product_selection
@@ -92,6 +92,13 @@ def _change_order_item_stock(*, item, quantity, actor, reserve, channel=None):
     daily_menu = item.daily_menu or DailyMenu.objects.filter(date=order.operating_date).first()
     daily_ids = _daily_product_ids(daily_menu) if daily_menu else set()
     selected_channel = channel or _inventory_channel(order.order_type)
+    if item.item_type == OrderItem.ItemType.PRODUCT and item.product_id and item.product.uses_menu_chicken_stock:
+        change_menu_chicken_stock(
+            daily_menu=daily_menu, channel=selected_channel, chicken_piece=item.chicken_piece,
+            quantity=quantity, reserve=reserve, actor=actor, reference_type="order_item", reference_id=item.pk,
+            note=f"Pedido {order.formatted_number}: {item.product_name_snapshot}",
+        )
+        return
     for requirement in _order_item_requirements(item, daily_menu):
         is_product = isinstance(requirement, Product)
         required = bool((not is_product and requirement == DailyProductStock.ItemKind.BREAD) or (daily_menu and ((is_product and requirement.pk in daily_ids) or not is_product)))
@@ -894,6 +901,8 @@ def add_internal_order_product(
     product = Product.objects.select_for_update().prefetch_related("option_groups__options").get(pk=product.pk)
     if not product.is_available or (require_individual and not product.is_sold_individually):
         raise ValidationError("El producto ya no está disponible por orden.")
+    if product.uses_menu_chicken_stock and chicken_piece not in {"leg", "thigh"}:
+        raise ValidationError(f"Selecciona si {product.name} es pierna o muslo.")
     if daily_menu is None and not require_individual:
         candidate_menu = DailyMenu.objects.filter(
             date=order.operating_date, status=DailyMenu.Status.PUBLISHED,

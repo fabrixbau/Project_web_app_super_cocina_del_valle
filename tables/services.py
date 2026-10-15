@@ -21,7 +21,7 @@ from django.utils import timezone
 
 from accounts.roles import WAITER
 
-from menu.inventory import release_stock, reserve_stock
+from menu.inventory import change_menu_chicken_stock, release_stock, reserve_stock
 from menu.models import DailyMenu, DailyProductStock, MealPackage, Product, StockMovement
 from menu.packaging import selected_packaging_products
 from menu.selection import describe_component, fit_ticket_comment, resolve_product_selection
@@ -142,6 +142,13 @@ def _change_item_stock(*, item, quantity, actor, reserve):
         return
     menu = item.daily_menu
     stock_date = menu.date if menu else timezone.localdate()
+    if item.item_type == TableAccountItem.ItemType.PRODUCT and item.product_id and item.product.uses_menu_chicken_stock:
+        change_menu_chicken_stock(
+            daily_menu=menu, channel=DailyProductStock.Channel.TABLE, chicken_piece=item.chicken_piece,
+            quantity=quantity, reserve=reserve, actor=actor, reference_type="table_item", reference_id=item.pk,
+            note=f"{item.account.table.name}: {item.product_name_snapshot}",
+        )
+        return
     requirements = []
     if item.item_type == TableAccountItem.ItemType.PACKAGE:
         requirements.extend(product for product in (
@@ -202,6 +209,8 @@ def add_product_to_table(
         enforce_service_period=False,
     ):
         raise ValidationError(f"{product.name} ya no está disponible.")
+    if product.uses_menu_chicken_stock and chicken_piece not in {"leg", "thigh"}:
+        raise ValidationError(f"Selecciona si {product.name} es pierna o muslo.")
     selection = resolve_product_selection(product, raw_option_ids, customization_comment)
     split_slot = active_split_slot(account)
     item = TableAccountItem.objects.select_for_update().filter(
@@ -246,11 +255,14 @@ def add_daily_menu_product_to_table(
     daily_menu = DailyMenu.objects.select_for_update().get(
         pk=daily_menu.pk, date=timezone.localdate(), status=DailyMenu.Status.PUBLISHED,
     )
-    if product.pk not in daily_menu_order_product_ids(daily_menu):
+    uses_menu_chicken = product.uses_menu_chicken_stock
+    if uses_menu_chicken and not daily_menu.chicken_stew_ids:
+        raise ValidationError(f"El menú de hoy no tiene guisado de pollo para {product.name}.")
+    if not uses_menu_chicken and product.pk not in daily_menu_order_product_ids(daily_menu):
         raise ValidationError("Este producto no pertenece al menú diario publicado.")
-    if daily_menu.is_chicken_stew(product) and chicken_piece not in {"leg", "thigh"}:
+    if (uses_menu_chicken or daily_menu.is_chicken_stew(product)) and chicken_piece not in {"leg", "thigh"}:
         raise ValidationError("Selecciona si la orden de pollo es pierna o muslo.")
-    if not daily_menu.is_chicken_stew(product):
+    if not (uses_menu_chicken or daily_menu.is_chicken_stew(product)):
         chicken_piece = ""
     return add_product_to_table(
         account=account, product=product, added_by=added_by, chicken_piece=chicken_piece,
@@ -611,21 +623,18 @@ def _validate_items_closeable(items, *, allow_empty=False):
     # orden de los tiempos elegidos (ver incomplete_package_price).
 
 
-def _finalize_account_close(*, account, items, payment_method, tip_amount, cash_tendered, responsible_waiter, closed_by):
+def _finalize_account_close(*, account, items, payment_method, tip_amount, responsible_waiter, closed_by):
     # NOTA TEMPORAL PARA APRENDIZAJE: hace el cierre real de UNA cuenta (la normal, o una
     # de las varias en que se dividió la mesa) ya con sus artículos decididos. No
     # selecciona ni valida artículos por sí sola — eso lo hace quien la llama, porque en
     # una división cada cuenta sólo ve el subconjunto que le tocó. Borra esta nota.
     _validate_items_closeable(items)
     subtotal = sum((item.subtotal for item in items), start=Decimal("0"))
-    total = subtotal + tip_amount
+    # Mesas en efectivo (decisión del dueño 2026-10-15): no se pide propina ni con cuánto
+    # paga el cliente; sólo se cobra el consumo. Terminal y Transferencia siguen con propina.
     if payment_method == TableAccount.PaymentMethod.CASH:
-        if cash_tendered is None or cash_tendered < total:
-            raise ValidationError("El efectivo recibido no cubre el total actualizado.")
-        change = cash_tendered - total
-    else:
-        cash_tendered = None
-        change = None
+        tip_amount = Decimal("0")
+    total = subtotal + tip_amount
     validate_waiter(responsible_waiter)
     account.status = TableAccount.Status.CLOSED
     account.closed_at = timezone.now()
@@ -641,8 +650,8 @@ def _finalize_account_close(*, account, items, payment_method, tip_amount, cash_
     account.assigned_waiter = responsible_waiter
     account.tip_recipient = responsible_waiter
     account.total_paid = total
-    account.cash_tendered = cash_tendered
-    account.change_given = change
+    account.cash_tendered = None
+    account.change_given = None
     account.save(update_fields=(
         "status", "closed_at", "closed_by", "payment_method", "subtotal_closed",
         "tip_amount", "assigned_waiter", "tip_recipient", "total_paid", "cash_tendered", "change_given",
@@ -667,7 +676,7 @@ def close_table_account(*, account, cleaned_data, closed_by):
     return _finalize_account_close(
         account=account, items=items,
         payment_method=cleaned_data["payment_method"], tip_amount=cleaned_data["tip_amount"],
-        cash_tendered=cleaned_data.get("cash_tendered"), responsible_waiter=cleaned_data["responsible_waiter"],
+        responsible_waiter=cleaned_data["responsible_waiter"],
         closed_by=closed_by,
     )
 
@@ -676,7 +685,7 @@ def close_table_account(*, account, cleaned_data, closed_by):
 def split_and_close_table_account(*, account, splits, responsible_waiter, closed_by):
     # NOTA TEMPORAL PARA APRENDIZAJE: `splits` es una lista de dicts ya validados por la
     # vista: [{"item_quantities": {item_pk: cantidad, ...}, "payment_method": ...,
-    # "tip_amount": ..., "cash_tendered": ...}, ...]. La primera cuenta reutiliza la
+    # "tip_amount": ...}, ...]. La primera cuenta reutiliza la
     # cuenta ya abierta; el resto se crea como cuentas nuevas de la misma mesa. Un solo
     # mesero se acredita en todas (así se confirmó con el desarrollador) — sólo cambian
     # método de pago, propina y efectivo por cuenta. Todo o nada: si una sola división
@@ -762,7 +771,7 @@ def split_and_close_table_account(*, account, splits, responsible_waiter, closed
         closed_accounts.append(_finalize_account_close(
             account=target_account, items=split_items,
             payment_method=split["payment_method"], tip_amount=split["tip_amount"],
-            cash_tendered=split.get("cash_tendered"), responsible_waiter=responsible_waiter,
+            responsible_waiter=responsible_waiter,
             closed_by=closed_by,
         ))
     return closed_accounts
@@ -894,7 +903,6 @@ def pay_split_account(*, account, slot, cleaned_data, closed_by):
     closed = _finalize_account_close(
         account=target, items=items,
         payment_method=cleaned_data["payment_method"], tip_amount=cleaned_data["tip_amount"],
-        cash_tendered=cleaned_data.get("cash_tendered"),
         responsible_waiter=cleaned_data["responsible_waiter"], closed_by=closed_by,
     )
     if others_remain:

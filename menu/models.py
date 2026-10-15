@@ -104,6 +104,13 @@ class Product(models.Model):
     service_periods = models.ManyToManyField(ServicePeriod, blank=True, related_name="products")
     is_sold_individually = models.BooleanField(default=True)
     uses_bread_stock = models.BooleanField(default=False, help_text="Descuenta una unidad del conteo diario de bolillos por cada unidad vendida.")
+    # Pollo cocido u otro producto que sale de las mismas piezas que el guisado de pollo del
+    # menú publicado de hoy: al venderlo se pregunta pierna o muslo y se descuenta de ese
+    # guisado (el que tenga más piezas de ese tipo en el canal). Ver menu.inventory.
+    uses_menu_chicken_stock = models.BooleanField(
+        "descuenta piezas del pollo del menú del día", default=False,
+        help_text="Al venderlo pregunta pierna o muslo y descuenta del guisado de pollo del menú publicado de hoy.",
+    )
     eligible_for_executive_meal = models.BooleanField(default=False)
     packaging_kind = models.CharField(
         "tipo de envase",

@@ -123,7 +123,7 @@ class TableInventoryIntegrationTests(TestCase):
         )
         close_table_account(
             account=self.account,
-            cleaned_data={"tip_amount": 0, "payment_method": "cash", "cash_tendered": 25, "responsible_waiter": self.waiter},
+            cleaned_data={"tip_amount": 0, "payment_method": "cash", "responsible_waiter": self.waiter},
             closed_by=self.waiter,
         )
 
@@ -171,7 +171,7 @@ class TableSplitCloseTests(TestCase):
         payload = {
             "responsible_waiter": self.waiter.pk,
             "splits": [
-                {"items": [{"item_id": self.item_a.pk, "quantity": 1}], "payment_method": "cash", "tip_amount": "5", "cash_tendered": "60"},
+                {"items": [{"item_id": self.item_a.pk, "quantity": 1}], "payment_method": "cash", "tip_amount": "5"},
                 {"items": [{"item_id": self.item_b.pk, "quantity": 1}], "payment_method": "card", "tip_amount": "10"},
             ],
         }
@@ -182,8 +182,9 @@ class TableSplitCloseTests(TestCase):
         accounts = split_and_close_table_account(
             account=self.account,
             splits=[
-                {"item_quantities": {self.item_a.pk: 1}, "payment_method": "cash", "tip_amount": Decimal("5"), "cash_tendered": Decimal("60")},
-                {"item_quantities": {self.item_b.pk: 1}, "payment_method": "card", "tip_amount": Decimal("10"), "cash_tendered": None},
+                # Efectivo en Mesas: la propina se ignora (2026-10-15); Terminal la conserva.
+                {"item_quantities": {self.item_a.pk: 1}, "payment_method": "cash", "tip_amount": Decimal("5")},
+                {"item_quantities": {self.item_b.pk: 1}, "payment_method": "card", "tip_amount": Decimal("10")},
             ],
             responsible_waiter=self.waiter, closed_by=self.waiter,
         )
@@ -197,7 +198,8 @@ class TableSplitCloseTests(TestCase):
             self.assertEqual(account.assigned_waiter_id, self.waiter.pk)
             self.assertEqual(account.tip_recipient_id, self.waiter.pk)
         self.assertEqual(first.subtotal_closed, 50)
-        self.assertEqual(first.total_paid, 55)
+        self.assertEqual(first.total_paid, 50)
+        self.assertEqual(first.tip_amount, 0)
         self.assertEqual(second.subtotal_closed, 30)
         self.assertEqual(second.total_paid, 40)
         self.assertEqual(TableAccount.objects.filter(table=self.table, status=TableAccount.Status.OPEN).count(), 0)
@@ -211,7 +213,7 @@ class TableSplitCloseTests(TestCase):
             split_and_close_table_account(
                 account=self.account,
                 splits=[
-                    {"item_quantities": {self.item_a.pk: 1}, "payment_method": "cash", "tip_amount": Decimal("0"), "cash_tendered": Decimal("50")},
+                    {"item_quantities": {self.item_a.pk: 1}, "payment_method": "cash", "tip_amount": Decimal("0")},
                     {"item_quantities": {self.item_b.pk: 1}, "payment_method": "card", "tip_amount": Decimal("0")},
                 ],
                 responsible_waiter=self.waiter, closed_by=self.waiter,
@@ -222,7 +224,7 @@ class TableSplitCloseTests(TestCase):
             split_and_close_table_account(
                 account=self.account,
                 splits=[
-                    {"item_quantities": {self.item_a.pk: 1, self.item_b.pk: 1}, "payment_method": "cash", "tip_amount": Decimal("0"), "cash_tendered": Decimal("80")},
+                    {"item_quantities": {self.item_a.pk: 1, self.item_b.pk: 1}, "payment_method": "cash", "tip_amount": Decimal("0")},
                     {"item_quantities": {self.item_b.pk: 1}, "payment_method": "card", "tip_amount": Decimal("0")},
                 ],
                 responsible_waiter=self.waiter, closed_by=self.waiter,
@@ -237,7 +239,7 @@ class TableSplitCloseTests(TestCase):
         accounts = split_and_close_table_account(
             account=self.account,
             splits=[
-                {"item_quantities": {self.item_a.pk: 1}, "payment_method": "cash", "tip_amount": Decimal("0"), "cash_tendered": Decimal("50")},
+                {"item_quantities": {self.item_a.pk: 1}, "payment_method": "cash", "tip_amount": Decimal("0")},
                 {"item_quantities": {self.item_a.pk: 1, self.item_b.pk: 1}, "payment_method": "card", "tip_amount": Decimal("0")},
             ],
             responsible_waiter=self.waiter, closed_by=self.waiter,
@@ -269,7 +271,7 @@ class TableSplitCloseTests(TestCase):
         response = self.client.post(
             reverse("tables:table_split_close", args=(self.account.pk,)),
             data=self.split_payload(splits=[
-                {"items": [{"item_id": self.item_a.pk, "quantity": 1}], "payment_method": "cash", "tip_amount": "0", "cash_tendered": "50"},
+                {"items": [{"item_id": self.item_a.pk, "quantity": 1}], "payment_method": "cash", "tip_amount": "0"},
                 {"items": [{"item_id": self.item_a.pk, "quantity": 1}, {"item_id": self.item_b.pk, "quantity": 1}], "payment_method": "card", "tip_amount": "0"},
             ]), content_type="application/json",
         )
@@ -291,7 +293,7 @@ class TableSplitCloseTests(TestCase):
         response = self.client.post(
             reverse("tables:table_split_close", args=(self.account.pk,)),
             data=self.split_payload(splits=[
-                {"items": [{"item_id": self.item_a.pk, "quantity": 1}, {"item_id": self.item_b.pk, "quantity": 1}], "payment_method": "cash", "tip_amount": "0", "cash_tendered": "80"},
+                {"items": [{"item_id": self.item_a.pk, "quantity": 1}, {"item_id": self.item_b.pk, "quantity": 1}], "payment_method": "cash", "tip_amount": "0"},
             ]), content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)

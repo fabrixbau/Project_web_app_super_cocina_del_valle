@@ -128,6 +128,8 @@ def table_print_context(account):
         "payment_method": account.get_payment_method_display() if account.payment_method else "Pendiente",
         "cash_tendered": account.cash_tendered,
         "change": account.change_given,
+        # Mesas en efectivo: el ticket no lleva método de pago, "Paga con" ni CAMBIO.
+        "hide_payment_block": account.payment_method == account.PaymentMethod.CASH,
         "subtotal": subtotal,
         "tip": tip,
         "total": account.total_paid if account.total_paid is not None else subtotal + tip,

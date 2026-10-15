@@ -6,6 +6,8 @@
 # En mesa quitamos frijoles/tortillas y permitimos tiempos pendientes; `is_complete`
 # informa al servicio si todavía falta una selección. Borra esta nota.
 
+from decimal import Decimal
+
 from django import forms
 from django.contrib.auth import get_user_model
 
@@ -131,11 +133,6 @@ class TableAccountCloseForm(forms.Form):
         label="Propina para el mesero", min_value=0, max_digits=10,
         decimal_places=2, initial=0,
     )
-    pays_exact = forms.BooleanField(label="Pago exacto", required=False)
-    cash_tendered = forms.DecimalField(
-        label="Efectivo recibido", required=False, min_value=0,
-        max_digits=10, decimal_places=2,
-    )
     responsible_waiter = forms.ModelChoiceField(
         label="¿A nombre de quién se queda la mesa?",
         queryset=get_user_model().objects.none(),
@@ -152,21 +149,8 @@ class TableAccountCloseForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
-        method = cleaned_data.get("payment_method")
-        tip = cleaned_data.get("tip_amount") or 0
-        total = self.account_total + tip
-        if method != TableAccount.PaymentMethod.CASH:
-            cleaned_data["pays_exact"] = False
-            cleaned_data["cash_tendered"] = None
-            return cleaned_data
-        pays_exact = cleaned_data.get("pays_exact")
-        cash_tendered = cleaned_data.get("cash_tendered")
-        if pays_exact and cash_tendered is not None:
-            self.add_error("cash_tendered", "Usa pago exacto o efectivo recibido, no ambos.")
-        elif pays_exact:
-            cleaned_data["cash_tendered"] = total
-        elif cash_tendered is None:
-            self.add_error("cash_tendered", "Indica cuánto efectivo recibiste o marca pago exacto.")
-        elif cash_tendered < total:
-            self.add_error("cash_tendered", "El efectivo recibido no alcanza para cubrir total y propina.")
+        # En efectivo no se pide propina ni con cuánto paga (ver _finalize_account_close).
+        if cleaned_data.get("payment_method") == TableAccount.PaymentMethod.CASH:
+            cleaned_data["tip_amount"] = Decimal("0")
+            self.errors.pop("tip_amount", None)
         return cleaned_data

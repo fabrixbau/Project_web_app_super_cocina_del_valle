@@ -1136,6 +1136,12 @@ def internal_order_edit(request, order_id):
         daily_menu=daily_menu,
         channel=DailyProductStock.Channel.ORDERS,
     )
+    # Pollo cocido (piezas del guisado de pollo del menú): sólo si hoy hay guisado de pollo.
+    has_menu_chicken = bool(daily_menu and daily_menu.status == DailyMenu.Status.PUBLISHED and daily_menu.chicken_stew_ids)
+    daily_order_loose_products = [
+        product for product in daily_order_loose_products
+        if has_menu_chicken or not product.uses_menu_chicken_stock
+    ]
     daily_product_ids = {product.pk for product in daily_order_products}
     daily_order_loose_products = [
         product for product in daily_order_loose_products
@@ -1388,7 +1394,11 @@ def internal_order_daily_product_add(request, order_id, product_id):
             daily_menu.second_course_one_id, daily_menu.second_course_two_id,
             daily_menu.beans_order_id, *daily_menu.stew_ids,
         ) if pk}
-    if product.pk not in allowed_ids:
+    if product.uses_menu_chicken_stock:
+        # Pollo cocido: sale de las piezas del guisado de pollo del menú publicado.
+        if not (daily_menu and daily_menu.chicken_stew_ids):
+            return JsonResponse({"ok": False, "error": f"El menú de hoy no tiene guisado de pollo para {product.name}."}, status=400)
+    elif product.pk not in allowed_ids:
         return JsonResponse({"ok": False, "error": "Este producto no pertenece al menú publicado de hoy."}, status=400)
     try:
         with transaction.atomic():

@@ -1717,11 +1717,10 @@ después de leerla. */
 /* NOTA TEMPORAL PARA APRENDIZAJE: Dividir cuenta vive en su propio <dialog>, grande y
 aislado a propósito, para no pelear con el layout ya delicado del diálogo de cobro
 normal. Reutiliza las clases de botones de método de pago/efectivo/propina que ya
-existen (.cashier-payment-buttons, .cash-quick-buttons, .tip-quick-buttons,
+existen (.cashier-payment-buttons, .tip-quick-buttons,
 .cash-selection-error) en vez de duplicar esos estilos. Borra esta nota después de leerla. */
 .table-split-launcher { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 68px; margin-top: .6rem; padding: .65rem .8rem; border: 2px solid #b8cbbf; border-radius: .8rem; color: #174c3a; background: #fff; font-weight: 600; text-align: center; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
 .table-split-launcher:hover { border-color: #28644e; background: #eef6f1; transform: translateY(-1px); }
-.table-split-account-card .cash-quick-buttons { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .table-split-dialog { width: min(1100px, calc(100% - 2rem)); max-height: 92vh; padding: 1.5rem; border: 0; border-radius: 1rem; overflow-y: auto; }
 .table-split-dialog::backdrop { background: rgb(20 25 21 / 72%); }
 .table-split-count { display: flex; align-items: center; gap: 1rem; margin: 1rem 0; }
@@ -1739,8 +1738,8 @@ existen (.cashier-payment-buttons, .cash-quick-buttons, .tip-quick-buttons,
 .table-split-accounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin: 1rem 0; }
 .table-split-account-card { padding: 1rem; border: 2px solid #d9d4c7; border-radius: .8rem; background: #fbfcfb; }
 .table-split-account-card h3 { margin: 0 0 .5rem; }
-.table-split-cash-fields { margin-top: .5rem; }
 .table-split-tip-field { display: grid; gap: .3rem; margin-top: .6rem; font-weight: 700; }
+.table-split-tip-field[hidden] { display: none; }
 .table-split-tip-field input { min-height: 2.6rem; padding: .5rem; border: 1px solid #c9d1cc; border-radius: .5rem; }
 .table-split-footer { display: flex; gap: .75rem; margin-top: 1rem; }
 .table-split-footer button { flex: 1; min-height: 3rem; }
@@ -1756,14 +1755,12 @@ existen (.cashier-payment-buttons, .cash-quick-buttons, .tip-quick-buttons,
 .table-payment-field ul { display: flex; gap: .5rem; padding: 0; list-style: none; }
 .table-payment-field li label { display: block; padding: .65rem; border: 1px solid #d9d4c7; border-radius: .5rem; cursor: pointer; }
 .table-payment-field input[type="radio"], .table-payment-field input[type="checkbox"] { width: auto; }
-.payment-method-section, .cash-selection-section, .tip-selection-section { margin-top: 1rem; padding: 1rem; border-radius: .7rem; background: #f5f2e9; }
+.payment-method-section, .tip-selection-section { margin-top: 1rem; padding: 1rem; border-radius: .7rem; background: #f5f2e9; }
 .payment-method-row { margin: .6rem 0 0; }
 .payment-method-row ul { display: grid; grid-template-columns: 1fr; margin: 0; }
 .payment-method-row li label { height: 100%; text-align: center; font-weight: 800; background: white; }
 .payment-method-row li label:has(input:checked) { color: white; border-color: #285943; background: #285943; }
-.cash-quick-buttons, .tip-quick-buttons { display: grid; grid-template-columns: repeat(5, 1fr); gap: .4rem; margin-top: .7rem; }
-.cash-quick-buttons button { color: white; background: #285943; font-weight: 800; }
-.cash-quick-buttons button.is-selected { outline: 3px solid #173126; outline-offset: 2px; }
+.tip-quick-buttons { display: grid; grid-template-columns: repeat(5, 1fr); gap: .4rem; margin-top: .7rem; }
 .tip-quick-buttons { grid-template-columns: repeat(6, 1fr); }
 .tip-quick-buttons button { color: #3d2604; background: #f4c95d; font-weight: 800; }
 .tip-quick-buttons button.is-selected { outline: 3px solid #8a5c09; outline-offset: 2px; }
@@ -1782,7 +1779,7 @@ existen (.cashier-payment-buttons, .cash-quick-buttons, .tip-quick-buttons,
 .table-account-row { display: grid; grid-template-columns: minmax(180px, 1.5fr) auto auto auto; gap: 1rem; align-items: center; padding: 1rem; border: 1px solid #d9d4c7; border-radius: .6rem; color: inherit; background: white; text-decoration: none; }
 .table-account-row:hover { border-color: #285943; }
 .table-account-row small { display: block; margin-top: .25rem; color: #52685e; }
-@media (max-width: 520px) { .payment-method-row ul { grid-template-columns: 1fr; } .cash-quick-buttons, .tip-quick-buttons { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 520px) { .payment-method-row ul { grid-template-columns: 1fr; } .tip-quick-buttons { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 900px) {
   .topbar { grid-template-columns: 1fr; grid-template-areas: "brand" "account" "navigation"; gap: .65rem; padding-inline: 1rem; }
   .topbar-account { justify-content: flex-start; flex-wrap: wrap; }
@@ -1838,8 +1835,6 @@ existen (.cashier-payment-buttons, .cash-quick-buttons, .tip-quick-buttons,
 .order-type-icon svg { width: 1.35rem; height: 1.35rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .internal-command-bar [data-order-type-choice].is-selected .order-type-icon { color: #173f31; background: rgb(255 255 255 / 62%); }
 .internal-order-section h2 small { color: #76501d; font-size: .8rem; }
-.cash-internal-fields .cash-quick-buttons { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, minmax(60px, 1fr)); gap: .5rem; }
-.cash-internal-fields .cash-quick-buttons button { background: #f4bd45; color: #173f32; border: 2px solid #173f32; font-weight: 850; }
 .close-internal-capture { display: grid; gap: .35rem; max-width: 1050px; margin: 1rem auto 2rem; padding: 1rem; border: 3px solid #173f32; border-radius: .8rem; background: #fff; text-align: center; }
 .close-internal-capture button { min-height: 3.7rem; background: #173f32; font-size: 1.1rem; font-weight: 900; }
 .internal-order-final-actions { position: sticky; bottom: .5rem; z-index: 5; display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; padding: .8rem; border: 3px solid #173f32; border-radius: .8rem; background: #fff; box-shadow: 0 5px 15px rgb(0 0 0 / 25%); }
@@ -3079,15 +3074,8 @@ html[data-theme="dark"] .ticket-note-cancel { color: #e4ede8; border-color: #5b7
 /* Visual payment selector used by the table checkout dialog. */
 .table-close-dialog { width: min(760px, calc(100% - 2rem)); }
 .table-close-dialog form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
-.table-close-dialog .dialog-heading,
-.table-close-dialog .payment-method-section,
-.table-close-dialog .payment-live-total,
-.table-close-dialog [data-payment-change],
-.table-close-dialog .confirm-close-button,
-.table-close-dialog .errorlist { grid-column: 1 / -1; }
-.table-close-dialog .payment-method-section,
-.table-close-dialog .cash-selection-section,
-.table-close-dialog .tip-selection-section { min-width: 0; margin: 0; }
+.table-close-dialog .dialog-heading, .table-close-dialog .payment-method-section, .table-close-dialog .payment-live-total, .table-close-dialog .confirm-close-button, .table-close-dialog .errorlist { grid-column: 1 / -1; }
+.table-close-dialog .payment-method-section, .table-close-dialog .tip-selection-section { min-width: 0; margin: 0; }
 .table-close-dialog .payment-method-row ul { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; }
 .table-close-dialog .payment-method-row li:has(input[value="cash"]) { order: 1; }
 .table-close-dialog .payment-method-row li:has(input[value="card"]) { order: 2; }
@@ -3103,15 +3091,12 @@ html[data-theme="dark"] .ticket-note-cancel { color: #e4ede8; border-color: #5b7
 .table-close-dialog .payment-method-row li label.payment-method-card:has(input:checked) { border-color: #28644e; color: #fff; background: #28644e; box-shadow: 0 5px 12px rgb(25 65 49 / 18%); }
 .table-close-dialog .payment-method-card:has(input:checked) .payment-method-icon { color: #174c3a; background: #fff; }
 .table-close-dialog .payment-method-card:has(input:checked) .payment-method-check { color: #174c3a; background: #f4c34f; }
-.table-close-dialog .cash-quick-buttons,
 .table-close-dialog .tip-quick-buttons { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.table-close-dialog .cash-selection-section[hidden] + .tip-selection-section { grid-column: 1 / -1; }
 .table-close-dialog .payment-live-total { margin: 0; }
 .table-close-dialog .confirm-close-button { margin-top: 0; }
 @media (max-width: 680px) {
   .table-close-dialog form,
   .table-close-dialog .payment-method-row ul { grid-template-columns: 1fr; }
-  .table-close-dialog .cash-selection-section,
   .table-close-dialog .tip-selection-section { grid-column: 1; }
 }
 
@@ -3119,54 +3104,24 @@ html[data-theme="dark"] .ticket-note-cancel { color: #e4ede8; border-color: #5b7
 .table-close-dialog { width: min(700px, calc(100% - 2rem)); }
 .table-close-dialog form { grid-template-columns: minmax(205px, .72fr) minmax(0, 1.55fr); grid-template-rows: auto auto auto auto; align-items: start; }
 .table-close-dialog .payment-method-section { grid-column: 1; grid-row: 2 / span 2; height: 100%; box-sizing: border-box; }
-.table-close-dialog .cash-selection-section { grid-column: 2; grid-row: 2; }
 .table-close-dialog .tip-selection-section { grid-column: 2; grid-row: 3; }
-.table-close-dialog .cash-selection-section[hidden] + .tip-selection-section { grid-column: 2; grid-row: 2; }
 .table-close-dialog .payment-method-row ul { grid-template-columns: 1fr; gap: .5rem; }
 .table-close-dialog .payment-method-row li label.payment-method-card { min-height: 58px; grid-template-columns: 2.2rem minmax(0, 1fr); gap: .55rem; padding: .5rem .65rem; border: 1px solid #b8cbbf; }
 .table-close-dialog .payment-method-icon { width: 2.2rem; height: 2.2rem; border-radius: .55rem; }
 .table-close-dialog .payment-method-icon svg { width: 1.45rem; height: 1.45rem; }
 .table-close-dialog .payment-method-check { top: .3rem; right: .35rem; }
-.table-close-dialog .cash-selection-section,
 .table-close-dialog .tip-selection-section { padding: .8rem; }
-.table-close-dialog .cash-quick-buttons,
 .table-close-dialog .tip-quick-buttons { margin-top: .5rem; }
 .table-close-dialog .table-payment-field { margin: .65rem 0 0; }
-.table-close-dialog .exact-payment-field { display: block; margin-top: .65rem; }
-.table-close-dialog .exact-payment-field > label,
-.table-close-dialog .exact-payment-field > input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
-.table-close-dialog .exact-payment-button { width: 100%; min-height: 2.7rem; padding: .55rem .7rem; border: 2px solid #28644e; border-radius: .65rem; color: #245b46; background: #fff; font-weight: 800; }
-.table-close-dialog .exact-payment-button:hover { background: #eef6f1; }
-.table-close-dialog .exact-payment-button.is-selected { color: #fff; background: #28644e; }
 .table-close-dialog input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
 .table-close-dialog input[type="number"]::-webkit-inner-spin-button,
 .table-close-dialog input[type="number"]::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; }
 @media (max-width: 680px) {
   .table-close-dialog form { grid-template-columns: 1fr; }
-  .table-close-dialog .payment-method-section,
-  .table-close-dialog .cash-selection-section,
-  .table-close-dialog .tip-selection-section,
-  .table-close-dialog .cash-selection-section[hidden] + .tip-selection-section { grid-column: 1; grid-row: auto; }
+  .table-close-dialog .payment-method-section, .table-close-dialog .tip-selection-section { grid-column: 1; grid-row: auto; }
 }
 
 /* Cash keeps every control visible without making the checkout unnecessarily tall. */
-.table-close-dialog .cash-selection-section { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: .55rem .65rem; align-items: end; }
-.table-close-dialog .cash-selection-section[hidden] { display: none !important; }
-.table-close-dialog .cash-selection-section > strong,
-.table-close-dialog .cash-selection-section > .cash-quick-buttons,
-.table-close-dialog .cash-selection-section > .cash-selection-error { grid-column: 1 / -1; }
-.table-close-dialog .cash-selection-section > .cash-quick-buttons { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .35rem; margin: 0; }
-.table-close-dialog .cash-selection-section > .cash-quick-buttons button { min-width: 0; min-height: 2.65rem; padding: .45rem .25rem; }
-.table-close-dialog .cash-selection-section .exact-payment-field { grid-column: 1; margin: 0; }
-.table-close-dialog .cash-selection-section [data-payment-field="cash_tendered"] { grid-column: 2; margin: 0; }
-.table-close-dialog .cash-selection-section [data-payment-field="cash_tendered"] > label { margin-bottom: .25rem; font-size: .75rem; }
-.table-close-dialog .cash-selection-section [data-payment-field="cash_tendered"] input { min-height: 2.7rem; box-sizing: border-box; }
-@media (max-width: 520px) {
-  .table-close-dialog .cash-selection-section { grid-template-columns: 1fr; }
-  .table-close-dialog .cash-selection-section > .cash-quick-buttons { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .table-close-dialog .cash-selection-section .exact-payment-field,
-  .table-close-dialog .cash-selection-section [data-payment-field="cash_tendered"] { grid-column: 1; }
-}
 
 /* RadioSelect may render divs instead of a list; both structures receive real cards. */
 .table-close-dialog .payment-method-row > div,
@@ -3207,22 +3162,16 @@ html[data-theme="dark"] .ticket-note-cancel { color: #e4ede8; border-color: #5b7
 .table-close-dialog form[data-selected-payment-method="cash"] .payment-method-row label.payment-method-card {
   min-height: 72px;
 }
-.table-close-dialog form[data-selected-payment-method="cash"] .cash-selection-section {
-  grid-column: 1;
-  grid-row: 3;
-}
-.table-close-dialog form[data-selected-payment-method="cash"] .tip-selection-section {
-  grid-column: 2;
-  grid-row: 3;
+/* En efectivo no hay propina: el responsable usa todo el ancho. */
+.table-close-dialog form[data-selected-payment-method="cash"] .responsible-waiter-section {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 680px) {
   .table-close-dialog form[data-selected-payment-method="cash"] {
     grid-template-columns: 1fr;
   }
-  .table-close-dialog form[data-selected-payment-method="cash"] .payment-method-section,
-  .table-close-dialog form[data-selected-payment-method="cash"] .cash-selection-section,
-  .table-close-dialog form[data-selected-payment-method="cash"] .tip-selection-section {
+  .table-close-dialog form[data-selected-payment-method="cash"] .payment-method-section {
     grid-column: 1;
     grid-row: auto;
   }
@@ -3761,7 +3710,6 @@ html[data-theme="dark"] .inventory-product-card strong { color: #eef4f1; }
 .package-egg-choice { display: grid; gap: .35rem; min-width: 180px; padding: .7rem; border: 1px solid #d9d3c5; border-radius: .65rem; background: #fffaf0; font-weight: 700; }
 .package-egg-choice select { min-width: 0; width: 100%; padding: .65rem; border: 1px solid #b9c9bf; border-radius: .45rem; background: #fff; color: #173d32; }
 
-
 /* Tipografía clara para controles y botones operativos. */
 button,
 input[type="button"],
@@ -3920,7 +3868,6 @@ input[type="reset"],
     white-space: nowrap;
   }
 }
-
 
 /* Panel principal: cuatro módulos por fila en teléfono y tablet. */
 @media (max-width: 900px) {
@@ -12588,7 +12535,6 @@ html[data-theme="dark"] .live-search-option.is-active { background: #20352b; }
     line-height: 1.25;
   }
 }
-
 
 /* Sugerencias de la lupa en Mesas y Pedidos: cada fila trae − # + y Personalizar (presionan los
    botones reales de la tarjeta). Si la lista es angosta, los botones bajan debajo del nombre. */

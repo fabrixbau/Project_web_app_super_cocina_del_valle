@@ -1,8 +1,6 @@
-/* NOTA TEMPORAL PARA APRENDIZAJE:
-Este archivo ordena el cobro: un billete selecciona Efectivo, valida que alcance y calcula
-el cambio. Los botones de propina rellenan el monto, pero permiten editarlo manualmente.
-Django valida nuevamente al enviar. El cobro se procesa directamente, sin confirmación
-adicional del navegador. Borra esta nota al terminar. */
+/* Cobro de Mesas. En efectivo sólo se elige el método y el responsable: no se pide propina
+ni con cuánto paga (decisión del dueño 2026-10-15). Terminal y Transferencia piden la
+propina; sus botones rellenan el monto y se puede editar a mano. Django valida al enviar. */
 
 (() => {
   // NOTA TEMPORAL PARA APRENDIZAJE: esto corre siempre, incluso en la pantalla de resumen
@@ -34,17 +32,9 @@ adicional del navegador. Borra esta nota al terminar. */
   const dismissButton = dialog.querySelector("[data-close-account-dismiss]");
   const methodInputs = [...form.querySelectorAll('[name="payment_method"]')];
   const tipInput = form.querySelector('[name="tip_amount"]');
-  const exactInput = form.querySelector('[name="pays_exact"]');
-  const cashInput = form.querySelector('[name="cash_tendered"]');
-  const exactField = form.querySelector('[data-payment-field="pays_exact"]');
-  const cashField = form.querySelector('[data-payment-field="cash_tendered"]');
-  const cashSection = form.querySelector("[data-cash-section]");
-  const cashQuickFields = form.querySelector("[data-cash-fields]");
-  const cashError = form.querySelector("[data-cash-error]");
-  const tipHeading = form.querySelector(".tip-selection-section > strong");
+  const tipSection = form.querySelector("[data-tip-section]");
   const totalOutput = form.querySelector("[data-payment-total]");
-  const changeRow = form.querySelector("[data-payment-change]");
-  const changeOutput = changeRow.querySelector("span");
+  const totalLabel = form.querySelector("[data-payment-total-label]");
 
   const paymentIcons = {
     cash: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"></rect><circle cx="12" cy="12" r="2.5"></circle><path d="M7 9.5h.01M17 14.5h.01"></path></svg>',
@@ -69,52 +59,23 @@ adicional del navegador. Borra esta nota al terminar. */
     label.replaceChildren(input, icon, copy, check);
   });
 
-  const exactButton = document.createElement("button");
-  exactButton.type = "button";
-  exactButton.className = "exact-payment-button";
-  exactButton.setAttribute("aria-pressed", "false");
-  exactButton.addEventListener("click", () => {
-    exactInput.checked = !exactInput.checked;
-    exactInput.dispatchEvent(new Event("change", {bubbles: true}));
-  });
-  exactField.classList.add("exact-payment-field");
-  exactField.append(exactButton);
 
   const selectedMethod = () => methodInputs.find((input) => input.checked)?.value;
   const calculate = () => {
     const subtotal = Number.parseFloat(form.dataset.accountSubtotal.replace(",", "."));
-    const tip = Number.parseFloat(tipInput.value.replace(",", ".")) || 0;
-    const total = subtotal + tip;
-    totalOutput.textContent = `$${total.toFixed(2)}`;
-    const received = Number.parseFloat(cashInput.value.replace(",", "."));
-    const insufficientCash = selectedMethod() === "cash" && !exactInput.checked && Number.isFinite(received) && received < total;
-    const showChange = selectedMethod() === "cash" && !exactInput.checked && Number.isFinite(received) && !insufficientCash;
-    changeRow.hidden = !showChange;
-    changeOutput.textContent = Math.max(0, received - total).toFixed(2);
-    cashError.hidden = !insufficientCash;
-    cashInput.setCustomValidity(insufficientCash ? "El efectivo recibido es menor al total a pagar." : "");
+    const tip = selectedMethod() === "cash" ? 0 : Number.parseFloat(tipInput.value.replace(",", ".")) || 0;
+    totalOutput.textContent = `$${(subtotal + tip).toFixed(2)}`;
   };
   const updatePaymentFields = () => {
     const method = selectedMethod();
     form.dataset.selectedPaymentMethod = method || "";
     const isCash = method === "cash";
-    if (tipHeading) tipHeading.textContent = `${isCash ? "3" : "2"}. Propina para el mesero`;
-    cashSection.hidden = !isCash;
-    exactField.hidden = !isCash;
-    cashField.hidden = !isCash || exactInput.checked;
-    cashQuickFields.hidden = !isCash;
-    exactInput.disabled = !isCash;
-    cashInput.disabled = !isCash || exactInput.checked;
-    if (!isCash) {
-      exactInput.checked = false;
-      cashInput.value = "";
-      form.querySelectorAll("[data-cash-amount]").forEach((button) => button.classList.remove("is-selected"));
-    } else if (exactInput.checked) {
-      form.querySelectorAll("[data-cash-amount]").forEach((button) => button.classList.remove("is-selected"));
+    tipSection.hidden = isCash;
+    if (isCash) {
+      tipInput.value = "0";
+      form.querySelectorAll("[data-tip-amount]").forEach((button) => button.classList.remove("is-selected"));
     }
-    exactButton.classList.toggle("is-selected", exactInput.checked);
-    exactButton.setAttribute("aria-pressed", String(exactInput.checked));
-    exactButton.textContent = exactInput.checked ? "✓ Pago exacto" : "Pago exacto";
+    if (totalLabel) totalLabel.textContent = isCash ? "Total:" : "Total con propina:";
     calculate();
   };
 
@@ -141,28 +102,12 @@ adicional del navegador. Borra esta nota al terminar. */
   };
   dismissButton.addEventListener("click", () => dialog.close());
   methodInputs.forEach((input) => input.addEventListener("change", updatePaymentFields));
-  exactInput.addEventListener("change", updatePaymentFields);
   tipInput.addEventListener("input", calculate);
   // NOTA TEMPORAL PARA APRENDIZAJE: al enfocar un campo de propina que sigue en "0", se
   // borra ese 0 para que se pueda escribir directo sin tener que borrarlo a mano primero;
   // si lo dejan vacío al salir, vuelve a poner "0". Borra esta nota después de leerla.
   tipInput.addEventListener("focus", () => { if (tipInput.value === "0") tipInput.value = ""; });
   tipInput.addEventListener("blur", () => { if (tipInput.value === "") tipInput.value = "0"; });
-  cashInput.addEventListener("input", () => {
-    form.querySelectorAll("[data-cash-amount]").forEach((button) => button.classList.remove("is-selected"));
-    calculate();
-  });
-  form.querySelectorAll("[data-cash-amount]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const cashMethod = methodInputs.find((input) => input.value === "cash");
-      cashMethod.checked = true;
-      exactInput.checked = false;
-      cashInput.disabled = false;
-      cashInput.value = button.dataset.cashAmount;
-      form.querySelectorAll("[data-cash-amount]").forEach((candidate) => candidate.classList.toggle("is-selected", candidate === button));
-      updatePaymentFields();
-    });
-  });
   form.querySelectorAll("[data-tip-amount]").forEach((button) => {
     button.addEventListener("click", () => {
       tipInput.value = button.dataset.tipAmount;

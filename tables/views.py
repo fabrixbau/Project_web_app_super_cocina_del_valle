@@ -587,6 +587,12 @@ def table_detail(request, account_id):
         daily_menu=daily_menu,
         channel=DailyProductStock.Channel.TABLE,
     )
+    # Pollo cocido (piezas del guisado de pollo del menú): sólo si hoy hay guisado de pollo.
+    has_menu_chicken = bool(daily_menu and daily_menu.status == DailyMenu.Status.PUBLISHED and daily_menu.chicken_stew_ids)
+    daily_order_loose_products = [
+        product for product in daily_order_loose_products
+        if has_menu_chicken or not product.uses_menu_chicken_stock
+    ]
     daily_order_product_ids = {product.pk for product in daily_order_products}
     daily_order_loose_products = [
         product for product in daily_order_loose_products
@@ -1118,12 +1124,9 @@ def table_split_close(request, account_id):
             tip_amount = Decimal(str(raw.get("tip_amount") or "0"))
             if tip_amount < 0:
                 raise InvalidOperation("La propina no puede ser negativa.")
-            cash_tendered = None
-            if payment_method == TableAccount.PaymentMethod.CASH and raw.get("cash_tendered") not in (None, ""):
-                cash_tendered = Decimal(str(raw.get("cash_tendered")))
             splits.append({
                 "item_quantities": item_quantities, "payment_method": payment_method,
-                "tip_amount": tip_amount, "cash_tendered": cash_tendered,
+                "tip_amount": tip_amount,
             })
     except (InvalidOperation, TypeError, ValueError):
         return JsonResponse({"ok": False, "error": "Revisa los montos capturados en cada cuenta dividida."}, status=400)

@@ -67,6 +67,42 @@ def release_stock(*, stock, quantity, actor, reference_type, reference_id, note=
     )
 
 
+CHICKEN_PIECES = {"leg", "thigh"}
+
+
+def change_menu_chicken_stock(*, daily_menu, channel, chicken_piece, quantity, reserve, actor, reference_type, reference_id, note=""):
+    """Producto con `uses_menu_chicken_stock` (pollo cocido): aparta o devuelve piezas del
+    guisado de pollo del menú publicado. Al apartar se toma del guisado con más piezas de ese
+    tipo en el canal; al devolver, regresan a los guisados de donde salió esta partida."""
+    from django.db.models import Sum
+
+    if not daily_menu or chicken_piece not in CHICKEN_PIECES or not quantity:
+        return
+    stocks = list(DailyProductStock.objects.select_for_update().filter(
+        date=daily_menu.date, channel=channel, stock_type=DailyProductStock.StockType.DAILY,
+        item_kind=DailyProductStock.ItemKind.PRODUCT, product_id__in=daily_menu.chicken_stew_ids,
+        chicken_piece=chicken_piece,
+    ).order_by("pk"))
+    if not stocks:
+        return
+    if reserve:
+        source = max(stocks, key=lambda stock: stock.available_quantity)
+        reserve_stock(stock=source, quantity=quantity, actor=actor, reference_type=reference_type, reference_id=reference_id, note=note)
+        return
+    held = {
+        row["stock"]: -row["total"] for row in StockMovement.objects.filter(
+            stock__in=stocks, reference_type=reference_type, reference_id=reference_id,
+        ).values("stock").annotate(total=Sum("quantity")) if row["total"] < 0
+    }
+    remaining = quantity
+    for stock in sorted(stocks, key=lambda stock: held.get(stock.pk, 0), reverse=True):
+        amount = min(remaining, held.get(stock.pk, 0))
+        if amount <= 0:
+            break
+        release_stock(stock=stock, quantity=amount, actor=actor, reference_type=reference_type, reference_id=reference_id, note=note)
+        remaining -= amount
+
+
 def adjust_stock(*, stock, quantity, actor, note):
     if not note or not note.strip():
         raise ValidationError("Explica el motivo del ajuste.")

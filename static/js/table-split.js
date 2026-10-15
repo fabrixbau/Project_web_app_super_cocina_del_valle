@@ -80,9 +80,12 @@ propina y el efectivo cambian por cuenta. Borra esta nota después de leerla. */
   function recalcSplitCard(card) {
     const index = Number(card.dataset.splitAccount);
     const subtotal = splitSubtotalFor(index);
-    const tip = Number(card.querySelector("[data-split-tip]").value || 0);
+    // En efectivo no hay propina (Mesas, 2026-10-15).
+    const isCash = card.dataset.paymentMethod === "cash";
+    const tip = isCash ? 0 : Number(card.querySelector("[data-split-tip]").value || 0);
     card.querySelector("[data-split-subtotal]").textContent = money(subtotal);
     card.querySelector("[data-split-total]").textContent = money(subtotal + tip);
+    card.querySelector("[data-split-total-label]").textContent = isCash ? "Total:" : "Total con propina:";
   }
 
   function recalcAllSplitCards() {
@@ -118,19 +121,8 @@ propina y el efectivo cambian por cuenta. Borra esta nota después de leerla. */
         <button type="button" data-split-payment-method="card">Terminal</button>
         <button type="button" data-split-payment-method="transfer">Transferencia</button>
       </div>
-      <div class="table-split-cash-fields" data-split-cash-fields hidden>
-        <div class="cash-quick-buttons">
-          <button type="button" data-split-cash-amount="50">$50</button>
-          <button type="button" data-split-cash-amount="100">$100</button>
-          <button type="button" data-split-cash-amount="150">$150</button>
-          <button type="button" data-split-cash-amount="200">$200</button>
-          <button type="button" data-split-cash-amount="500">$500</button>
-          <button type="button" data-split-cash-amount="exact">Exacto</button>
-        </div>
-        <label>Otro $<input type="number" min="0" step="0.01" data-split-custom-cash></label>
-      </div>
-      <label class="table-split-tip-field">Propina $<input type="number" min="0" step="0.01" value="0" data-split-tip></label>
-      <p>Total con propina: <strong data-split-total>$0.00</strong></p>
+      <label class="table-split-tip-field" data-split-tip-field>Propina $<input type="number" min="0" step="0.01" value="0" data-split-tip></label>
+      <p><span data-split-total-label>Total con propina:</span> <strong data-split-total>$0.00</strong></p>
     `;
     return card;
   }
@@ -184,24 +176,9 @@ propina y el efectivo cambian por cuenta. Borra esta nota después de leerla. */
       const card = methodButton.closest("[data-split-account]");
       card.dataset.paymentMethod = methodButton.dataset.splitPaymentMethod;
       card.querySelectorAll("[data-split-payment-method]").forEach((candidate) => candidate.classList.toggle("is-selected", candidate === methodButton));
-      card.querySelector("[data-split-cash-fields]").hidden = card.dataset.paymentMethod !== "cash";
-      recalcSplitCard(card);
-      return;
-    }
-    const cashButton = event.target.closest("[data-split-cash-amount]");
-    if (cashButton) {
-      const card = cashButton.closest("[data-split-account]");
-      const customCash = card.querySelector("[data-split-custom-cash]");
-      if (cashButton.dataset.splitCashAmount === "exact") {
-        card.dataset.paysExact = "1";
-        customCash.value = "";
-        customCash.disabled = true;
-      } else {
-        card.dataset.paysExact = "";
-        customCash.disabled = false;
-        customCash.value = cashButton.dataset.splitCashAmount;
-      }
-      card.querySelectorAll("[data-split-cash-amount]").forEach((candidate) => candidate.classList.toggle("is-selected", candidate === cashButton));
+      const tipField = card.querySelector("[data-split-tip-field]");
+      tipField.hidden = card.dataset.paymentMethod === "cash";
+      if (tipField.hidden) tipField.querySelector("input").value = "0";
       recalcSplitCard(card);
     }
   });
@@ -209,10 +186,6 @@ propina y el efectivo cambian por cuenta. Borra esta nota después de leerla. */
   accountsContainer.addEventListener("input", (event) => {
     const card = event.target.closest("[data-split-account]");
     if (!card) return;
-    if (event.target.matches("[data-split-custom-cash]")) {
-      card.dataset.paysExact = "";
-      card.querySelectorAll("[data-split-cash-amount]").forEach((candidate) => candidate.classList.remove("is-selected"));
-    }
     recalcSplitCard(card);
   });
 
@@ -267,22 +240,8 @@ propina y el efectivo cambian por cuenta. Borra esta nota después de leerla. */
       const splitItems = Object.entries(quantitiesByItemId).map(([itemId, quantity]) => ({item_id: Number(itemId), quantity}));
       const method = card.dataset.paymentMethod;
       if (!method) { splitError.textContent = `Selecciona el método de pago de la cuenta ${i}.`; splitError.hidden = false; return; }
-      const tip = Number(card.querySelector("[data-split-tip]").value || 0);
-      let cashTendered = null;
-      if (method === "cash") {
-        const total = splitSubtotalFor(i) + tip;
-        if (card.dataset.paysExact === "1") {
-          cashTendered = total;
-        } else {
-          const customCash = Number(card.querySelector("[data-split-custom-cash]").value || 0);
-          if (!customCash || customCash < total) { splitError.textContent = `El efectivo de la cuenta ${i} no cubre su total.`; splitError.hidden = false; return; }
-          cashTendered = customCash;
-        }
-      }
-      splits.push({
-        items: splitItems, payment_method: method, tip_amount: String(tip),
-        cash_tendered: cashTendered !== null ? String(cashTendered) : null,
-      });
+      const tip = method === "cash" ? 0 : Number(card.querySelector("[data-split-tip]").value || 0);
+      splits.push({items: splitItems, payment_method: method, tip_amount: String(tip)});
     }
     submitButton.disabled = true;
     try {
