@@ -135,6 +135,27 @@ def table_print_context(account):
     }
 
 
+def _money(amount):
+    """$500 / $32.50: sin centavos cuando son cero, para que la línea quepa en una fila."""
+    return f"${amount:,.0f}" if amount == amount.to_integral_value() else f"${amount:,.2f}"
+
+
+def _kitchen_payment_label(order):
+    """Comanda de cocina, sólo entrega a domicilio: el repartidor ve con cuánto paga el
+    cliente y cuánto devolver ("Paga con $500 · devolver $300"). Recoger usa el nombre del
+    método como siempre."""
+    if order.order_type != order.OrderType.DELIVERY:
+        return order.get_payment_method_display() if order.payment_method else "Pendiente"
+    if not order.payment_method:
+        return "Pendiente definir método de pago"
+    if order.payment_method == order.PaymentMethod.CASH:
+        change = order.change_required
+        if change is not None:
+            return f"Paga con {_money(order.cash_tendered)} · devolver {_money(change)}"
+        return "Efectivo exacto"
+    return order.get_payment_method_display()
+
+
 def order_print_context(order):
     address = ""
     if order.order_type == order.OrderType.DELIVERY:
@@ -166,6 +187,7 @@ def order_print_context(order):
         "total": order.total_with_delivery_tip,
         "printed_at": timezone.now(),
         "take_terminal": order.payment_method == order.PaymentMethod.CARD and order.order_type == order.OrderType.DELIVERY,
+        "kitchen_payment_label": _kitchen_payment_label(order),
         # NOTA TEMPORAL PARA APRENDIZAJE: el desarrollador pidió que, cuando el
         # saldo a favor cubrió parte o todo el pedido, el ticket de cobro aclare
         # cuánto se descontó y cuánto le queda al cliente — no sólo el método de

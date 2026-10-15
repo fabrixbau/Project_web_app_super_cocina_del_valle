@@ -1,5 +1,5 @@
 {% load static %}
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ticket cobro · {{ reference }}</title><link rel="stylesheet" href="{% static 'css/print-ticket.css' %}?v=17"></head>
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ticket cobro · {{ reference }}</title><link rel="stylesheet" href="{% static 'css/print-ticket.css' %}?v=18"></head>
 <body><main class="thermal-ticket payment-ticket">
   <header class="receipt-header"><p class="business-name">Super Cocina Del Valle</p>{% if folio %}<p># Orden {{ folio }}</p>{% endif %}</header>
   <section class="customer-focus">{% if source_kind == 'table' %}<p class="table-payment-identity">MESA: {{ table_name }}</p>{% if split_label %}<p class="table-payment-identity">{{ split_label|upper }}</p>{% endif %}{% if customer_name != 'Cliente de mesa' %}<p class="customer-name">{{ customer_name }}</p>{% endif %}{% else %}<h2>{{ customer_name|upper }}</h2>{% if phone %}<p>Tel. {{ phone }}</p>{% endif %}{% if address %}<p class="address-focus">{{ address }}</p>{% endif %}{% if references %}<p>Ref: {{ references }}</p>{% endif %}{% if requested_for %}<p>Entrega: {{ requested_for|date:'d/m/Y H:i' }}</p>{% endif %}{% endif %}</section>
