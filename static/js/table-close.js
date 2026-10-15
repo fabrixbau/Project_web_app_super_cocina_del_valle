@@ -33,6 +33,7 @@ propina; sus botones rellenan el monto y se puede editar a mano. Django valida a
   const methodInputs = [...form.querySelectorAll('[name="payment_method"]')];
   const tipInput = form.querySelector('[name="tip_amount"]');
   const tipSection = form.querySelector("[data-tip-section]");
+  const responsibleHeading = form.querySelector("[data-responsible-heading]");
   const totalOutput = form.querySelector("[data-payment-total]");
   const totalLabel = form.querySelector("[data-payment-total-label]");
 
@@ -75,6 +76,8 @@ propina; sus botones rellenan el monto y se puede editar a mano. Django valida a
       tipInput.value = "0";
       form.querySelectorAll("[data-tip-amount]").forEach((button) => button.classList.remove("is-selected"));
     }
+    // Sin propina (efectivo) el responsable pasa a ser el paso 2; sigue abajo de todo.
+    if (responsibleHeading) responsibleHeading.textContent = `${isCash ? "2" : "3"}. ¿A nombre de quién se queda la mesa?`;
     if (totalLabel) totalLabel.textContent = isCash ? "Total:" : "Total con propina:";
     calculate();
   };

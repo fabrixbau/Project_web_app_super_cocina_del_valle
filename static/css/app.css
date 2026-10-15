@@ -2288,7 +2288,7 @@ cierre con el repartidor presente. Borra esta nota después de leerla. */
 .change-person-summary { min-width: 0; margin: 0; }
 .change-person-summary > div { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: .7rem; padding: .6rem 0; border-bottom: 1px solid #ddd7cb; }
 .change-list { display: grid; gap: .65rem; }
-.change-row { display: grid; grid-template-columns: 1.5fr 1fr .8fr .8fr 1.1fr; gap: .8rem; align-items: center; border-left: 6px solid #c67622; }
+.change-row { display: grid; border-left: 6px solid #c67622; }
 .change-row.is-settled { border-left-color: #24634d; background: #f0f8f3; }
 .change-row h3, .change-row p { margin: .25rem 0; }
 .change-order-link { display: inline-block; color: inherit; text-decoration: none; }
@@ -2378,34 +2378,48 @@ cierre con el repartidor presente. Borra esta nota después de leerla. */
 .ticket-split-move-menu button { min-height: 2rem; margin: 0; padding: .2rem .55rem; color: #173c2f; text-align: left; background: #fff; border: 0; border-radius: .4rem; font-size: .74rem; font-weight: 700; box-shadow: none; }
 .change-list-count { margin: .2rem 0 .45rem; color: #173c2f; font-weight: 700; }
 .change-list-count strong { display: inline-grid; min-width: 1.8rem; padding: .05rem .5rem; place-items: center; color: #fff; background: #c67622; border-radius: 999px; }
-/* Tablet horizontal y celular: tarjetas compactas en dos columnas (lo menos alto posible). */
-@media (max-width: 900px) {
-  main.internal-panel .change-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; align-items: start; }
-  main.internal-panel .change-list > p.card { grid-column: 1 / -1; }
-  main.internal-panel .change-row { grid-template-columns: minmax(0, 1fr); gap: .3rem; align-items: stretch; margin: 0; padding: .5rem .55rem; border-left-width: 4px; }
-  .change-row .change-head { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem .35rem; min-width: 0; }
-  .change-row .change-head .change-order-link { padding: .1rem .4rem; font-size: .66rem; }
-  .change-row .change-head h3 { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
-  .change-row .change-head small { flex-basis: 100%; overflow: hidden; color: #5f6964; font-size: .64rem; text-overflow: ellipsis; white-space: nowrap; }
-  .change-row .change-courier strong { display: none; }
-  .change-row .change-courier p { margin: 0; overflow: hidden; font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
-  .change-row .change-courier p::before { content: "🛵 "; }
-  .change-row .change-pay { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .3rem; padding: 0; background: none; text-align: left; }
-  .change-row .change-pay > span { display: none; }
-  .change-row .change-pay strong { display: inline; font-size: .7rem; }
-  .change-row .change-pay small { font-size: .66rem; color: #5f6964; }
-  .change-row .change-pay small::before { content: "· "; }
-  .change-row .change-return { display: flex; align-items: center; justify-content: space-between; gap: .3rem; padding: .25rem .45rem; text-align: left; }
-  .change-row .change-return > span { min-width: 0; font-size: .6rem; line-height: 1.15; }
-  .change-row .change-return strong { flex: 0 0 auto; font-size: .95rem; }
-  .change-row .change-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem; }
-  .change-row .change-actions > :not(form) { grid-column: 1 / -1; font-size: .6rem; }
-  .change-row .change-actions form { margin: 0; }
-  .change-row .change-actions button, .change-row .change-actions .button-link { width: 100%; min-height: 2rem; padding: .2rem .3rem; font-size: .64rem; line-height: 1.1; }
+/* Caja › Cambios: tarjetas compactas en dos columnas en todos los tamaños (lo menos alto
+   posible); en tableta grande y ordenador la letra sube un poco (ver regla siguiente). */
+main.internal-panel .change-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; align-items: start; }
+main.internal-panel .change-list > p.card { grid-column: 1 / -1; }
+main.internal-panel .change-row { grid-template-columns: minmax(0, 1fr); gap: .3rem; align-items: stretch; margin: 0; padding: .5rem .55rem; border-left-width: 4px; }
+.change-row .change-head { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem .35rem; min-width: 0; }
+.change-row .change-head .change-order-link { padding: .1rem .4rem; font-size: .66rem; }
+.change-row .change-head h3 { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
+.change-row .change-head small { flex-basis: 100%; overflow: hidden; color: #5f6964; font-size: .64rem; text-overflow: ellipsis; white-space: nowrap; }
+.change-row .change-courier strong { display: none; }
+.change-row .change-courier p { margin: 0; overflow: hidden; font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
+.change-row .change-courier p::before { content: "🛵 "; }
+.change-row .change-pay { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .3rem; padding: 0; background: none; text-align: left; }
+.change-row .change-pay > span { display: none; }
+.change-row .change-pay strong { display: inline; font-size: .7rem; }
+.change-row .change-pay small { font-size: .66rem; color: #5f6964; }
+.change-row .change-pay small::before { content: "· "; }
+.change-row .change-return { display: flex; align-items: center; justify-content: space-between; gap: .3rem; padding: .25rem .45rem; text-align: left; }
+.change-row .change-return > span { min-width: 0; font-size: .6rem; line-height: 1.15; }
+.change-row .change-return strong { flex: 0 0 auto; font-size: .95rem; }
+.change-row .change-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem; }
+.change-row .change-actions > :not(form) { grid-column: 1 / -1; font-size: .6rem; }
+.change-row .change-actions form { margin: 0; }
+.change-row .change-actions button, .change-row .change-actions .button-link { width: 100%; min-height: 2rem; padding: .2rem .3rem; font-size: .64rem; line-height: 1.1; }
+@media (min-width: 901px) {
+  main.internal-panel .change-list { gap: .6rem; }
+  main.internal-panel .change-row { gap: .4rem; padding: .7rem .8rem; }
+  .change-row .change-head .change-order-link { font-size: .78rem; }
+  .change-row .change-head h3 { font-size: 1.05rem; }
+  .change-row .change-head small { font-size: .78rem; }
+  .change-row .change-courier p { font-size: .88rem; }
+  .change-row .change-pay strong { font-size: .9rem; }
+  .change-row .change-pay small { font-size: .82rem; }
+  .change-row .change-return { padding: .4rem .6rem; }
+  .change-row .change-return > span { font-size: .78rem; }
+  .change-row .change-return strong { font-size: 1.25rem; }
+  .change-row .change-actions > :not(form) { font-size: .75rem; }
+  .change-row .change-actions button, .change-row .change-actions .button-link { min-height: 2.4rem; font-size: .8rem; }
 }
-@media (max-width: 900px) { .change-overview { grid-template-columns: 1fr; } .change-filters form, .change-summary-grid { grid-template-columns: 1fr 1fr; } .change-row { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 900px) { .change-overview { grid-template-columns: 1fr; } .change-filters form, .change-summary-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 560px) {
-  .change-filters form, .change-row { grid-template-columns: 1fr; }
+  .change-filters form { grid-template-columns: 1fr; }
   .change-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; }
   .change-total { min-width: 0; padding: .65rem .5rem; }
   .change-total small { display: block; font-size: .68rem; line-height: 1.15; }
@@ -3104,7 +3118,8 @@ html[data-theme="dark"] .ticket-note-cancel { color: #e4ede8; border-color: #5b7
 .table-close-dialog { width: min(700px, calc(100% - 2rem)); }
 .table-close-dialog form { grid-template-columns: minmax(205px, .72fr) minmax(0, 1.55fr); grid-template-rows: auto auto auto auto; align-items: start; }
 .table-close-dialog .payment-method-section { grid-column: 1; grid-row: 2 / span 2; height: 100%; box-sizing: border-box; }
-.table-close-dialog .tip-selection-section { grid-column: 2; grid-row: 3; }
+/* Propina arriba a la derecha; "¿A nombre de quién…?" queda abajo (siguiente celda libre). */
+.table-close-dialog .tip-selection-section { grid-column: 2; grid-row: 2; }
 .table-close-dialog .payment-method-row ul { grid-template-columns: 1fr; gap: .5rem; }
 .table-close-dialog .payment-method-row li label.payment-method-card { min-height: 58px; grid-template-columns: 2.2rem minmax(0, 1fr); gap: .55rem; padding: .5rem .65rem; border: 1px solid #b8cbbf; }
 .table-close-dialog .payment-method-icon { width: 2.2rem; height: 2.2rem; border-radius: .55rem; }
