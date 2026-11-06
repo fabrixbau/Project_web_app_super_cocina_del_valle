@@ -724,7 +724,7 @@ def order_list(request):
         order.ticket_summary = " · ".join(names) if names else "Sin productos"
         order.has_no_products = not items
         actions = [action for action in _order_actions_for_user(order, request.user) if action != "cancel"]
-        if order.has_no_products or any(item.is_package_candidate for item in items):
+        if order.has_no_products:
             actions = [action for action in actions if action != "mark_ready"]
         order.quick_action = actions[0] if actions else ""
         order.quick_action_label = ACTION_LABELS.get(order.quick_action, "")

@@ -1471,8 +1471,6 @@ def transition_order(*, order, action, actor=None):
     if action == "mark_ready":
         if not order.items.exists():
             raise ValidationError("Agrega al menos un producto antes de marcar el pedido como listo.")
-        if order.items.filter(is_package_candidate=True).exists():
-            raise ValidationError("Completa la comida antes de marcar el pedido como listo.")
     transitions = {
         (Order.Status.PENDING_CONFIRMATION, "cancel"): Order.Status.CANCELED,
         (Order.Status.CONFIRMED, "start_preparing"): Order.Status.PREPARING,
