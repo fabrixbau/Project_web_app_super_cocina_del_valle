@@ -199,6 +199,16 @@ class Order(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="cashier_orders_released",
     )
+    # NOTA TEMPORAL PARA APRENDIZAJE: una transferencia puede tardar en reflejarse en
+    # el banco. Todo pedido con forma de pago Transferencia queda "por validar" hasta
+    # que Administrador la confirma en Caja > Transferencias. Es independiente de
+    # Liberar de Caja y del estado operativo (igual que los adeudos). Si la forma de
+    # pago cambia, la confirmación se borra. Borra esta nota después de leerla.
+    transfer_confirmed_at = models.DateTimeField(null=True, blank=True)
+    transfer_confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="transfers_confirmed",
+    )
     total = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
     # NOTA TEMPORAL PARA APRENDIZAJE: el saldo a favor de un cliente (ver
     # CustomerCreditMovement) se aplica de forma automática, hasta cubrir el total,
@@ -300,6 +310,23 @@ class Order(models.Model):
     @property
     def total_with_delivery_tip(self):
         return self.total + self.delivery_tip_amount
+
+    # Estados en los que una transferencia ya no se valida aquí: capturas sin cerrar,
+    # cancelados y pedidos pasados a mesa (la mesa cobra por su cuenta).
+    TRANSFER_EXCLUDED_STATUSES = ("draft", "canceled", "transferred")
+
+    @property
+    def transfer_pending(self):
+        return (
+            self.payment_method == self.PaymentMethod.TRANSFER
+            and self.transfer_confirmed_at is None
+            and self.status not in self.TRANSFER_EXCLUDED_STATUSES
+        )
+
+    @property
+    def transfer_expected_amount(self):
+        """Lo que debe llegar al banco: lo que falta cobrar más la propina de reparto."""
+        return self.amount_due + self.delivery_tip_amount
 
     @property
     def amount_due(self):

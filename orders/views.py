@@ -41,7 +41,7 @@ from .coffee_report import coffee_sales_for_date
 from .phones import phone_key as normalize_customer_phone
 from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm
 from .models import CashRegisterCut, CashRegisterExpense, CoffeeSettlement, Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
-from .services import ACTION_LABELS, customer_with_phone, duplicate_customer_groups, merge_customers, link_public_order_customer, add_cash_register_expense, add_customer_credit, apply_credit_to_debts, open_customer_debts, suggested_credit_allocation, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, settle_selected_debts_from_cashier, start_internal_order, transfer_order_to_table, transition_order, update_cash_register_cut, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
+from .services import ACTION_LABELS, customer_with_phone, duplicate_customer_groups, merge_customers, link_public_order_customer, add_cash_register_expense, add_customer_credit, apply_credit_to_debts, open_customer_debts, suggested_credit_allocation, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, set_transfer_confirmation, settle_selected_debts_from_cashier, start_internal_order, transfer_order_to_table, transition_order, update_cash_register_cut, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
 
 
 INTERNAL_MENU_MODE_KEY = "internal_order_menu_mode"
@@ -2128,6 +2128,83 @@ def cashier_debt_board(request):
         "paid_total": sum((debt.paid_amount for debt in debts), Decimal("0")),
         "balance_total": sum((debt.balance for debt in debts if debt.status != CustomerDebt.Status.FORGIVEN), Decimal("0")),
     })
+
+
+@role_required(ADMIN, ORDER_TAKER)
+def cashier_transfer_board(request):
+    # NOTA TEMPORAL PARA APRENDIZAJE: espejo de Cuentas por cobrar para pedidos pagados
+    # con Transferencia. "Por validar" se calcula (forma de pago Transferencia y sin
+    # confirmar), así que no hace falta registrar nada al elegir el método: aparece aquí
+    # sola. Telefonista sólo consulta; confirmar es exclusivo de Administrador.
+    # Borra esta nota después de leerla.
+    orders = Order.objects.filter(
+        payment_method=Order.PaymentMethod.TRANSFER,
+    ).exclude(
+        status__in=Order.TRANSFER_EXCLUDED_STATUSES,
+    ).select_related("transfer_confirmed_by", "delivery_person", "agenda_customer")
+    search = request.GET.get("q", "").strip()
+    scope = request.GET.get("scope", "pending")
+    # Igual que en Cuentas por cobrar: sin fecha por default, para que una
+    # transferencia vieja sin confirmar no desaparezca de la vista.
+    date_from = _report_date(request.GET.get("date_from"), None)
+    date_to = _report_date(request.GET.get("date_to"), None)
+    if date_from and date_to and date_from > date_to:
+        date_from, date_to = date_to, date_from
+    if date_from:
+        orders = orders.filter(operating_date__gte=date_from)
+    if date_to:
+        orders = orders.filter(operating_date__lte=date_to)
+    if search:
+        order_search = (
+            Q(customer_name__icontains=search) | Q(phone__icontains=search)
+            | Q(agenda_customer__name__icontains=search)
+        )
+        digits = search.lstrip("#")
+        if digits.isdigit():
+            order_search |= _folio_search_query(digits)
+        orders = orders.filter(order_search)
+    if scope == "confirmed":
+        orders = orders.filter(transfer_confirmed_at__isnull=False).order_by("-transfer_confirmed_at", "-id")
+    elif scope == "all":
+        orders = orders.order_by("-operating_date", "-daily_number")
+    else:
+        scope = "pending"
+        orders = orders.filter(transfer_confirmed_at__isnull=True).order_by("operating_date", "daily_number")
+    orders = list(orders[:500])
+    return render(request, "orders/cashier_transfer_board.html", {
+        "orders": orders, "search": search, "selected_scope": scope,
+        "date_from": date_from, "date_to": date_to,
+        "can_confirm_transfers": user_has_any_role(request.user, (ADMIN,)),
+        "pending_total": sum(
+            (order.transfer_expected_amount for order in orders if order.transfer_confirmed_at is None),
+            Decimal("0"),
+        ),
+        "pending_count": sum(1 for order in orders if order.transfer_confirmed_at is None),
+        "confirmed_total": sum(
+            (order.transfer_expected_amount for order in orders if order.transfer_confirmed_at is not None),
+            Decimal("0"),
+        ),
+    })
+
+
+@require_POST
+@role_required(ADMIN)
+def cashier_transfer_confirm(request, order_id):
+    order = get_object_or_404(Order, pk=order_id)
+    confirmed = request.POST.get("confirmed", "1") == "1"
+    next_url = request.POST.get("next", "")
+    if not (next_url.startswith("/") and not next_url.startswith("//")):
+        next_url = reverse("cashier:transfer_board")
+    try:
+        order = set_transfer_confirmation(order=order, actor=request.user, confirmed=confirmed)
+    except ValidationError as error:
+        messages.error(request, error.message)
+        return redirect(next_url)
+    if confirmed:
+        messages.success(request, f"Transferencia de {order.formatted_number} confirmada.")
+    else:
+        messages.success(request, f"{order.formatted_number} volvió a quedar por validar.")
+    return redirect(next_url)
 
 
 @require_POST

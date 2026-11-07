@@ -12983,3 +12983,20 @@ body .table-pos-layout .table-ticket.ticket-expandable.is-expanded > .table-tick
   body .table-ticket.ticket-expandable.is-expanded > .ticket-payment-summary { padding-top: .25rem !important; }
 }
 
+
+/* Caja > Transferencias: reutiliza la base de Cuentas por cobrar con 5 columnas y
+   filas planas (sin detalle expandible). Marca "por validar" en tarjetas de Caja/Pedidos. */
+.transfer-list > header, .transfer-row { display: grid; grid-template-columns: 1.5fr 1.2fr 1fr 1fr 1fr; gap: .75rem; align-items: center; }
+.transfer-row { padding: .85rem .6rem; border-top: 1px solid #ddd6ca; }
+.transfer-row > span { display: grid; gap: .15rem; min-width: 0; }
+.transfer-row small { color: #567064; font-size: .74rem; }
+.transfer-row.is-pending { background: #fffaf0; }
+.transfer-row form button { min-height: 2.6rem; padding: 0 .9rem; border-radius: .65rem; font-weight: 800; }
+.transfer-status.is-confirmed { background: #dceee1; }
+.order-board-transfer-note { display: block; margin-top: .2rem; color: #9a5b00; font-size: .68rem; font-weight: 800; }
+@media (max-width: 800px) {
+  .transfer-list > header { display: none; }
+  .transfer-row { grid-template-columns: 1fr 1fr; }
+  .transfer-row [data-column]::before { content: attr(data-column); display: block; color: #567064; font-size: .7rem; font-weight: 900; text-transform: uppercase; }
+}
+.message.transfer-pending-message { background: #fdecc8; }

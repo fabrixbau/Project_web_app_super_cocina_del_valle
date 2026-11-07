@@ -23,7 +23,7 @@ from .services import (
     add_customer_credit, add_internal_order_package, add_internal_order_product, assign_delivery,
     apply_customer_credit_to_order, change_internal_order_item, change_internal_order_type,
     close_internal_order_capture, create_customer_debt, refund_customer_credit,
-    set_cashier_release, settle_selected_debts_from_cashier, transfer_order_to_table,
+    set_cashier_release, set_transfer_confirmation, settle_selected_debts_from_cashier, transfer_order_to_table,
     transfer_table_to_order, transition_order, update_cashier_payment,
     update_delivery_tip, update_internal_package_extras,
 )
@@ -317,6 +317,110 @@ class CashierReleaseCashDefaultTests(TestCase):
         self.assertFalse(order.needs_change)
         self.assertEqual(order.status, Order.Status.PICKED_UP)
         self.assertFalse(order.needs_change)
+
+    def test_releasing_an_order_with_an_unfinished_package_is_allowed(self):
+        # Liberar de Caja ya no exige completar el paquete: sale tal como está.
+        product = Product.objects.create(
+            category=Category.objects.create(name="Caja paquete"), name="Sopa suelta", price=40,
+        )
+        order = self.make_pickup_order(payment_method=Order.PaymentMethod.CARD)
+        Order.objects.filter(pk=order.pk).update(status=Order.Status.PREPARING)
+        OrderItem.objects.create(
+            order=order, product=product, product_name_snapshot=product.name,
+            unit_price=product.price, quantity=1, subtotal=product.price, is_package_candidate=True,
+            tortillas=False, beans=False,
+        )
+        order = set_cashier_release(order=order, actor=self.admin, released=True)
+        self.assertEqual(order.status, Order.Status.PICKED_UP)
+        self.assertIsNotNone(order.cashier_released_at)
+
+
+class TransferConfirmationTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.admin = user_model.objects.create_user(username="transfer_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.telefonista = user_model.objects.create_user(username="transfer_order_taker")
+        self.telefonista.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
+        self.today = timezone.localdate()
+
+    def make_order(self, *, number=950, payment_method=Order.PaymentMethod.TRANSFER, status=Order.Status.READY, **extra):
+        return Order.objects.create(
+            daily_number=number, operating_date=self.today,
+            order_type=Order.OrderType.PICKUP, source=Order.Source.INTERNAL,
+            status=status, total=180, payment_method=payment_method,
+            **{"customer_name": "Cliente transferencia", **extra},
+        )
+
+    def test_transfer_orders_are_pending_automatically(self):
+        self.assertTrue(self.make_order().transfer_pending)
+        self.assertFalse(self.make_order(number=951, payment_method=Order.PaymentMethod.CASH).transfer_pending)
+        self.assertFalse(self.make_order(number=952, status=Order.Status.CANCELED).transfer_pending)
+
+    def test_admin_confirms_and_can_undo(self):
+        order = set_transfer_confirmation(order=self.make_order(), actor=self.admin)
+        self.assertFalse(order.transfer_pending)
+        self.assertEqual(order.transfer_confirmed_by, self.admin)
+        order = set_transfer_confirmation(order=order, actor=self.admin, confirmed=False)
+        self.assertTrue(order.transfer_pending)
+        self.assertIsNone(order.transfer_confirmed_by)
+
+    def test_only_admin_can_confirm(self):
+        with self.assertRaisesMessage(ValidationError, "Sólo un administrador"):
+            set_transfer_confirmation(order=self.make_order(), actor=self.telefonista)
+
+    def test_non_transfer_orders_cannot_be_confirmed(self):
+        with self.assertRaisesMessage(ValidationError, "no está marcado para pago con transferencia"):
+            set_transfer_confirmation(
+                order=self.make_order(payment_method=Order.PaymentMethod.CARD), actor=self.admin,
+            )
+
+    def test_changing_payment_method_resets_confirmation(self):
+        order = set_transfer_confirmation(order=self.make_order(), actor=self.admin)
+        order = update_cashier_payment(
+            order=order, payment_method=Order.PaymentMethod.CASH, cash_amount="", actor=self.admin,
+        )
+        order = update_cashier_payment(
+            order=order, payment_method=Order.PaymentMethod.TRANSFER, cash_amount="", actor=self.admin,
+        )
+        self.assertTrue(order.transfer_pending)
+
+    def test_saving_the_same_transfer_method_keeps_confirmation(self):
+        order = set_transfer_confirmation(order=self.make_order(), actor=self.admin)
+        order = update_cashier_payment(
+            order=order, payment_method=Order.PaymentMethod.TRANSFER, cash_amount="", actor=self.admin,
+        )
+        self.assertFalse(order.transfer_pending)
+
+    def test_releasing_from_cashier_does_not_require_confirmation(self):
+        order = set_cashier_release(order=self.make_order(), actor=self.admin, released=True)
+        self.assertEqual(order.status, Order.Status.PICKED_UP)
+        self.assertTrue(order.transfer_pending)
+
+    def test_board_filters_pending_and_confirmed(self):
+        pending = self.make_order(customer_name="Pendiente Uno")
+        confirmed = set_transfer_confirmation(order=self.make_order(number=951), actor=self.admin)
+        self.make_order(number=952, payment_method=Order.PaymentMethod.CASH)
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("cashier:transfer_board"))
+        self.assertEqual([order.pk for order in response.context["orders"]], [pending.pk])
+        self.assertEqual(response.context["pending_total"], Decimal("180"))
+        response = self.client.get(reverse("cashier:transfer_board"), {"scope": "confirmed"})
+        self.assertEqual([order.pk for order in response.context["orders"]], [confirmed.pk])
+
+    def test_confirm_view_is_admin_only_but_board_is_visible_to_order_taker(self):
+        order = self.make_order()
+        self.client.force_login(self.telefonista)
+        response = self.client.get(reverse("cashier:transfer_board"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Confirmar transferencia</button>")
+        self.client.post(reverse("cashier:transfer_confirm", args=(order.pk,)))
+        order.refresh_from_db()
+        self.assertIsNone(order.transfer_confirmed_at)
+        self.client.force_login(self.admin)
+        self.client.post(reverse("cashier:transfer_confirm", args=(order.pk,)), {"confirmed": "1"})
+        order.refresh_from_db()
+        self.assertIsNotNone(order.transfer_confirmed_at)
 
 
 class DeliveryTipTerminalMovementSyncTests(TestCase):
@@ -2177,8 +2281,15 @@ class CashierToolsNavigationTests(TestCase):
                 "Cambios pendientes", "Reporte de propinas", "Corte de bebidas calientes",
                 "Registrar un pedido que no pagó",
             ],
+            "cashier:transfer_board": [
+                "Caja", "Cuentas por cobrar", "Saldos a favor", "Corte de terminales",
+                "Cambios pendientes", "Reporte de propinas", "Corte de bebidas calientes",
+                "Corte de caja", "Registrar un pedido que no pagó",
+            ],
         }
         for url_name, expected_labels in pages.items():
+            if url_name != "cashier:transfer_board":
+                expected_labels = [*expected_labels, "Transferencias"]
             response = self.client.get(reverse(url_name))
             for label in expected_labels:
                 self.assertContains(response, f">{label}<", msg_prefix=f"{url_name} -> falta enlace a {label}")
@@ -2187,6 +2298,7 @@ class CashierToolsNavigationTests(TestCase):
         self.client.force_login(self.telefonista)
         response = self.client.get(reverse("cashier:debt_board"))
         self.assertContains(response, ">Saldos a favor<")
+        self.assertContains(response, ">Transferencias<")
         self.assertNotContains(response, ">Caja<")
         self.assertNotContains(response, ">Corte de terminales<")
         self.assertNotContains(response, ">Registrar un pedido que no pagó<")

@@ -11,6 +11,7 @@ cobrar y Saldos a favor). Borra esta nota después de leerla. -->
   <button class="cashier-panel-toggle" type="button" aria-expanded="false" data-cashier-panel-toggle="tools"><span>Herramientas</span><span aria-hidden="true">⌄</span></button>
   {% if is_admin and current != 'cashier' %}<a href="{% url 'cashier:cashier_board' %}">Caja</a>{% endif %}
   {% if current != 'debts' %}<a href="{% url 'cashier:debt_board' %}">Cuentas por cobrar</a>{% endif %}
+  {% if current != 'transfers' %}<a href="{% url 'cashier:transfer_board' %}">Transferencias</a>{% endif %}
   {% if current != 'credit' %}<a href="{% url 'cashier:credit_board' %}">Saldos a favor</a>{% endif %}
   {% if is_admin and current != 'terminal' %}<a href="{% url 'cashier:terminal_board' %}">Corte de terminales</a>{% endif %}
   {% if is_admin and current != 'changes' %}<a href="{% url 'cashier:change_board' %}">Cambios pendientes</a>{% endif %}

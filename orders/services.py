@@ -475,6 +475,38 @@ def _resync_used_credit(order, actor):
         order.credit_applied = sync_order_credit(order=order, actor=actor).credit_applied
 
 
+def _clear_transfer_confirmation_if_method_changed(order, previous_method):
+    """Si cambió la forma de pago, la transferencia vuelve a quedar por validar.
+
+    Devuelve True cuando se limpió algo, para que quien llama lo incluya en el save.
+    """
+    if order.payment_method == previous_method or order.transfer_confirmed_at is None:
+        return False
+    order.transfer_confirmed_at = None
+    order.transfer_confirmed_by = None
+    return True
+
+
+@transaction.atomic
+def set_transfer_confirmation(*, order, actor, confirmed=True):
+    """Marca (o deshace) que la transferencia del pedido ya llegó al banco."""
+    order = Order.objects.select_for_update().get(pk=order.pk)
+    if not user_has_any_role(actor, (ADMIN,)):
+        raise ValidationError("Sólo un administrador puede confirmar transferencias.")
+    if order.payment_method != Order.PaymentMethod.TRANSFER:
+        raise ValidationError("Este pedido no está marcado para pago con transferencia.")
+    if confirmed:
+        if order.transfer_confirmed_at is not None:
+            raise ValidationError("Esta transferencia ya estaba confirmada.")
+        order.transfer_confirmed_at = timezone.now()
+        order.transfer_confirmed_by = actor
+    else:
+        order.transfer_confirmed_at = None
+        order.transfer_confirmed_by = None
+    order.save(update_fields=("transfer_confirmed_at", "transfer_confirmed_by", "updated_at"))
+    return order
+
+
 @transaction.atomic
 def update_cashier_payment(*, order, payment_method, cash_amount, actor):
     """Persist the payment instruction selected at the cash desk."""
@@ -488,7 +520,9 @@ def update_cashier_payment(*, order, payment_method, cash_amount, actor):
         )
     if payment_method not in {"", *Order.PaymentMethod.values}:
         raise ValidationError("Selecciona efectivo, terminal o transferencia.")
+    previous_method = order.payment_method
     order.payment_method = payment_method
+    _clear_transfer_confirmation_if_method_changed(order, previous_method)
     order.cash_settlement_confirmed = False
     order.cash_settlement_by = None
     order.cash_settlement_at = None
@@ -524,7 +558,7 @@ def update_cashier_payment(*, order, payment_method, cash_amount, actor):
         "payment_method", "needs_change", "cash_tendered", "cash_settlement_confirmed",
         "cash_settlement_by", "cash_settlement_at", "delivery_tip_amount",
         "delivery_tip_recipient", "delivery_tip_updated_by", "delivery_tip_updated_at",
-        "updated_at",
+        "transfer_confirmed_at", "transfer_confirmed_by", "updated_at",
     ))
     return order
 
@@ -745,7 +779,9 @@ def save_internal_order(*, form_data, actor, order=None):
     for field in ("street", "exterior_number", "interior_number", "neighborhood", "references"):
         setattr(order, field, form_data.get(field, "").strip() if is_delivery else "")
     order.notes = form_data.get("notes", "").strip()
+    previous_method = order.payment_method
     order.payment_method = form_data["payment_method"]
+    _clear_transfer_confirmation_if_method_changed(order, previous_method)
     order.needs_change = form_data["needs_change"]
     order.cash_tendered = form_data["cash_tendered"]
     order.save()
@@ -781,7 +817,9 @@ def autosave_internal_order_customer(*, order, form_data, actor=None):
     for field in ("street", "exterior_number", "interior_number", "neighborhood", "references"):
         setattr(order, field, form_data.get(field, "").strip())
     order.notes = form_data.get("notes", "").strip()
+    previous_method = order.payment_method
     order.payment_method = form_data.get("payment_method", "")
+    _clear_transfer_confirmation_if_method_changed(order, previous_method)
     order.needs_change = form_data.get("needs_change", False)
     order.cash_tendered = form_data.get("cash_tendered")
     if order.order_type != Order.OrderType.DELIVERY or order.payment_method not in {
@@ -796,7 +834,7 @@ def autosave_internal_order_customer(*, order, form_data, actor=None):
         "requested_for", "street", "exterior_number", "interior_number",
         "neighborhood", "references", "notes", "payment_method", "needs_change", "cash_tendered",
         "delivery_tip_amount", "delivery_tip_recipient", "delivery_tip_updated_by",
-        "delivery_tip_updated_at", "updated_at",
+        "delivery_tip_updated_at", "transfer_confirmed_at", "transfer_confirmed_by", "updated_at",
     ))
     sync_order_customer_agenda(order, form_data)
     if _internal_order_has_customer_data(order) or order.items.exists():

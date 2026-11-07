@@ -1,0 +1,33 @@
+{% extends "base_internal.html" %}
+{% load static %}
+<!-- NOTA TEMPORAL PARA APRENDIZAJE: todo pedido con forma de pago Transferencia
+aparece aquí "Por validar" hasta que Administrador confirma que el dinero llegó al
+banco. No bloquea Liberar de Caja ni el reparto: es sólo el seguimiento del cobro,
+igual que Cuentas por cobrar. Borra esta nota después de leerla. -->
+{% block title %}Transferencias{% endblock %}
+{% block content %}
+<header class="cashier-page-header cashier-page-header--wide-tools">
+  <div class="cashier-title-row">
+    <div><h1>Transferencias</h1><p>Pedidos pagados por transferencia: confirma cada uno cuando el depósito aparezca en el banco.</p></div>
+    <a class="cashier-back-link" href="{% url 'internal_portal:dashboard' %}"><span aria-hidden="true">←</span> Volver al panel</a>
+  </div>
+  {% include "orders/includes/cashier_tools_nav.html" with current="transfers" is_admin=can_confirm_transfers %}
+</header>
+{% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
+
+<section class="card debt-filter-card transfer-filter-card"><form method="get"><label>Buscar<input name="q" value="{{ search }}" placeholder="Cliente, teléfono o folio" autocomplete="off"></label><label>Desde<input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}" onchange="this.form.submit()"></label><label>Hasta<input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}" onchange="this.form.submit()"></label><label>Mostrar<select name="scope" onchange="this.form.submit()"><option value="pending" {% if selected_scope == 'pending' %}selected{% endif %}>Por validar</option><option value="confirmed" {% if selected_scope == 'confirmed' %}selected{% endif %}>Confirmadas</option><option value="all" {% if selected_scope == 'all' %}selected{% endif %}>Todas</option></select></label><button type="submit">Buscar</button></form></section>
+
+<section class="debt-summary-grid"><article class="card debt-balance-card"><small>Por validar</small><strong>${{ pending_total|floatformat:2 }}</strong></article><article class="card"><small>Pedidos por validar</small><strong>{{ pending_count }}</strong></article><article class="card credit-balance-card"><small>Confirmado (mostrado)</small><strong>${{ confirmed_total|floatformat:2 }}</strong></article></section>
+
+<section class="card debt-list transfer-list">
+  <header><span>Cliente</span><span>Pedido</span><span>Monto a recibir</span><span>Estado</span><span>Acción</span></header>
+  {% for order in orders %}<div class="transfer-row {% if order.transfer_confirmed_at %}is-confirmed{% else %}is-pending{% endif %}" id="transferencia-{{ order.id }}">
+    <span data-column="Cliente"><strong>{{ order.customer_name|default:'Sin nombre' }}</strong><small>{{ order.phone|default:'Sin teléfono' }}</small></span>
+    <span data-column="Pedido"><a href="{% url 'orders:order_detail' order.id %}">{{ order.formatted_number }}</a><small>{{ order.operating_date|date:'d/m/Y' }} · {% if order.order_type == 'delivery' %}Domicilio{% else %}Recoger{% endif %} · {{ order.get_status_display }}</small></span>
+    <span data-column="Monto a recibir"><strong>${{ order.transfer_expected_amount|floatformat:2 }}</strong>{% if order.delivery_tip_amount or order.credit_applied %}<small class="debt-credit-note">Ticket ${{ order.total|floatformat:2 }}{% if order.credit_applied %} · saldo a favor −${{ order.credit_applied|floatformat:2 }}{% endif %}{% if order.delivery_tip_amount %} · propina +${{ order.delivery_tip_amount|floatformat:2 }}{% endif %}</small>{% endif %}</span>
+    <span data-column="Estado">{% if order.transfer_confirmed_at %}<span class="debt-status transfer-status is-confirmed">Confirmada</span><small>{{ order.transfer_confirmed_at|date:'d/m/Y H:i' }}{% if order.transfer_confirmed_by %} · {{ order.transfer_confirmed_by.get_full_name|default:order.transfer_confirmed_by.username }}{% endif %}</small>{% else %}<span class="debt-status transfer-status">Por validar</span>{% endif %}</span>
+    <span data-column="Acción">{% if can_confirm_transfers %}<form method="post" action="{% url 'cashier:transfer_confirm' order.id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">{% if order.transfer_confirmed_at %}<input type="hidden" name="confirmed" value="0"><button type="submit" class="secondary">Deshacer</button>{% else %}<input type="hidden" name="confirmed" value="1"><button type="submit">Confirmar transferencia</button>{% endif %}</form>{% else %}<small>Sólo Administrador confirma</small>{% endif %}</span>
+  </div>{% empty %}<p>No hay transferencias que coincidan con los filtros.</p>{% endfor %}
+</section>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/cashier-tools-toggle.js' %}?v=1"></script>{% endblock %}
