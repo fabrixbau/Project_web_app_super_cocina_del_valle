@@ -2169,7 +2169,7 @@ def cashier_transfer_board(request):
         orders = orders.order_by("-operating_date", "-daily_number")
     else:
         scope = "pending"
-        orders = orders.filter(transfer_confirmed_at__isnull=True).order_by("operating_date", "daily_number")
+        orders = orders.filter(transfer_confirmed_at__isnull=True).order_by("-operating_date", "-daily_number")
     orders = list(orders[:500])
     return render(request, "orders/cashier_transfer_board.html", {
         "orders": orders, "search": search, "selected_scope": scope,
