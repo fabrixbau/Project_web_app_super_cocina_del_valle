@@ -1,9 +1,12 @@
 # NOTA TEMPORAL PARA APRENDIZAJE:
-# Abrir una alerta registra también quién inició la atención del pedido. Se retiró la
-# acción masiva para que cada alerta tenga un responsable explícito. Borra esta nota.
+# Abrir una alerta registra también quién inició la atención del pedido. La acción
+# masiva "Marcar todas como leídas" volvió a pedido del desarrollador: guarda quién las
+# leyó y cuándo, pero NO marca el inicio de atención de esos pedidos (nadie los abrió).
+# Borra esta nota.
 
 from datetime import timedelta
 
+from django.contrib import messages
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -40,7 +43,29 @@ def notification_list(request):
         # Fechas locales como texto para marcar "De ayer" / "Del dd/mm/aaaa".
         "today_key": timezone.localdate().isoformat(),
         "yesterday_key": (timezone.localdate() - timedelta(days=1)).isoformat(),
+        "can_mark_all_read": user_has_any_role(request.user, (ADMIN, ORDER_TAKER)),
     })
+
+
+@require_POST
+@role_required(ADMIN, ORDER_TAKER)
+def notification_mark_all_read(request):
+    """Un solo clic: pedidos web pendientes como leídos (para todos, con tu nombre) y
+    alertas de inventario descartadas sólo para ti."""
+    read_count = InternalNotification.objects.filter(is_read=False).update(
+        is_read=True, read_at=timezone.now(), read_by=request.user,
+    )
+    pending_alerts = StockAlert.objects.filter(is_active=True).exclude(dismissals__user=request.user)
+    dismissed = StockAlertDismissal.objects.bulk_create(
+        [StockAlertDismissal(alert=alert, user=request.user) for alert in pending_alerts],
+        ignore_conflicts=True,
+    )
+    total = read_count + len(dismissed)
+    if total:
+        messages.success(request, f"Listo: {total} notificación(es) marcadas como leídas.")
+    else:
+        messages.info(request, "No había notificaciones pendientes.")
+    return redirect("notifications:notification_list")
 
 
 @role_required(ADMIN, ORDER_TAKER)

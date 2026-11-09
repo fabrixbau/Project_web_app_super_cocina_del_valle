@@ -8,7 +8,7 @@ from accounts.roles import WAITER
 from menu.inventory import release_stock, reserve_stock
 from menu.models import Category, DailyProductStock, Product
 
-from .models import StockAlert
+from .models import InternalNotification, StockAlert, StockAlertDismissal
 
 
 class StockAlertTests(TestCase):
@@ -94,3 +94,62 @@ class StockAlertTests(TestCase):
         self.assertContains(response, "Quedan 10 de Sopa para alertas para Mesas")
         self.assertContains(response, "Quedan 5 de Jugo permanente")
         self.assertNotContains(response, "Jugo permanente para")
+
+
+class MarkAllReadTests(TestCase):
+    def setUp(self):
+        from accounts.roles import ADMIN, ORDER_TAKER
+        from orders.models import Order
+
+        user_model = get_user_model()
+        self.admin = user_model.objects.create_user(username="leer_todo_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.other_admin = user_model.objects.create_user(username="leer_todo_otro")
+        self.other_admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.waiter = user_model.objects.create_user(username="leer_todo_mesero")
+        self.waiter.groups.add(Group.objects.get_or_create(name=WAITER)[0])
+        self.telefonista = user_model.objects.create_user(username="leer_todo_tel")
+        self.telefonista.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
+        for number in (1, 2):
+            order = Order.objects.create(
+                daily_number=700 + number, operating_date=timezone.localdate(),
+                order_type=Order.OrderType.PICKUP, customer_name="Web", phone="5500000000", total=50,
+            )
+            InternalNotification.objects.create(
+                notification_type=InternalNotification.NotificationType.NEW_PUBLIC_ORDER,
+                order=order, title=f"Pedido web {number}", message="Nuevo",
+            )
+        category = Category.objects.create(name="Leer todo")
+        product = Product.objects.create(category=category, name="Sopa leer todo", price=20)
+        stock = DailyProductStock.objects.create(
+            date=timezone.localdate(), product=product, channel=DailyProductStock.Channel.TABLE,
+            initial_quantity=5, low_stock_threshold=10,
+        )
+        self.alert = StockAlert.objects.create(stock=stock, available_quantity=5)
+
+    def test_marks_orders_read_for_everyone_and_dismisses_alerts_only_for_me(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(reverse("notifications:notification_mark_all_read"))
+        self.assertRedirects(response, reverse("notifications:notification_list"))
+        self.assertFalse(InternalNotification.objects.filter(is_read=False).exists())
+        notification = InternalNotification.objects.first()
+        self.assertEqual(notification.read_by, self.admin)
+        self.assertIsNotNone(notification.read_at)
+        self.assertIsNone(notification.order.attention_started_at)
+        self.assertTrue(StockAlertDismissal.objects.filter(alert=self.alert, user=self.admin).exists())
+        self.assertFalse(StockAlertDismissal.objects.filter(alert=self.alert, user=self.other_admin).exists())
+
+    def test_button_visible_for_admin_and_order_taker_only(self):
+        for user, visible in ((self.admin, True), (self.telefonista, True), (self.waiter, False)):
+            with self.subTest(user=user.username):
+                self.client.force_login(user)
+                response = self.client.get(reverse("notifications:notification_list"))
+                if visible:
+                    self.assertContains(response, "Marcar todas como leídas</button>")
+                else:
+                    self.assertNotContains(response, "Marcar todas como leídas</button>")
+
+    def test_waiter_cannot_post_mark_all(self):
+        self.client.force_login(self.waiter)
+        self.client.post(reverse("notifications:notification_mark_all_read"))
+        self.assertTrue(InternalNotification.objects.filter(is_read=False).exists())
