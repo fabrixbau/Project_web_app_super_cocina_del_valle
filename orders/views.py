@@ -41,7 +41,7 @@ from .coffee_report import coffee_sales_for_date
 from .phones import phone_key as normalize_customer_phone
 from .forms import CustomerAddressForm, CustomerForm, DeliveryTipForm, InternalOrderAutosaveForm, InternalOrderForm, InternalPackageExtrasForm, InternalPackageForm, PackageCartForm, ProductCartForm, PublicCheckoutForm
 from .models import CashRegisterCut, CashRegisterExpense, CoffeeSettlement, Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, CustomerDebtMovement, Order, OrderItem, TerminalCut, TerminalMovement
-from .services import ACTION_LABELS, customer_with_phone, duplicate_customer_groups, merge_customers, link_public_order_customer, add_cash_register_expense, add_customer_credit, apply_credit_to_debts, open_customer_debts, suggested_credit_allocation, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, set_cashier_release, set_customer_debt_forgiven, set_transfer_confirmation, settle_selected_debts_from_cashier, start_internal_order, transfer_order_to_table, transition_order, update_cash_register_cut, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
+from .services import ACTION_LABELS, customer_with_phone, duplicate_customer_groups, merge_customers, link_public_order_customer, add_cash_register_expense, add_customer_credit, apply_credit_to_debts, open_customer_debts, suggested_credit_allocation, add_internal_auto_meal_component, add_internal_order_package, add_internal_order_product, add_water_to_internal_package, assign_delivery, autosave_internal_order_customer, available_order_actions, can_update_order_payment, change_internal_order_item, change_internal_order_type, close_internal_order_capture, confirm_cash_settlement, create_customer_debt, create_public_cart_order, refund_customer_credit, register_customer_debt_payment, save_internal_order, register_debt_payment_and_transfer, set_cashier_release, set_customer_debt_forgiven, set_transfer_confirmation, settle_selected_debts_from_cashier, start_internal_order, transfer_order_to_table, transition_order, update_cash_register_cut, update_cashier_payment, update_delivery_tip, update_internal_order_item_note, update_internal_order_note, update_internal_package_extras
 
 
 INTERNAL_MENU_MODE_KEY = "internal_order_menu_mode"
@@ -2171,6 +2171,20 @@ def cashier_transfer_board(request):
         scope = "pending"
         orders = orders.filter(transfer_confirmed_at__isnull=True).order_by("-operating_date", "-daily_number")
     orders = list(orders[:500])
+    # Adeudo abierto del mismo pedido (si lo marcaron "No pagó"): se muestra como
+    # etiqueta y activa la ventana de "¿liquidar también el adeudo?" al confirmar.
+    open_debts = {
+        debt.order_id: debt for debt in CustomerDebt.objects.filter(
+            order_id__in=[order.pk for order in orders],
+            status__in=(CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL),
+        )
+    }
+    debt_order_ids = set(CustomerDebt.objects.filter(
+        order_id__in=[order.pk for order in orders],
+    ).values_list("order_id", flat=True))
+    for order in orders:
+        order.open_debt = open_debts.get(order.pk)
+        order.can_mark_unpaid = order.pk not in debt_order_ids
     return render(request, "orders/cashier_transfer_board.html", {
         "orders": orders, "search": search, "selected_scope": scope,
         "date_from": date_from, "date_to": date_to,
@@ -2195,12 +2209,17 @@ def cashier_transfer_confirm(request, order_id):
     next_url = request.POST.get("next", "")
     if not (next_url.startswith("/") and not next_url.startswith("//")):
         next_url = reverse("cashier:transfer_board")
+    settle_debt = request.POST.get("settle_debt") == "1"
     try:
-        order = set_transfer_confirmation(order=order, actor=request.user, confirmed=confirmed)
+        order = set_transfer_confirmation(
+            order=order, actor=request.user, confirmed=confirmed, settle_debt=settle_debt,
+        )
     except ValidationError as error:
         messages.error(request, error.message)
         return redirect(next_url)
-    if confirmed:
+    if confirmed and settle_debt:
+        messages.success(request, f"Transferencia de {order.formatted_number} confirmada y adeudo liquidado.")
+    elif confirmed:
         messages.success(request, f"Transferencia de {order.formatted_number} confirmada.")
     else:
         messages.success(request, f"{order.formatted_number} volvió a quedar por validar.")
@@ -2299,16 +2318,20 @@ def cashier_order_debt_create(request, order_id):
 @role_required(ADMIN)
 def cashier_debt_payment(request, debt_id):
     debt = get_object_or_404(CustomerDebt, pk=debt_id)
+    confirm_transfer = request.POST.get("confirm_transfer") == "1"
     try:
-        debt = register_customer_debt_payment(
+        debt = register_debt_payment_and_transfer(
             debt=debt, amount=request.POST.get("amount", ""),
             payment_method=request.POST.get("payment_method", ""), actor=request.user,
-            note=request.POST.get("note", ""),
+            note=request.POST.get("note", ""), confirm_transfer=confirm_transfer,
         )
     except ValidationError as error:
         messages.error(request, error.message)
     else:
-        messages.success(request, f"Abono registrado. Saldo de {debt.customer.name}: ${debt.balance:.2f}.")
+        message = f"Abono registrado. Saldo de {debt.customer.name}: ${debt.balance:.2f}."
+        if confirm_transfer and debt.status == CustomerDebt.Status.PAID:
+            message += f" Transferencia de {debt.order.formatted_number} confirmada."
+        messages.success(request, message)
     return redirect(f"{reverse('cashier:debt_board')}?customer={debt.customer_id}&scope=all")
 
 

@@ -13000,3 +13000,17 @@ body .table-pos-layout .table-ticket.ticket-expandable.is-expanded > .table-tick
   .transfer-row [data-column]::before { content: attr(data-column); display: block; color: #567064; font-size: .7rem; font-weight: 900; text-transform: uppercase; }
 }
 .message.transfer-pending-message { background: #fdecc8; }
+
+/* Transferencias ↔ Cuentas por cobrar: menú •••, etiqueta del adeudo y ventana de liquidar ambos. */
+.transfer-actions { display: flex; gap: .45rem; align-items: center; }
+.transfer-actions .order-more-actions-menu form { margin: 0; }
+.transfer-actions .order-more-actions-menu button { width: 100%; }
+.transfer-debt-link { color: #b52a25; font-size: .74rem; font-weight: 800; }
+.linked-payment-dialog { width: min(94vw, 30rem); padding: 0; border: 0; border-radius: 1rem; box-shadow: 0 24px 60px rgb(0 0 0 / 35%); }
+.linked-payment-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.linked-payment-body { display: grid; gap: .75rem; padding: 1.2rem; }
+.linked-payment-body h2 { margin: 0; font-size: 1.1rem; }
+.linked-payment-body p { margin: 0; color: #3f4a45; }
+.linked-payment-actions { display: grid; gap: .5rem; }
+.linked-payment-actions button { min-height: 2.75rem; border-radius: .65rem; font-weight: 800; }
+.linked-payment-actions .linked-payment-cancel { color: #285943; background: transparent; border: 1px solid #bfcfc7; }

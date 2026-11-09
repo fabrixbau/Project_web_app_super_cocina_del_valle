@@ -487,9 +487,20 @@ def _clear_transfer_confirmation_if_method_changed(order, previous_method):
     return True
 
 
+def open_debt_for_order(order):
+    """El adeudo abierto (Pendiente o Pago parcial) de un pedido, o None."""
+    return CustomerDebt.objects.filter(
+        order=order, status__in=(CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL),
+    ).first()
+
+
 @transaction.atomic
-def set_transfer_confirmation(*, order, actor, confirmed=True):
-    """Marca (o deshace) que la transferencia del pedido ya llegó al banco."""
+def set_transfer_confirmation(*, order, actor, confirmed=True, settle_debt=False):
+    """Marca (o deshace) que la transferencia del pedido ya llegó al banco.
+
+    Con settle_debt=True y un adeudo abierto del mismo pedido, también lo liquida
+    registrando un abono por el saldo completo con método Transferencia.
+    """
     order = Order.objects.select_for_update().get(pk=order.pk)
     if not user_has_any_role(actor, (ADMIN,)):
         raise ValidationError("Sólo un administrador puede confirmar transferencias.")
@@ -504,7 +515,26 @@ def set_transfer_confirmation(*, order, actor, confirmed=True):
         order.transfer_confirmed_at = None
         order.transfer_confirmed_by = None
     order.save(update_fields=("transfer_confirmed_at", "transfer_confirmed_by", "updated_at"))
+    if confirmed and settle_debt:
+        debt = open_debt_for_order(order)
+        if debt and debt.balance > 0:
+            register_customer_debt_payment(
+                debt=debt, amount=debt.balance, payment_method=Order.PaymentMethod.TRANSFER,
+                actor=actor, note="Liquidado al confirmar transferencia",
+            )
     return order
+
+
+@transaction.atomic
+def register_debt_payment_and_transfer(*, debt, amount, payment_method, actor, note="", confirm_transfer=False):
+    """Abono de Cuentas por cobrar que, si deja el adeudo Pagado, puede confirmar
+    también la transferencia pendiente del mismo pedido (todo o nada)."""
+    debt = register_customer_debt_payment(
+        debt=debt, amount=amount, payment_method=payment_method, actor=actor, note=note,
+    )
+    if confirm_transfer and debt.status == CustomerDebt.Status.PAID and debt.order.transfer_pending:
+        set_transfer_confirmation(order=debt.order, actor=actor)
+    return debt
 
 
 @transaction.atomic

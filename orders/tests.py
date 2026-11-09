@@ -23,7 +23,8 @@ from .services import (
     add_customer_credit, add_internal_order_package, add_internal_order_product, assign_delivery,
     apply_customer_credit_to_order, change_internal_order_item, change_internal_order_type,
     close_internal_order_capture, create_customer_debt, refund_customer_credit,
-    set_cashier_release, set_transfer_confirmation, settle_selected_debts_from_cashier, transfer_order_to_table,
+    register_debt_payment_and_transfer, set_cashier_release, set_transfer_confirmation,
+    settle_selected_debts_from_cashier, transfer_order_to_table,
     transfer_table_to_order, transition_order, update_cashier_payment,
     update_delivery_tip, update_internal_package_extras,
 )
@@ -407,6 +408,59 @@ class TransferConfirmationTests(TestCase):
         self.assertEqual(response.context["pending_total"], Decimal("180"))
         response = self.client.get(reverse("cashier:transfer_board"), {"scope": "confirmed"})
         self.assertEqual([order.pk for order in response.context["orders"]], [confirmed.pk])
+
+    def make_unpaid_transfer(self, number=960):
+        customer = Customer.objects.create(name="Cliente doble", phone=f"55{number}0000")
+        order = self.make_order(number=number, agenda_customer=customer)
+        debt = create_customer_debt(order=order, actor=self.admin)
+        return order, debt
+
+    def test_confirming_transfer_can_settle_the_linked_debt(self):
+        order, debt = self.make_unpaid_transfer()
+        set_transfer_confirmation(order=order, actor=self.admin, settle_debt=True)
+        debt.refresh_from_db()
+        self.assertEqual(debt.status, CustomerDebt.Status.PAID)
+        movement = debt.movements.get()
+        self.assertEqual(movement.payment_method, Order.PaymentMethod.TRANSFER)
+        self.assertEqual(movement.amount, Decimal("180"))
+        self.assertEqual(movement.note, "Liquidado al confirmar transferencia")
+
+    def test_confirming_transfer_only_leaves_the_debt_open(self):
+        order, debt = self.make_unpaid_transfer()
+        set_transfer_confirmation(order=order, actor=self.admin)
+        debt.refresh_from_db()
+        self.assertEqual(debt.status, CustomerDebt.Status.PENDING)
+
+    def test_full_debt_payment_can_confirm_the_transfer(self):
+        order, debt = self.make_unpaid_transfer()
+        register_debt_payment_and_transfer(
+            debt=debt, amount="180", payment_method=Order.PaymentMethod.TRANSFER,
+            actor=self.admin, confirm_transfer=True,
+        )
+        order.refresh_from_db()
+        self.assertFalse(order.transfer_pending)
+
+    def test_partial_debt_payment_never_confirms_the_transfer(self):
+        order, debt = self.make_unpaid_transfer()
+        register_debt_payment_and_transfer(
+            debt=debt, amount="50", payment_method=Order.PaymentMethod.TRANSFER,
+            actor=self.admin, confirm_transfer=True,
+        )
+        order.refresh_from_db()
+        self.assertTrue(order.transfer_pending)
+
+    def test_board_links_debt_and_offers_unpaid_only_without_debt(self):
+        linked, _ = self.make_unpaid_transfer()
+        plain = self.make_order(number=961)
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("cashier:transfer_board"))
+        rows = {order.pk: order for order in response.context["orders"]}
+        self.assertIsNotNone(rows[linked.pk].open_debt)
+        self.assertFalse(rows[linked.pk].can_mark_unpaid)
+        self.assertIsNone(rows[plain.pk].open_debt)
+        self.assertTrue(rows[plain.pk].can_mark_unpaid)
+        self.assertContains(response, "También en Cuentas por cobrar")
+        self.assertContains(response, 'data-linked-field="settle_debt"')
 
     def test_confirm_view_is_admin_only_but_board_is_visible_to_order_taker(self):
         order = self.make_order()
