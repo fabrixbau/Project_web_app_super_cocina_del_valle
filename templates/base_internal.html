@@ -47,7 +47,7 @@
   {% if quick_switch_available %}<script src="/static/js/quick-switch-dropdown.js?v=1"></script>{% endif %}
   {% if user_is_admin %}{% include "orders/includes/debt_customer_dialog.html" %}<script src="/static/js/debt-customer-dialog.js?v=1"></script>{% endif %}
   {% block extra_js %}{% endblock %}
-  <script src="/static/js/search-dismiss.js?v=6"></script>
+  <script src="/static/js/search-dismiss.js?v=7"></script>
   <script src="/static/js/live-search.js?v=3"></script>
   {% if can_receive_order_alerts %}<script src="/static/js/order-alert.js?v=1" data-order-alert-url="{% url 'notifications:notification_pending' %}" data-order-alert-pending="{{ pending_order_notification_count }}"></script>{% endif %}
 </body>

@@ -51,8 +51,11 @@
   }, true);
 
   // Los teclados móviles pueden emitir `search` en lugar de keydown al tocar lupa/OK.
+  // Chrome también lo emite cuando el campo QUEDA VACÍO (borrar con DEL/Backspace o la ✕):
+  // eso no es "terminé de buscar", así que con el campo vacío la ventana sigue abierta.
   document.addEventListener("search", (event) => {
-    if (isSearchInput(event.target)) finishAfterCurrentSearch(event.target);
+    if (!isSearchInput(event.target) || event.target.value === "") return;
+    finishAfterCurrentSearch(event.target);
   }, true);
 
   document.addEventListener("submit", (event) => {
