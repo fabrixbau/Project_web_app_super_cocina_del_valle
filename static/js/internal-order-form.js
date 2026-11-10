@@ -575,7 +575,11 @@
     if (!searchSection) return;
     if (!query) {
       searchSection.hidden = true;
-      capture.querySelector("[data-internal-category-target].is-selected")?.click();
+      // Se muestra la categoría seleccionada SIN simular un clic: un clic de botón con el
+      // buscador enfocado lo interpreta search-dismiss.js como "terminé" y cerraba la
+      // ventana de búsqueda al borrar el texto con DEL/Backspace.
+      const selected = capture.querySelector("[data-internal-category-target].is-selected");
+      if (selected) document.querySelector(`#${selected.dataset.internalCategoryTarget}`).hidden = false;
       return;
     }
     capture.querySelectorAll(".internal-category").forEach((section) => { section.hidden = true; });

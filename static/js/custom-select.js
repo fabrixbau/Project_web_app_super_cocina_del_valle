@@ -426,6 +426,8 @@
     window.setTimeout(dismissFocusedSearch, 0);
   });
   document.addEventListener("search", (event) => {
+    // Campo vacío = se borró el texto (DEL/Backspace/✕), no "terminé de buscar".
+    if (event.target.value === "") return;
     if (event.target.matches("input[type='search'], input[data-catalog-search], input[data-menu-search-input]")) dismissFocusedSearch();
   });
   document.addEventListener("pointerdown", (event) => {
