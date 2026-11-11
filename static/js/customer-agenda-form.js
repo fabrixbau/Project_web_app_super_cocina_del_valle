@@ -41,3 +41,9 @@ document.querySelectorAll("[data-customer-agenda-form]").forEach((form) => {
   });
   if (phoneField.value.trim()) phoneField.dispatchEvent(new Event("input"));
 });
+
+document.querySelectorAll("[data-address-delete]").forEach((form) => {
+  form.addEventListener("submit", (event) => {
+    if (!window.confirm(`¿Eliminar la dirección ${form.dataset.addressLabel}?`)) event.preventDefault();
+  });
+});

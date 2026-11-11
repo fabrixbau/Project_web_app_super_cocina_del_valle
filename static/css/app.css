@@ -2480,6 +2480,7 @@ Borra esta nota después de revisar el diseño. */
 .customer-editor-card { display: grid; gap: .75rem; }
 .customer-editor-card h2, .customer-editor-card h3 { margin: 0; }
 .customer-address-column { display: grid; gap: 1rem; }
+.customer-address-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .new-address-card { border-top: 5px solid #d29524; }
 .customer-agenda-picker { position: relative; display: grid; gap: .4rem; margin-bottom: 1rem; padding: .8rem; border: 2px solid #d6c08c; border-radius: .65rem; background: #fffaf0; }
 .customer-agenda-picker > small { color: #68756f; }

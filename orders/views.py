@@ -946,6 +946,14 @@ def customer_edit(request, customer_id):
                 address_form.save()
                 messages.success(request, "La dirección fue actualizada.")
                 return redirect("orders:customer_edit", customer_id=customer.pk)
+        elif action.startswith("delete_address_") and action.removeprefix("delete_address_").isdigit():
+            # Los pedidos guardan su propia copia del domicilio y agenda_address es SET_NULL,
+            # así que borrar la dirección de la agenda no altera el historial de pedidos.
+            address = get_object_or_404(CustomerAddress, pk=int(action.removeprefix("delete_address_")), customer=customer)
+            address_label = str(address)
+            address.delete()
+            messages.success(request, f"La dirección {address_label} fue eliminada.")
+            return redirect("orders:customer_edit", customer_id=customer.pk)
         elif action == "credit_deposit" and user_has_any_role(request.user, (ADMIN,)):
             try:
                 add_customer_credit(

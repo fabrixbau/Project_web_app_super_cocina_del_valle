@@ -18,7 +18,7 @@ from tables.models import DiningTable, TableAccount, TableAccountItem
 from tables.services import add_product_to_table, open_table_account
 
 from .forms import InternalOrderForm
-from .models import CashRegisterCut, CashRegisterExpense, Customer, CustomerCreditMovement, CustomerDebt, Order, OrderItem, TerminalCut, TerminalMovement
+from .models import CashRegisterCut, CashRegisterExpense, Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, Order, OrderItem, TerminalCut, TerminalMovement
 from .services import (
     add_customer_credit, add_internal_order_package, add_internal_order_product, assign_delivery,
     apply_customer_credit_to_order, change_internal_order_item, change_internal_order_type,
@@ -2274,6 +2274,50 @@ class CustomerCreditTests(TestCase):
         response = self.client.get(reverse("cashier:cashier_board"), {"scope": "all", "q": "2441"})
         self.assertContains(response, 'value="0.00" data-debt-settle-amount')
         self.assertNotIn(b"checked data-debt-balance", response.content)
+
+
+class CustomerAddressDeleteTests(TestCase):
+    def setUp(self):
+        self.actor = get_user_model().objects.create_user(username="address_taker")
+        self.actor.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
+        self.customer = Customer.objects.create(name="Cliente con domicilios", phone="5553334444")
+        self.home = CustomerAddress.objects.create(customer=self.customer, street="Amores", exterior_number="10")
+        self.work = CustomerAddress.objects.create(customer=self.customer, street="Pilares", exterior_number="20")
+        self.client.force_login(self.actor)
+
+    def test_edit_page_offers_a_delete_button_for_each_address(self):
+        response = self.client.get(reverse("orders:customer_edit", args=(self.customer.pk,)))
+        self.assertContains(response, f'value="delete_address_{self.home.pk}"')
+        self.assertContains(response, f'value="delete_address_{self.work.pk}"')
+
+    def test_deleting_an_address_keeps_the_others_and_the_order_history(self):
+        order = Order.objects.create(
+            daily_number=3001, operating_date=timezone.localdate(), order_type=Order.OrderType.DELIVERY,
+            source=Order.Source.INTERNAL, customer_name=self.customer.name, street="Amores", exterior_number="10",
+            agenda_customer=self.customer, agenda_address=self.home, total=100, created_by=self.actor,
+        )
+        url = reverse("orders:customer_edit", args=(self.customer.pk,))
+        response = self.client.post(url, {"action": f"delete_address_{self.home.pk}"})
+        self.assertRedirects(response, url)
+        self.assertFalse(CustomerAddress.objects.filter(pk=self.home.pk).exists())
+        self.assertTrue(CustomerAddress.objects.filter(pk=self.work.pk).exists())
+        order.refresh_from_db()
+        self.assertIsNone(order.agenda_address)
+        self.assertEqual(order.street, "Amores")
+
+    def test_the_last_address_can_be_deleted(self):
+        url = reverse("orders:customer_edit", args=(self.customer.pk,))
+        self.client.post(url, {"action": f"delete_address_{self.home.pk}"})
+        self.client.post(url, {"action": f"delete_address_{self.work.pk}"})
+        self.assertFalse(self.customer.addresses.exists())
+
+    def test_cannot_delete_an_address_of_another_customer(self):
+        other = Customer.objects.create(name="Otro cliente", phone="5559990000")
+        response = self.client.post(
+            reverse("orders:customer_edit", args=(other.pk,)), {"action": f"delete_address_{self.home.pk}"},
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(CustomerAddress.objects.filter(pk=self.home.pk).exists())
 
 
 class CashierToolsNavigationTests(TestCase):
