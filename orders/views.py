@@ -46,6 +46,7 @@ from .services import ACTION_LABELS, customer_with_phone, duplicate_customer_gro
 
 INTERNAL_MENU_MODE_KEY = "internal_order_menu_mode"
 INTERNAL_AUTO_MEAL_SESSION_KEY = "internal_order_auto_meal_builders"
+OPEN_DEBT_STATUSES = (CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL)
 
 # NOTA TEMPORAL PARA APRENDIZAJE: PaymentMethod.CREDIT ("Saldo a favor") sólo lo
 # asigna el sistema (cuando el saldo a favor cubre el pedido por completo al
@@ -844,8 +845,8 @@ def customer_list(request):
     customers = Customer.objects.prefetch_related(
         "addresses",
         Prefetch(
-            "debts", queryset=CustomerDebt.objects.only("id", "customer_id"),
-            to_attr="debt_records",
+            "debts", queryset=CustomerDebt.objects.filter(status__in=OPEN_DEBT_STATUSES).only("id", "customer_id"),
+            to_attr="open_debt_records",
         ),
     )
     if query:
@@ -867,15 +868,23 @@ def customer_list(request):
 @role_required(ADMIN)
 def customer_delete(request, customer_id):
     customer = get_object_or_404(Customer, pk=customer_id)
-    # NOTA TEMPORAL PARA APRENDIZAJE: comprobamos primero para ofrecer un mensaje
-    # comprensible, pero también capturamos ProtectedError por si nace un adeudo entre
-    # la comprobación y el DELETE. Borra esta nota después de leerla.
-    if customer.debts.exists():
-        messages.error(request, f"No se puede eliminar a {customer.name} porque tiene historial de adeudos.")
+    # Sólo bloquean el borrado los adeudos sin liquidar y el saldo a favor pendiente de
+    # usar. Los adeudos pagados/condonados y su historial se borran junto con el cliente.
+    if customer.debts.filter(status__in=OPEN_DEBT_STATUSES).exists():
+        messages.error(request, f"No se puede eliminar a {customer.name} porque tiene adeudos pendientes de pago.")
+        return redirect("orders:customer_list")
+    if customer.credit_balance > 0:
+        messages.error(request, f"No se puede eliminar a {customer.name} porque tiene ${customer.credit_balance:.2f} de saldo a favor.")
         return redirect("orders:customer_list")
     customer_name = customer.name
     try:
-        customer.delete()
+        with transaction.atomic():
+            # Orden importante: los abonos (CustomerDebtMovement) pueden apuntar a un
+            # movimiento de saldo a favor con PROTECT, así que primero van los adeudos
+            # (sus abonos se borran en cascada) y después los movimientos de saldo.
+            customer.debts.all().delete()
+            customer.credit_movements.all().delete()
+            customer.delete()
     except ProtectedError:
         messages.error(request, f"No se puede eliminar a {customer_name} porque tiene información financiera protegida.")
     else:

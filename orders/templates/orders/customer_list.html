@@ -9,9 +9,9 @@
     {% for customer in customers %}
       <article class="customer-agenda-entry">
         <a class="customer-agenda-row" href="{% url 'orders:customer_edit' customer.id %}"><span><strong>{{ customer.name }}</strong><small>{{ customer.phone|default:'Sin teléfono' }}</small></span><span>{% for address in customer.addresses.all %}<small>{{ address.street }} {{ address.exterior_number }}{% if address.neighborhood %} · {{ address.neighborhood }}{% endif %}</small>{% empty %}<small>Sin direcciones registradas</small>{% endfor %}</span><strong>Editar →</strong></a>
-        {% if can_delete_customers %}<div class="customer-delete-control"><form method="post" action="{% url 'orders:customer_delete' customer.id %}" data-customer-delete data-customer-name="{{ customer.name }}"{% if customer.debt_records %} data-has-debts{% endif %}>{% csrf_token %}<small class="customer-delete-message" role="status" hidden>No se puede eliminar: tiene adeudos.</small><button type="submit" class="danger">Eliminar</button></form></div>{% endif %}
+        {% if can_delete_customers %}<div class="customer-delete-control"><form method="post" action="{% url 'orders:customer_delete' customer.id %}" data-customer-delete data-customer-name="{{ customer.name }}"{% if customer.open_debt_records or customer.credit_balance > 0 %} data-has-debts{% endif %}>{% csrf_token %}<small class="customer-delete-message" role="status" hidden>{% if customer.open_debt_records %}No se puede eliminar: tiene adeudos pendientes de pago.{% else %}No se puede eliminar: tiene ${{ customer.credit_balance|floatformat:2 }} de saldo a favor.{% endif %}</small><button type="submit" class="danger">Eliminar</button></form></div>{% endif %}
       </article>
     {% empty %}<p class="empty-state">No encontramos clientes con esos datos.</p>{% endfor %}
   </section>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/customer-list.js' %}?v=2"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/customer-list.js' %}?v=3"></script>{% endblock %}

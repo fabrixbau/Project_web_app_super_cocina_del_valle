@@ -20,7 +20,7 @@ from tables.services import add_product_to_table, open_table_account
 from .forms import InternalOrderForm
 from .models import CashRegisterCut, CashRegisterExpense, Customer, CustomerAddress, CustomerCreditMovement, CustomerDebt, Order, OrderItem, TerminalCut, TerminalMovement
 from .services import (
-    add_customer_credit, add_internal_order_package, add_internal_order_product, assign_delivery,
+    add_customer_credit, apply_credit_to_debts, register_customer_debt_payment, add_internal_order_package, add_internal_order_product, assign_delivery,
     apply_customer_credit_to_order, change_internal_order_item, change_internal_order_type,
     close_internal_order_capture, create_customer_debt, refund_customer_credit,
     register_debt_payment_and_transfer, set_cashier_release, set_transfer_confirmation,
@@ -2274,6 +2274,58 @@ class CustomerCreditTests(TestCase):
         response = self.client.get(reverse("cashier:cashier_board"), {"scope": "all", "q": "2441"})
         self.assertContains(response, 'value="0.00" data-debt-settle-amount')
         self.assertNotIn(b"checked data-debt-balance", response.content)
+
+
+class CustomerDeleteWithDebtHistoryTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="delete_admin")
+        self.admin.groups.add(Group.objects.get_or_create(name=ADMIN)[0])
+        self.customer = Customer.objects.create(name="Cliente que ya pagó", phone="5557778888")
+        self.client.force_login(self.admin)
+
+    def make_debt(self, total, number):
+        order = Order.objects.create(
+            daily_number=number, operating_date=timezone.localdate(), order_type=Order.OrderType.PICKUP,
+            source=Order.Source.INTERNAL, status=Order.Status.DELIVERED, customer_name=self.customer.name,
+            agenda_customer=self.customer, total=total, created_by=self.admin,
+        )
+        return order, create_customer_debt(order=order, actor=self.admin)
+
+    def delete(self):
+        return self.client.post(reverse("orders:customer_delete", args=(self.customer.pk,)))
+
+    def test_customer_with_a_pending_debt_cannot_be_deleted(self):
+        self.make_debt(100, 4001)
+        response = self.client.get(reverse("orders:customer_list"))
+        self.assertContains(response, "tiene adeudos pendientes de pago")
+        self.delete()
+        self.assertTrue(Customer.objects.filter(pk=self.customer.pk).exists())
+
+    def test_customer_with_only_paid_debts_is_deleted_with_its_history(self):
+        order, debt = self.make_debt(100, 4002)
+        register_customer_debt_payment(debt=debt, amount="100", payment_method=Order.PaymentMethod.CASH, actor=self.admin)
+        response = self.client.get(reverse("orders:customer_list"))
+        self.assertNotContains(response, "data-has-debts")
+        self.delete()
+        self.assertFalse(Customer.objects.filter(pk=self.customer.pk).exists())
+        self.assertFalse(CustomerDebt.objects.filter(pk=debt.pk).exists())
+        order.refresh_from_db()
+        self.assertIsNone(order.agenda_customer)
+
+    def test_debt_paid_with_used_up_credit_is_deleted_too(self):
+        _, debt = self.make_debt(100, 4003)
+        add_customer_credit(customer=self.customer, amount="100", payment_method=Order.PaymentMethod.CASH, actor=self.admin)
+        apply_credit_to_debts(customer=self.customer, allocations={debt.pk: "100"}, actor=self.admin)
+        self.delete()
+        self.assertFalse(Customer.objects.filter(pk=self.customer.pk).exists())
+        self.assertFalse(CustomerCreditMovement.objects.filter(customer_id=self.customer.pk).exists())
+
+    def test_customer_with_credit_balance_cannot_be_deleted(self):
+        add_customer_credit(customer=self.customer, amount="50", payment_method=Order.PaymentMethod.CASH, actor=self.admin)
+        response = self.client.get(reverse("orders:customer_list"))
+        self.assertContains(response, "de saldo a favor")
+        self.delete()
+        self.assertTrue(Customer.objects.filter(pk=self.customer.pk).exists())
 
 
 class CustomerAddressDeleteTests(TestCase):

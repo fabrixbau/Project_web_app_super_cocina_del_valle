@@ -17,7 +17,7 @@ document.addEventListener("submit", (event) => {
     return;
   }
   const customerName = form.dataset.customerName || "este cliente";
-  if (!window.confirm(`¿Eliminar a ${customerName} y sus domicilios de la agenda? Esta acción no se puede deshacer.`)) {
+  if (!window.confirm(`¿Eliminar a ${customerName} de la agenda? También se borrarán sus domicilios y su historial de adeudos pagados. Esta acción no se puede deshacer.`)) {
     event.preventDefault();
   }
 });
