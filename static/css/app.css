@@ -746,6 +746,7 @@ a { color: #285943; }
 .page-heading > div:first-child h1 { margin-bottom: .35rem; color: #173c2f; letter-spacing: -.035em; }
 .page-heading > div:first-child p { margin: 0; color: #647069; }
 .page-heading-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .6rem; }
+.page-heading-actions.customer-delete-control form { display: grid; gap: .35rem; justify-items: end; }
 .page-heading-actions .button-link { display: flex; min-height: 2.9rem; align-items: center; justify-content: center; padding: .62rem .9rem; border-radius: .68rem; font-size: .88rem; font-weight: 750; transition: background .16s ease, transform .16s ease; }
 .page-heading-actions .button-link:hover { background: #173f31; transform: translateY(-1px); }
 .filters { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 1rem; align-items: end; }

@@ -5,7 +5,7 @@ esto permite que una persona conserve varias direcciones sin repetir su nombre o
 Borra esta nota después de leerla. -->
 {% block title %}{% if customer %}Editar {{ customer.name }}{% else %}Nuevo cliente{% endif %}{% endblock %}
 {% block content %}
-  <div class="page-heading"><div><a href="{% url 'orders:customer_list' %}">← Agenda</a><h1>{% if customer %}{{ customer.name }}{% else %}Agregar cliente{% endif %}</h1><p>Datos internos para agilizar pedidos por teléfono o mostrador.</p></div></div>
+  <div class="page-heading"><div><a href="{% url 'orders:customer_list' %}">← Agenda</a><h1>{% if customer %}{{ customer.name }}{% else %}Agregar cliente{% endif %}</h1><p>Datos internos para agilizar pedidos por teléfono o mostrador.</p></div>{% if customer and can_delete_customers %}<div class="page-heading-actions customer-delete-control"><form method="post" action="{% url 'orders:customer_delete' customer.id %}" data-customer-delete data-customer-name="{{ customer.name }}"{% if customer_has_open_debts or customer.credit_balance > 0 %} data-has-debts{% endif %}>{% csrf_token %}<small class="customer-delete-message" role="status" hidden>{% if customer_has_open_debts %}No se puede eliminar: tiene adeudos pendientes de pago.{% else %}No se puede eliminar: tiene ${{ customer.credit_balance|floatformat:2 }} de saldo a favor.{% endif %}</small><button type="submit" class="danger">Eliminar cliente</button></form></div>{% endif %}</div>
   {% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}
   {% if not customer %}
     <form method="post" class="customer-create-combined" data-customer-agenda-form data-customer-lookup-url="{% url 'orders:customer_lookup' %}">{% csrf_token %}
@@ -28,4 +28,4 @@ Borra esta nota después de leerla. -->
   </section>
   {% endif %}
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/customer-agenda-form.js' %}?v=3"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/customer-agenda-form.js' %}?v=3"></script>{% if customer and can_delete_customers %}<script src="{% static 'js/customer-list.js' %}?v=3"></script>{% endif %}{% endblock %}

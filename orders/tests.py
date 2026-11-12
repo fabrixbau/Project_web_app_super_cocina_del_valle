@@ -2320,6 +2320,21 @@ class CustomerDeleteWithDebtHistoryTests(TestCase):
         self.assertFalse(Customer.objects.filter(pk=self.customer.pk).exists())
         self.assertFalse(CustomerCreditMovement.objects.filter(customer_id=self.customer.pk).exists())
 
+    def test_edit_page_shows_delete_button_only_to_admins(self):
+        url = reverse("orders:customer_edit", args=(self.customer.pk,))
+        delete_url = reverse("orders:customer_delete", args=(self.customer.pk,))
+        self.assertContains(self.client.get(url), f'action="{delete_url}"')
+        taker = get_user_model().objects.create_user(username="delete_taker")
+        taker.groups.add(Group.objects.get_or_create(name=ORDER_TAKER)[0])
+        self.client.force_login(taker)
+        self.assertNotContains(self.client.get(url), f'action="{delete_url}"')
+
+    def test_edit_page_warns_when_a_debt_is_still_pending(self):
+        self.make_debt(100, 4004)
+        response = self.client.get(reverse("orders:customer_edit", args=(self.customer.pk,)))
+        self.assertContains(response, "data-has-debts")
+        self.assertContains(response, "tiene adeudos pendientes de pago")
+
     def test_customer_with_credit_balance_cannot_be_deleted(self):
         add_customer_credit(customer=self.customer, amount="50", payment_method=Order.PaymentMethod.CASH, actor=self.admin)
         response = self.client.get(reverse("orders:customer_list"))

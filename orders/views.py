@@ -997,6 +997,8 @@ def customer_edit(request, customer_id):
             (debt.balance for debt in customer.debts.all() if debt.status in {CustomerDebt.Status.PENDING, CustomerDebt.Status.PARTIAL}),
             Decimal("0"),
         ),
+        "customer_has_open_debts": any(debt.status in OPEN_DEBT_STATUSES for debt in customer.debts.all()),
+        "can_delete_customers": user_has_any_role(request.user, (ADMIN,)),
         "customer_credit_movements": customer.credit_movements.all()[:20],
         "can_manage_credit": user_has_any_role(request.user, (ADMIN,)),
         "can_apply_credit": user_has_any_role(request.user, (ADMIN, ORDER_TAKER)),
